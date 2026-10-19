@@ -136,15 +136,17 @@
   App.hasCalendar = function () { return !!App.feed && App.feed.state().status === 'ok'; };
   // Why adding an event is off right now ('' when it is on): no data yet, the last request failed,
   // or no fetch has worked for 15 minutes. The server would most likely fail the write too.
+  function feedState() { return App.feed ? App.feed.state() : { status: 'loading' }; }
   App.addBlocked = function () {
-    var s = App.feed ? App.feed.state() : { status: 'loading' };
+    var s = feedState();
     if (s.status === 'loading') return 'Loading the calendar…';
-    if (s.status === 'offline' || s.failed) return 'Can’t reach the home server';
+    if (s.status === 'offline') return window.Feed.UNREACHABLE;
+    if (s.failed) return 'The last calendar request failed · retrying';
     return s.stale ? 'Calendar not updated for ' + App.fmt.mins(s.age) : '';
   };
   // What to say about the calendar data: why there is none yet, or how old it is once stale.
   App.feedNote = function () {
-    var s = App.feed ? App.feed.state() : { status: 'loading' };
+    var s = feedState();
     if (s.status === 'loading') return 'Loading the calendar…';
     if (s.status === 'offline') return 'Can’t reach the home server · retrying';
     return s.stale ? 'Updated ' + App.fmt.mins(s.age) + ' ago' : '';

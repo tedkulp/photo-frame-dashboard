@@ -3,7 +3,8 @@
   'use strict';
   var D = window.DATA;
   var PX = 72, START = 6, END = 23; // 72px per hour, 6 AM → 11 PM
-  var V = { mode: 'day', date: null, el: null, scroll: null, adding: false };
+  var V = { mode: 'day', date: null, el: null, scroll: null, adding: false, addBox: null };
+  var SAVE = 'Add to calendar';
   var MODES = [['day', 'Today'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']];
 
   var ids = App.peopleIds;
@@ -316,12 +317,13 @@
       '<div><div class="label">Length</div><div class="chips">' + [[30, '30m'], [60, '1h'], [120, '2h']].map(function (t) {
         return '<button class="chip' + (t[0] === st.dur ? ' is-on' : '') + '" data-dur="' + t[0] + '">' + t[1] + '</button>';
       }).join('') + '</div></div></div>' +
-      '<div class="sheet-actions"><span class="add-why"></span><button class="btn btn--ghost" data-close>Cancel</button><button class="btn btn--solid" data-save>Add to calendar</button></div>' +
+      '<div class="sheet-actions"><span class="add-why"></span><button class="btn btn--ghost" data-close>Cancel</button><button class="btn btn--solid" data-save>' + SAVE + '</button></div>' +
       '</div>', {
       cls: 'sheet--wide',
-      onClose: function () { st.closed = true; },
+      onClose: function () { st.closed = true; V.addBox = null; },
       onMount: function (s, close) {
         var input = s.querySelector('[data-f=title]');
+        V.addBox = s;
         paintAdd();
         s.addEventListener('click', function (ev) {
           var t = ev.target.closest('button');
@@ -367,7 +369,7 @@
         });
       }, function (err) {
         V.adding = false;
-        btn.textContent = 'Add to calendar';
+        btn.textContent = SAVE;
         paintAdd();
         App.toast('Couldn’t add <b>' + App.esc(title) + '</b> · ' + App.esc(err.message), { tone: 'error', icon: 'calendar' });
       });
@@ -392,9 +394,9 @@
     var why = App.addBlocked();
     var fab = V.el && V.el.querySelector('[data-add]');
     if (fab) fab.classList.toggle('is-off', !!why);
-    var save = App.$('#sheetLayer [data-save]'), note = App.$('#sheetLayer .add-why');
-    if (save && !V.adding) save.disabled = !!why;
-    if (note) note.textContent = why;
+    if (!V.addBox) return;
+    if (!V.adding) V.addBox.querySelector('[data-save]').disabled = !!why;
+    V.addBox.querySelector('.add-why').textContent = why;
   }
   App.on('feedstate', paintAdd);
   App.on('minute', paintAdd);

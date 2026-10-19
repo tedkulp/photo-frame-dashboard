@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from '../app.js';
-import { decodeEventId, encodeEventId } from '../calendar.js';
+import { decodeEventId, encodeEventId, TITLE_MAX } from '../calendar.js';
 import { fakeGoogle, serviceAccount, settings } from './helpers.js';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
@@ -82,6 +82,19 @@ test('all-day events are written as dates', async () => {
   });
 });
 
+test('a multi-byte title arriving in several chunks is read intact', async () => {
+  await withServer(empty(), async ({ url, writes }) => {
+    const bytes = Buffer.from(JSON.stringify(Object.assign(dentist([]), { title: 'Café 🎂' })));
+    const cut = bytes.indexOf(Buffer.from('🎂')) + 2; // inside the emoji
+    const res = await fetch(url + '/api/events', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, duplex: 'half',
+      body: new ReadableStream({ async start(c) { c.enqueue(bytes.subarray(0, cut)); await new Promise((r) => setTimeout(r, 20)); c.enqueue(bytes.subarray(cut)); c.close(); } }),
+    });
+    assert.equal(res.status, 201);
+    assert.equal(JSON.parse(writes()[0].body).summary, 'Café 🎂');
+  });
+});
+
 test('the title is trimmed', async () => {
   await withServer(empty(), async ({ url, writes }) => {
     await call(url, 'POST', '/api/events', Object.assign(dentist([]), { title: '  Dentist \n' }));
@@ -93,7 +106,7 @@ test('the title is trimmed', async () => {
 for (const [name, body] of [
   ['no title', Object.assign(dentist([]), { title: '   ' })],
   ['title not a string', Object.assign(dentist([]), { title: 7 })],
-  ['title over 200 characters', Object.assign(dentist([]), { title: 'x'.repeat(201) })],
+  ['title too long', Object.assign(dentist([]), { title: 'x'.repeat(TITLE_MAX + 1) })],
   ['start after end', Object.assign(dentist([]), { start: '2026-10-20T17:00:00Z' })],
   ['start equal to end', Object.assign(dentist([]), { end: '2026-10-20T15:30:00Z' })],
   ['start without an offset', Object.assign(dentist([]), { start: '2026-10-20T15:30:00' })],

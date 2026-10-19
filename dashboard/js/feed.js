@@ -8,7 +8,8 @@
   var MIN = 60000;
   var REFRESH = 5 * MIN, STALE = 15 * MIN, RETRY_FIRST = 5000, RETRY_MAX = 5 * MIN, TIMEOUT = 30000;
   var CACHE_KEY = 'homehq.calendar';
-  var UNREACHABLE = 'Can’t reach the home server';
+  var UNREACHABLE = Feed.UNREACHABLE = 'Can’t reach the home server';
+  var NO_ANSWER = 'No answer from the home server · check the calendar before trying again';
 
   // ------------------------------------------------------------ people
   function channel(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
@@ -68,12 +69,11 @@
   };
 
   // ------------------------------------------------------------ refresh loop
-  // deps: url, eventsUrl, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the
-  // data changes, onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
+  // deps: url, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the data changes,
+  // onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
   Feed.create = function (o) {
     var lastOk = null, lastBody = null, failures = 0, timer = null, status = 'loading';
-    var failed = false; // the last calendar fetch, or an add/delete, could not reach the server
-    var eventsUrl = o.eventsUrl || '/api/events';
+    var failed = false; // the last calendar fetch, or an add/delete, failed (no answer or a 5xx)
 
     function read() {
       try { var c = JSON.parse(o.storage.getItem(CACHE_KEY)); return c && c.body && c.at ? c : null; } catch (e) { return null; }
@@ -105,7 +105,7 @@
     // A request that never settles (Wi-Fi dropped mid-request) would otherwise stop the loop for good.
     function withTimeout(p) {
       return new Promise(function (ok, no) {
-        var t = o.setTimeout(function () { no(new Error('Timed out')); }, TIMEOUT);
+        var t = o.setTimeout(function () { var e = new Error('Timed out'); e.timedOut = true; no(e); }, TIMEOUT);
         p.then(function (v) { o.clearTimeout(t); ok(v); }, function (e) { o.clearTimeout(t); no(e); });
       });
     }
@@ -125,36 +125,37 @@
     }
 
     // An add or delete. Resolves with the JSON body (null for 204); rejects with the server's error,
-    // or UNREACHABLE when the request never got an answer (which also counts as a failed fetch, so
-    // the calendar is retried soon). On success the calendar is refreshed right away.
+    // UNREACHABLE when the request failed outright, or NO_ANSWER when it timed out (the server may
+    // still have done it). No answer or a 5xx counts as a failed fetch, so adding turns off and the
+    // calendar is retried soon. On success the calendar is refreshed right away.
     function send(method, url, body) {
+      function failNow(e) { fail(); if (o.onState) o.onState(); return e; }
       var init = { method: method, cache: 'no-store' }, p;
       if (body !== undefined) { init.headers = { 'content-type': 'application/json' }; init.body = JSON.stringify(body); }
       try { p = Promise.resolve(o.fetch(url, init)); } catch (e) { p = Promise.reject(e); }
       return withTimeout(p).then(function (res) {
         return (res.status === 204 ? Promise.resolve(null) : res.json()).catch(function () { return null; }).then(function (out) {
-          if (!res.ok) throw new Error((out && out.error) || 'HTTP ' + res.status);
+          var err = !res.ok && new Error((out && out.error) || 'HTTP ' + res.status);
+          if (err) throw res.status >= 500 ? failNow(err) : err;
           schedule(0);
           return out;
         });
-      }, function () {
-        fail();
-        if (o.onState) o.onState();
-        throw new Error(UNREACHABLE);
+      }, function (e) {
+        throw failNow(new Error(e && e.timedOut ? NO_ANSWER : UNREACHABLE));
       });
     }
 
     return {
       // { title, start, end, people, allDay? } with ISO strings → the created event, parsed.
       add: function (input) {
-        return send('POST', eventsUrl, input).then(function (raw) {
-          var e = toEvent(raw);
-          if (isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response');
+        return send('POST', '/api/events', input).then(function (raw) {
+          var e = raw && toEvent(raw);
+          if (!e || isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response from the home server');
           return e;
         });
       },
       remove: function (id) {
-        return send('DELETE', eventsUrl + '/' + encodeURIComponent(id)).then(function () {});
+        return send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {});
       },
       start: function () {
         var c = read();

@@ -98,7 +98,7 @@ export async function fakeGoogle(calendars) {
       }
       if (req.method !== 'GET' || m[2]) return send(405, { error: { code: 405, message: 'Method not allowed' } });
       const page = Number(url.searchParams.get('pageToken') || 0);
-      const pages = cal.pages || [[]];
+      const pages = cal.pages;
       const out = { kind: 'calendar#events', timeZone: cal.timeZone || 'America/Toronto', items: pages[page] || [] };
       if (page + 1 < pages.length) out.nextPageToken = String(page + 1);
       return send(200, out);

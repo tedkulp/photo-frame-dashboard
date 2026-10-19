@@ -317,12 +317,22 @@ test('add rejects with the server error and changes nothing when the input is re
   assert.deepEqual(h.timers.map((t) => t.ms), [5 * MIN]);
 });
 
-test('add rejects when Google fails, with its message', async () => {
+test('add rejects when Google fails, with its message, and counts as a failed request', async () => {
   const h = harness({ respond: routes(() => json(502, { error: 'Google Calendar x: 403 Writer access required' })) });
   h.feed.start();
   await h.settle();
   const err = await h.feed.add(input).then(() => null, (e) => e);
   assert.match(err.message, /Writer access required/);
+  assert.equal(h.feed.state().failed, true);
+  assert.deepEqual(h.timers.map((t) => t.ms), [5000]);
+});
+
+test('add with an empty 2xx answer rejects clearly', async () => {
+  const h = harness({ respond: routes(() => ({ ok: true, status: 201, json: () => Promise.reject(new SyntaxError('empty')) })) });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.add(input).then(() => null, (e) => e);
+  assert.match(err.message, /Unexpected response/);
 });
 
 test('add that cannot reach the server rejects, marks the feed failed and retries the calendar soon', async () => {
@@ -339,7 +349,7 @@ test('add that cannot reach the server rejects, marks the feed failed and retrie
   assert.equal(h.feed.state().failed, false, 'cleared by the next good fetch');
 });
 
-test('add that never settles times out and rejects', async () => {
+test('add that never settles times out and says it may still have been added', async () => {
   const h = harness({ respond: routes(() => new Promise(() => {})) });
   h.feed.start();
   await h.settle();
@@ -351,7 +361,8 @@ test('add that never settles times out and rejects', async () => {
   h.timers = h.timers.filter((t) => t !== timeout);
   timeout.fn();
   await h.settle();
-  assert.match(err.message, /Can’t reach the home server/);
+  assert.match(err.message, /No answer from the home server · check the calendar/);
+  assert.equal(h.feed.state().failed, true);
 });
 
 test('remove sends DELETE for the encoded id, then refreshes the calendar', async () => {

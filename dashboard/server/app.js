@@ -30,13 +30,15 @@ const BODY_MAX = 64 * 1024;
 // form or text/plain to this LAN server without asking, but not JSON.
 async function readJson(req) {
   if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] || '')) throw new InputError(415, 'Send the event as application/json');
-  let text = '';
+  const chunks = [];
+  let size = 0;
   for await (const chunk of req) {
-    text += chunk;
-    if (text.length > BODY_MAX) throw new InputError(413, 'Request body is too large');
+    size += chunk.length;
+    if (size > BODY_MAX) throw new InputError(413, 'Request body is too large');
+    chunks.push(chunk);
   }
   try {
-    return JSON.parse(text);
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   } catch {
     throw new InputError(400, 'Request body is not valid JSON');
   }

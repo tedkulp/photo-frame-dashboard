@@ -4,7 +4,6 @@ window.DATA = (function () {
   var base = new Date();
   base.setHours(0, 0, 0, 0);
 
-
   // Mock family: only the ids matter now. They say who the still-mock chores, stars and photos
   // belong to, and are handed to the real people from the home server by position (feed.js).
   var mockIds = ['alex', 'jordan', 'maya', 'otto'];

@@ -62,8 +62,8 @@ export function createGoogle({ serviceAccount, tokenUrl = TOKEN_URL, apiBase = A
   }
 
   // One authorised request; returns the response (or throws a GoogleError naming the calendar).
-  // `gone` lists statuses that count as success, like 410 for an event already deleted.
-  async function send(calendarId, path, init, gone) {
+  // `alsoOk` lists error statuses that count as success, like 410 for an event already deleted.
+  async function send(calendarId, path, init, alsoOk) {
     const token = await accessToken();
     const url = `${apiBase}/calendars/${encodeURIComponent(calendarId)}/events${path}`;
     let res;
@@ -75,7 +75,7 @@ export function createGoogle({ serviceAccount, tokenUrl = TOKEN_URL, apiBase = A
     } catch (e) {
       throw new GoogleError(`Google Calendar ${calendarId}: ${e.message}`);
     }
-    if (!res.ok && !(gone || []).includes(res.status)) throw new GoogleError(`Google Calendar ${calendarId}: ${res.status} ${await readError(res)}`);
+    if (!res.ok && !(alsoOk || []).includes(res.status)) throw new GoogleError(`Google Calendar ${calendarId}: ${res.status} ${await readError(res)}`);
     return res;
   }
 
