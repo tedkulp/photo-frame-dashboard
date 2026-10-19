@@ -35,7 +35,7 @@
     var done = list.filter(function (c) { return c.done; }).length;
     var all = list.length && done === list.length;
     var kid = D.stars[who] != null;
-    return '<section class="ch-lane' + (all ? ' is-complete' : '') + '" data-lane="' + who + '" style="' + App.pstyle(p) + '">' +
+    return '<section class="ch-lane' + (all ? ' is-complete' : '') + '" data-lane="' + App.esc(who) + '" style="' + App.pstyle(p) + '">' +
       '<header class="ch-head">' + App.avatar(p, 42) +
       '<div><b>' + (who === 'any' ? 'Anyone' : App.esc(p.name)) + '</b>' +
       (kid ? '<span class="ch-stars">' + App.icon('star', 18, 'i--fill') + '<span class="num">' + D.stars[who] + '</span></span>' : '<span class="ch-sub">' + (who === 'any' ? 'Up for grabs' : (list.length ? done + ' of ' + list.length : 'Nothing')) + '</span>') + '</div>' +
@@ -51,14 +51,14 @@
     var r = routine(), auto = App.currentRoutine();
     var inR = D.chores.filter(function (c) { return c.r === r.id; });
     var done = inR.filter(function (c) { return c.done; }).length;
-    var lanes = D.people.map(function (p) { return p.id; }).concat(['any']);
+    var lanes = App.peopleIds().concat(['any']);
     V.el.innerHTML = '<div class="tasks">' +
       '<header class="t-head">' +
       '<div class="t-title"><div class="label">' + (r.id === auto.id ? 'Right now · ' : '') + r.range + '</div><h1 class="serif">' + r.name + '</h1></div>' +
       '<div class="seg">' + D.routines.map(function (x) { return '<button class="' + (x.id === r.id ? 'is-on' : '') + '" data-r="' + x.id + '">' + x.name + '</button>'; }).join('') + '</div>' +
       '<div class="t-progress"><span class="num">' + done + '<small>/' + inR.length + '</small></span><div class="t-bar"><i style="width:' + (inR.length ? done / inR.length * 100 : 0) + '%"></i></div><span class="label">done</span></div>' +
       '</header>' +
-      '<div class="ch-lanes" style="grid-template-columns:repeat(' + lanes.length + ', minmax(0, 1fr))">' + lanes.map(function (w) { return lane(w, r); }).join('') + '</div>' +
+      '<div class="ch-lanes" style="grid-template-columns:' + App.cols(lanes.length) + '">' + lanes.map(function (w) { return lane(w, r); }).join('') + '</div>' +
       '</div>';
   }
 
@@ -98,7 +98,7 @@
   function whoDidIt(c, btn) {
     App.sheet('<div class="sheet-pad"><div class="label">' + c.emoji + ' ' + App.esc(c.title) + '</div><h2 class="serif sheet-h">Who did it?</h2>' +
       '<div class="add-who add-who--big">' + D.people.map(function (p) {
-        return '<button class="who-btn" data-by="' + p.id + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 88) + '<span>' + App.esc(p.name) + '</span></button>';
+        return '<button class="who-btn" data-by="' + App.esc(p.id) + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 88) + '<span>' + App.esc(p.name) + '</span></button>';
       }).join('') + '</div></div>', {
       onMount: function (s, close) {
         s.addEventListener('click', function (e) {

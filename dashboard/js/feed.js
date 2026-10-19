@@ -5,7 +5,7 @@
   'use strict';
   var Feed = root.Feed = {};
   var MIN = 60000;
-  var REFRESH = 5 * MIN, STALE = 15 * MIN, RETRY_FIRST = 5000, RETRY_MAX = 5 * MIN;
+  var REFRESH = 5 * MIN, STALE = 15 * MIN, RETRY_FIRST = 5000, RETRY_MAX = 5 * MIN, TIMEOUT = 30000;
   var CACHE_KEY = 'homehq.calendar';
 
   // ------------------------------------------------------------ people
@@ -67,7 +67,7 @@
 
   // ------------------------------------------------------------ refresh loop
   // deps: url, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the data changes,
-  // onState() after every fetch attempt. Injected for tests.
+  // onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
   Feed.create = function (o) {
     var lastOk = null, lastBody = null, failures = 0, timer = null, status = 'loading';
 
@@ -80,14 +80,16 @@
     // Takes a good body fetched (or cached) at `at`; returns false, changing nothing, if it doesn't
     // parse. State is updated before onChange so views re-rendering from it see the new state.
     function apply(body, at) {
-      var text = JSON.stringify(body), parsed = null;
+      // updatedAt changes on every server load; only people + events count as a change.
+      var text = JSON.stringify([body.people, body.events]), parsed = null;
       if (text !== lastBody) {
         try { parsed = Feed.parse(body); } catch (e) { return false; }
         lastBody = text;
       }
       lastOk = at;
       status = 'ok';
-      if (parsed) o.onChange(parsed);
+      // A view failing to render the data is not a fetch failure: keep the data, cache and schedule.
+      if (parsed) try { o.onChange(parsed); } catch (e) { if (o.onError) o.onError(e); }
       return true;
     }
     function schedule(ms) { o.clearTimeout(timer); timer = o.setTimeout(load, ms); }
@@ -95,13 +97,20 @@
       if (status !== 'ok') status = 'offline';
       schedule(Math.min(RETRY_FIRST * Math.pow(2, failures++), RETRY_MAX));
     }
+    // A request that never settles (Wi-Fi dropped mid-request) would otherwise stop the loop for good.
+    function withTimeout(p) {
+      return new Promise(function (ok, no) {
+        var t = o.setTimeout(function () { no(new Error('Timed out')); }, TIMEOUT);
+        p.then(function (v) { o.clearTimeout(t); ok(v); }, function (e) { o.clearTimeout(t); no(e); });
+      });
+    }
     function load() {
       var p;
       try { p = Promise.resolve(o.fetch(o.url, { cache: 'no-store' })); } catch (e) { p = Promise.reject(e); }
-      return p.then(function (res) {
+      return withTimeout(p.then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
-      }).then(function (body) {
+      })).then(function (body) {
         if (!apply(body, o.now())) throw new Error('Unexpected calendar response');
         write(body, lastOk);
         failures = 0;

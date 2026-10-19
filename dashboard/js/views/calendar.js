@@ -6,9 +6,8 @@
   var V = { mode: 'day', date: null, el: null, scroll: null };
   var MODES = [['day', 'Today'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']];
 
-  function ids() { return D.people.map(function (p) { return p.id; }); }
-  // One column per person, however many there are.
-  function cols() { return 'grid-template-columns:repeat(' + Math.max(1, D.people.length) + ', minmax(0, 1fr))'; }
+  var ids = App.peopleIds;
+  function cols() { return 'grid-template-columns:' + App.cols(D.people.length); }
 
   function y(d) { return ((d.getHours() + d.getMinutes() / 60) - START) * PX; }
   function clampTop(e, day) {
@@ -302,7 +301,7 @@
       '<input class="big-input serif" placeholder="What’s happening?" data-f="title">' +
       '<div class="chips">' + ideas.map(function (i) { return '<button class="chip chip--ghost" data-idea="' + i + '">' + i + '</button>'; }).join('') + '</div>' +
       '<div class="label">Who</div><div class="add-who">' + D.people.map(function (p) {
-        return '<button class="who-btn" data-who="' + p.id + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 56) + '<span>' + App.esc(p.name) + '</span></button>';
+        return '<button class="who-btn" data-who="' + App.esc(p.id) + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 56) + '<span>' + App.esc(p.name) + '</span></button>';
       }).join('') + '<button class="who-btn" data-who="all" style="' + App.pstyle(D.family) + '">' + App.avatar(D.family, 56) + '<span>Everyone</span></button></div>' +
       '<div class="add-row"><div><div class="label">When</div><div class="chips">' + days.map(function (i) {
         var d = App.addDays(now, i);

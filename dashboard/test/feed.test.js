@@ -163,6 +163,47 @@ test('an unchanged refresh does not report a change', async () => {
   assert.equal(h.changes.length, 1);
 });
 
+test('a refresh that only changes updatedAt does not report a change', async () => {
+  const h = harness();
+  h.feed.start();
+  await h.settle();
+  h.respond = () => ({ ok: true, json: () => Promise.resolve(body({ updatedAt: '2026-10-19T12:05:00.000Z' })) });
+  await h.next();
+  assert.equal(h.changes.length, 1);
+  assert.equal(h.timers[0].ms, 5 * MIN);
+});
+
+test('an error while applying data is not a fetch failure: cached and on the normal schedule', async () => {
+  const h = harness();
+  h.feed = Feed.create({
+    url: '/api/calendar', fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(body()) }),
+    storage: { getItem: () => null, setItem: (k, v) => { h.store[k] = v; } },
+    now: () => h.t, setTimeout: (fn, ms) => { const t = { fn, at: h.t + ms, ms }; h.timers.push(t); return t; },
+    clearTimeout: (t) => { h.timers = h.timers.filter((x) => x !== t); }, onChange: () => { throw new Error('render bug'); }, onError: (e) => h.errors.push(e.message),
+  });
+  h.errors = [];
+  h.feed.start();
+  await h.settle();
+  assert.deepEqual(h.errors, ['render bug']);
+  assert.equal(h.feed.state().status, 'ok');
+  assert.ok(h.store['homehq.calendar']);
+  assert.equal(h.timers[0].ms, 5 * MIN);
+});
+
+test('a fetch that never settles times out and is retried', async () => {
+  const h = harness({ respond: () => new Promise(() => {}) });
+  h.feed.start();
+  await h.settle();
+  assert.equal(h.timers[0].ms, 30000, 'timeout armed');
+  await h.next();
+  assert.equal(h.feed.state().status, 'offline');
+  assert.equal(h.timers[0].ms, 5000);
+  h.respond = () => ({ ok: true, json: () => Promise.resolve(body()) });
+  await h.next();
+  assert.equal(h.feed.state().status, 'ok');
+  assert.equal(h.timers.length, 1, 'no stray timeout timers left');
+});
+
 test('a cached response is used before any fetch, even when offline', async () => {
   const first = harness();
   first.feed.start();

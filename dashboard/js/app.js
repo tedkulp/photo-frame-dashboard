@@ -75,6 +75,9 @@
     for (var i = 0; i < D.people.length; i++) if (D.people[i].id === id) return D.people[i];
     return D.family;
   };
+  App.peopleIds = function () { return D.people.map(function (p) { return p.id; }); };
+  // Equal grid columns, one per lane, however many people there are.
+  App.cols = function (n) { return 'repeat(' + Math.max(1, n) + ', minmax(0, 1fr))'; };
   App.pstyle = function (p) {
     if (typeof p === 'string') p = App.person(p);
     return '--c:' + p.color + ';--c-rgb:' + p.rgb + ';--c-ink:' + p.ink;
@@ -124,7 +127,7 @@
   // still-mock chores, stars and photos to them by position.
   var owners = D.mockIds;
   function onFeed(d) {
-    var ids = d.people.map(function (p) { return p.id; });
+    var ids = d.people.map(function (p) { return p.id; }); // D.people is still the old list here
     if (ids.join() !== owners.join()) { window.Feed.remap(D, owners, ids); owners = ids; }
     D.people = d.people;
     D.events = d.events;
@@ -357,7 +360,7 @@
     App.feed = window.Feed.create({
       url: '/api/calendar', fetch: window.fetch.bind(window), storage: storage,
       now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: onFeed, onState: paintFeedNotes
+      onChange: onFeed, onState: paintFeedNotes, onError: function (e) { console.error('[feed]', e); }
     });
     App.feed.start(); // a cached response is applied right here, before the first view is built
     fit();

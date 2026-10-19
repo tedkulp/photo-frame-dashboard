@@ -101,7 +101,7 @@
 
   function chores() {
     var r = App.currentRoutine();
-    var who = D.people.map(function (p) { return p.id; }).concat(['any']);
+    var who = App.peopleIds().concat(['any']);
     return '<div class="label">Chores · ' + r.name + '</div><div class="h-rings">' + who.map(function (id) {
       var list = D.chores.filter(function (c) { return c.r === r.id && c.who === id; });
       if (!list.length) return '';
@@ -140,7 +140,7 @@
     el.querySelector('.h-weather').innerHTML = weather();
     el.querySelector('.h-presence').innerHTML = people();
     el.querySelector('.h-hero-slot').innerHTML = hero();
-    el.querySelector('.h-lanes').style.gridTemplateColumns = 'repeat(' + Math.max(1, D.people.length) + ', minmax(0, 1fr))';
+    el.querySelector('.h-lanes').style.gridTemplateColumns = App.cols(D.people.length);
     el.querySelector('.h-lanes').innerHTML = lanes();
     el.querySelector('.h-chores').innerHTML = chores();
     el.querySelector('.h-shop').innerHTML = shopping();
