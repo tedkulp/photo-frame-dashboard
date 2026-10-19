@@ -1,0 +1,12 @@
+{
+  "people": [
+    { "id": "alex", "name": "Alex", "colour": "#2D5BFF" },
+    { "id": "jordan", "name": "Jordan", "colour": "#E4007C" },
+    { "id": "maya", "name": "Maya", "colour": "#00A36C" }
+  ],
+  "calendars": [
+    { "calendarId": "abc123family@group.calendar.google.com", "person": "family" },
+    { "calendarId": "alex@example.com", "person": "alex" },
+    { "calendarId": "def456jordan@group.calendar.google.com", "person": "jordan" }
+  ]
+}

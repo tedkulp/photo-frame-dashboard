@@ -9,5 +9,6 @@ export default defineConfig({
     target: 'chrome106',
     cssTarget: 'chrome61',
   },
-  server: { host: true },
+  // /api goes to the home server (`npm run server`, port 8080 unless PORT says otherwise).
+  server: { host: true, proxy: { '/api': 'http://localhost:' + (process.env.PORT || 8080) } },
 });

@@ -1,0 +1,41 @@
+# Copy to compose.yaml and pick one of the two services. See docs/home-server.md.
+#   docker compose up -d dashboard            # style 1: mounted config/ folder
+#   docker compose up -d dashboard-env        # style 2: everything from env + a compose secret
+
+services:
+  # Style 1: put settings.json and service-account.json in ./config next to this file.
+  dashboard:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      TZ: America/Toronto   # optional; defaults to the Family calendar's time zone
+
+  # Style 2: settings inline, the key as a compose secret.
+  dashboard-env:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    secrets:
+      - google_service_account
+    environment:
+      GOOGLE_SERVICE_ACCOUNT_FILE: /run/secrets/google_service_account
+      DASHBOARD_SETTINGS_JSON: |
+        {
+          "people": [
+            { "id": "alex", "name": "Alex", "colour": "#2D5BFF" },
+            { "id": "jordan", "name": "Jordan", "colour": "#E4007C" }
+          ],
+          "calendars": [
+            { "calendarId": "abc123family@group.calendar.google.com", "person": "family" },
+            { "calendarId": "alex@example.com", "person": "alex" }
+          ]
+        }
+
+secrets:
+  google_service_account:
+    file: ./config/service-account.json   # only this file is mounted, at /run/secrets/...

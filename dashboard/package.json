@@ -7,10 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "vite build && wrangler deploy"
+    "deploy": "vite build && wrangler deploy",
+    "server": "node server/main.js",
+    "test": "node --test \"server/test/*.test.js\""
   },
   "devDependencies": {
     "vite": "^8.3.1",
     "wrangler": "^4.145.0"
+  },
+  "engines": {
+    "node": ">=20.19"
   }
 }

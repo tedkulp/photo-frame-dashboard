@@ -71,6 +71,9 @@ built without Gradle, that shows it. Hold two fingers still for 1.5 s to open a 
 launcher, Android settings, and reloading. On frames without system navigation, optional floating
 **Back** and **Dashboard** buttons help; see the [kiosk guide](dashboard/kiosk/README.md).
 
+To show your own Google Calendar instead of the mock data, run the [home server](docs/home-server.md)
+on an always-on machine on your LAN and point the kiosk at it.
+
 ## For agents: start here
 
 You are probably helping someone with a similar device plugged into a Mac over USB. Read this

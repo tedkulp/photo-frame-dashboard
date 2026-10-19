@@ -17,6 +17,8 @@ cd dashboard && npm install
 npm run dev        # served on the LAN (server.host: true) so a frame can load it
 npm run build      # -> dashboard/dist
 npm run deploy     # build + wrangler deploy
+npm run server     # home server: dist + GET /api/calendar on :8080 (needs dashboard/config/)
+npm test           # server tests (node --test) against a local fake Google
 ```
 
 Kiosk APK (no Gradle; needs JDK 17, Android build-tools 34 + platform 34):
@@ -51,6 +53,10 @@ Pre-push checks (conflict markers, broken Markdown links/anchors, `py_compile`/`
 - No framework. `js/main.js` imports modules in a fixed order; each is an IIFE that attaches to globals: `window.DATA` (`data.js`, mock data relative to "today"), `window.ICONS`, and `window.App` (`app.js`: router, event bus `App.on/emit`, demo clock `App.now/setTime`, formatters, toasts/sheets). Views in `js/views/*.js` register via `App.register(name, view)` and render HTML strings; `app.js` pre-builds hidden views in the background and rebuilds `minutely: true` views when the minute rolls over. Import order matters.
 - CSS: `css/tokens.css` + `css/base.css` + one file per view in `css/views/`.
 - Target is old WebView: JS built for `chrome106`, CSS deliberately for `chrome61` because the frame's WebView rejects 4/8-digit hex colours (see the comment in `vite.config.js`). Keep code ES5-ish in style like the existing files. `docs/building-for-the-frame.md` lists the frame's real constraints (1280×800, DPR 1, ~1 GB RAM, Wi-Fi comes up after boot).
+
+### Home server (`dashboard/server/`)
+
+Zero-dependency Node (built-ins only, `node:crypto` signs the service-account JWT). `config.js` loads settings + key (inline env → path env → `config/` file) and fails startup with a named message; `google.js` is the token/events client; `calendar.js` maps and merges events into the dashboard shape; `app.js` serves `dist` and `GET /api/calendar`. Tests use the fake Google in `server/test/helpers.js`. Docker: `dashboard/Dockerfile`, `compose.example.yaml`. Setup guide: `docs/home-server.md`.
 
 ### Kiosk (`dashboard/kiosk/`)
 
