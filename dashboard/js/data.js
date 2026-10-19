@@ -4,7 +4,6 @@ window.DATA = (function () {
   var base = new Date();
   base.setHours(0, 0, 0, 0);
 
-  var n = 0; // ids for events added on the frame
 
   // Mock family: only the ids matter now. They say who the still-mock chores, stars and photos
   // belong to, and are handed to the real people from the home server by position (feed.js).
@@ -243,14 +242,13 @@ window.DATA = (function () {
   ];
 
   return {
-    // people + events come from the home server (feed.js); localEvents are added on the frame.
+    // people + events come from the home server (feed.js).
     people: [], family: family, mockIds: mockIds,
-    events: [], localEvents: [],
+    events: [],
     routines: routines, chores: chores, stars: stars, week: week,
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
     rooms: rooms, devices: devices, climate: climate, media: media, cameras: cameras, scenes: scenes,
     weather: weather, photos: photos, agents: agents,
-    _gid: function () { return 'g' + (++gid); },
-    _eid: function () { return 'e' + (++n); }
+    _gid: function () { return 'g' + (++gid); }
   };
 })();

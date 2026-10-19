@@ -1,15 +1,25 @@
 # Home server: the dashboard with your Google Calendar
 
 The dashboard takes its family (names, colours) and its calendar from this server's
-`GET /api/calendar`; everything else (chores, shopping, weather, photos, home controls) is still
-mock data. `dashboard/server/` is a small Node server for an always-on machine at home (in Docker)
-that serves the built dashboard and a read-only calendar API from one address on your LAN:
+`GET /api/calendar`, and adds events through it; everything else (chores, shopping, weather,
+photos, home controls) is still mock data. `dashboard/server/` is a small Node server for an
+always-on machine at home (in Docker) that serves the built dashboard and a calendar API from one
+address on your LAN:
 
 - `GET /` and the built files from `dashboard/dist`. `index.html` is sent with
   `Cache-Control: no-cache`, so the frame picks up a new build on reload.
 - `GET /api/calendar` returns `{ people, events, updatedAt }`: every event in your configured Google
   calendars from 7 days ago to 42 days ahead, recurring events expanded. If Google fails it answers
   with a non-2xx status and a JSON `error`; it never pretends the calendar is empty.
+- `POST /api/events` with a JSON body `{ title, start, end, people, allDay? }` creates the event
+  and answers `201` with it in the same shape `GET /api/calendar` uses. `start`/`end` are times
+  with an offset (`2026-10-20T15:30:00-04:00`), or dates (`2026-10-20`, end exclusive) with
+  `allDay: true`; `people` lists person ids. It goes to that person's own calendar when exactly
+  one person with a calendar in `settings.calendars` is picked, otherwise to the Family calendar
+  (so on the dashboard it then belongs to everyone). Bad input gets `400` and a JSON `error`, and
+  nothing is written; the body must be sent as `application/json`.
+- `DELETE /api/events/:id` deletes an event by the `id` the API gave it (`204`). Only events in
+  the configured calendars can be deleted. The dashboard uses it for **Undo** right after adding.
 
 It has no npm runtime dependencies and no login of its own: it is meant for your LAN only, so do
 not expose its port to the internet.
@@ -34,8 +44,8 @@ For the shared Family calendar, and for each person's calendar you want on the d
 3. Further down, **Integrate calendar → Calendar ID**. Copy it (it looks like
    `abc123…@group.calendar.google.com`, or a Gmail address for someone's main calendar).
 
-"Make changes to events" lets a later version add events from the dashboard; this server only
-reads.
+"Make changes to events" is what lets the dashboard add events. With **See all event details**
+the calendar still shows, but adding to it fails with an error.
 
 ## 3. Settings
 
@@ -107,7 +117,11 @@ newer).
   time, so set the frame's time zone to match the family's.
 - The mock chores, stars and photo credits are handed to your people by position (first mock
   person → first person in `settings.people`, and so on). Nobody shows a home/away status: there
-  is no source for it. Events added on the frame stay on the frame until a reload.
+  is no source for it.
+- **Add event** on the Calendar view writes to Google: the event shows once the server confirms
+  it, and **Undo** on the toast deletes it again. If the write fails you get an error toast and the
+  sheet stays open with what you typed. Adding is switched off (greyed button, with the reason)
+  while the last request failed or no calendar fetch has worked for 15 minutes.
 
 ## 5. Point the frame at it
 

@@ -61,6 +61,24 @@ export function createGoogle({ serviceAccount, tokenUrl = TOKEN_URL, apiBase = A
     return (await pending).token;
   }
 
+  // One authorised request; returns the response (or throws a GoogleError naming the calendar).
+  // `gone` lists statuses that count as success, like 410 for an event already deleted.
+  async function send(calendarId, path, init, gone) {
+    const token = await accessToken();
+    const url = `${apiBase}/calendars/${encodeURIComponent(calendarId)}/events${path}`;
+    let res;
+    try {
+      res = await fetch(url, Object.assign({}, init, {
+        headers: Object.assign({ authorization: 'Bearer ' + token }, init.headers),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      }));
+    } catch (e) {
+      throw new GoogleError(`Google Calendar ${calendarId}: ${e.message}`);
+    }
+    if (!res.ok && !(gone || []).includes(res.status)) throw new GoogleError(`Google Calendar ${calendarId}: ${res.status} ${await readError(res)}`);
+    return res;
+  }
+
   // Every event (recurring ones expanded into instances) between timeMin and timeMax, following
   // pagination. Returns the calendar's own time zone along with the items.
   async function listEvents(calendarId, { timeMin, timeMax, timeZone }) {
@@ -70,16 +88,7 @@ export function createGoogle({ serviceAccount, tokenUrl = TOKEN_URL, apiBase = A
       const q = new URLSearchParams({ singleEvents: 'true', orderBy: 'startTime', maxResults: '2500', timeMin, timeMax });
       if (timeZone) q.set('timeZone', timeZone);
       if (pageToken) q.set('pageToken', pageToken);
-      const url = `${apiBase}/calendars/${encodeURIComponent(calendarId)}/events?${q}`;
-      const token = await accessToken();
-      let res;
-      try {
-        res = await fetch(url, { headers: { authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-      } catch (e) {
-        throw new GoogleError(`Google Calendar ${calendarId}: ${e.message}`);
-      }
-      if (!res.ok) throw new GoogleError(`Google Calendar ${calendarId}: ${res.status} ${await readError(res)}`);
-      const body = await res.json();
+      const body = await (await send(calendarId, '?' + q, {})).json();
       calendarTimeZone = calendarTimeZone || body.timeZone;
       items.push(...(body.items || []));
       pageToken = body.nextPageToken;
@@ -87,5 +96,17 @@ export function createGoogle({ serviceAccount, tokenUrl = TOKEN_URL, apiBase = A
     return { timeZone: calendarTimeZone, items };
   }
 
-  return { listEvents };
+  // Creates an event ({ summary, start, end } as Google wants them) and returns Google's item.
+  async function insertEvent(calendarId, event) {
+    const res = await send(calendarId, '', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(event) });
+    return res.json();
+  }
+
+  // Deletes an event; one that is already gone counts as deleted.
+  async function deleteEvent(calendarId, eventId) {
+    const res = await send(calendarId, '/' + encodeURIComponent(eventId), { method: 'DELETE' }, [410]);
+    await res.body?.cancel();
+  }
+
+  return { listEvents, insertEvent, deleteEvent };
 }

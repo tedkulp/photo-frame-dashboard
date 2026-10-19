@@ -1,12 +1,14 @@
 // Calendar feed: real people + events from the home server's GET /api/calendar.
 // Refreshes every 5 minutes, retries failures with backoff (Wi-Fi comes up after the page at boot)
-// and caches the last good response so an offline boot still shows the calendar.
+// and caches the last good response so an offline boot still shows the calendar. Also adds and
+// deletes events through POST /api/events and DELETE /api/events/:id.
 (function (root) {
   'use strict';
   var Feed = root.Feed = {};
   var MIN = 60000;
   var REFRESH = 5 * MIN, STALE = 15 * MIN, RETRY_FIRST = 5000, RETRY_MAX = 5 * MIN, TIMEOUT = 30000;
   var CACHE_KEY = 'homehq.calendar';
+  var UNREACHABLE = 'Can’t reach the home server';
 
   // ------------------------------------------------------------ people
   function channel(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
@@ -66,10 +68,12 @@
   };
 
   // ------------------------------------------------------------ refresh loop
-  // deps: url, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the data changes,
-  // onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
+  // deps: url, eventsUrl, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the
+  // data changes, onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
   Feed.create = function (o) {
     var lastOk = null, lastBody = null, failures = 0, timer = null, status = 'loading';
+    var failed = false; // the last calendar fetch, or an add/delete, could not reach the server
+    var eventsUrl = o.eventsUrl || '/api/events';
 
     function read() {
       try { var c = JSON.parse(o.storage.getItem(CACHE_KEY)); return c && c.body && c.at ? c : null; } catch (e) { return null; }
@@ -94,6 +98,7 @@
     }
     function schedule(ms) { o.clearTimeout(timer); timer = o.setTimeout(load, ms); }
     function fail() {
+      failed = true;
       if (status !== 'ok') status = 'offline';
       schedule(Math.min(RETRY_FIRST * Math.pow(2, failures++), RETRY_MAX));
     }
@@ -114,11 +119,43 @@
         if (!apply(body, o.now())) throw new Error('Unexpected calendar response');
         write(body, lastOk);
         failures = 0;
+        failed = false;
         schedule(REFRESH);
       }).catch(fail).then(function () { if (o.onState) o.onState(); });
     }
 
+    // An add or delete. Resolves with the JSON body (null for 204); rejects with the server's error,
+    // or UNREACHABLE when the request never got an answer (which also counts as a failed fetch, so
+    // the calendar is retried soon). On success the calendar is refreshed right away.
+    function send(method, url, body) {
+      var init = { method: method, cache: 'no-store' }, p;
+      if (body !== undefined) { init.headers = { 'content-type': 'application/json' }; init.body = JSON.stringify(body); }
+      try { p = Promise.resolve(o.fetch(url, init)); } catch (e) { p = Promise.reject(e); }
+      return withTimeout(p).then(function (res) {
+        return (res.status === 204 ? Promise.resolve(null) : res.json()).catch(function () { return null; }).then(function (out) {
+          if (!res.ok) throw new Error((out && out.error) || 'HTTP ' + res.status);
+          schedule(0);
+          return out;
+        });
+      }, function () {
+        fail();
+        if (o.onState) o.onState();
+        throw new Error(UNREACHABLE);
+      });
+    }
+
     return {
+      // { title, start, end, people, allDay? } with ISO strings → the created event, parsed.
+      add: function (input) {
+        return send('POST', eventsUrl, input).then(function (raw) {
+          var e = toEvent(raw);
+          if (isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response');
+          return e;
+        });
+      },
+      remove: function (id) {
+        return send('DELETE', eventsUrl + '/' + encodeURIComponent(id)).then(function () {});
+      },
       start: function () {
         var c = read();
         if (c) apply(c.body, c.at);
@@ -126,9 +163,10 @@
       },
       // status: 'loading' (nothing yet) | 'offline' (nothing yet, fetches failing) | 'ok' (have data).
       // age: whole minutes since the last successful fetch; stale once that reaches 15.
+      // failed: the last request did not work (cleared by the next good calendar fetch).
       state: function () {
         var age = lastOk == null ? null : Math.floor((o.now() - lastOk) / MIN);
-        return { status: status, age: age, stale: age != null && age * MIN >= STALE };
+        return { status: status, age: age, stale: age != null && age * MIN >= STALE, failed: failed };
       }
     };
   };

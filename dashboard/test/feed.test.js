@@ -97,6 +97,7 @@ function harness(opts) {
     timers: [],
     store: opts.store || {},
     calls: 0,
+    requests: [],
     changes: [],
     states: 0,
     seen: [],
@@ -104,7 +105,7 @@ function harness(opts) {
   };
   h.feed = Feed.create({
     url: '/api/calendar',
-    fetch: () => { h.calls++; return Promise.resolve().then(() => h.respond()); },
+    fetch: (url, init) => { h.calls++; h.requests.push({ url, init }); return Promise.resolve().then(() => h.respond(url, init)); },
     storage: opts.storage || {
       getItem: (k) => (k in h.store ? h.store[k] : null),
       setItem: (k, v) => { h.store[k] = v; },
@@ -279,4 +280,108 @@ test('broken or unavailable storage is ignored', async () => {
   h2.feed.start();
   await h2.settle();
   assert.equal(h2.feed.state().status, 'ok');
+});
+
+// ------------------------------------------------------------ add + remove
+const json = (status, obj) => ({ ok: status < 300, status, json: () => Promise.resolve(obj) });
+const added = { id: 'new1', title: 'Dentist', start: '2026-10-20T15:30:00Z', end: '2026-10-20T16:30:00Z', people: ['sam'] };
+const input = { title: 'Dentist', start: '2026-10-20T15:30:00.000Z', end: '2026-10-20T16:30:00.000Z', people: ['sam'] };
+// Answers GETs with the normal body and everything else with `write`.
+const routes = (write) => (url, init) => (init && init.method && init.method !== 'GET' ? write(url, init) : json(200, body()));
+
+test('add posts the event as JSON and resolves with it parsed, then refreshes the calendar', async () => {
+  const h = harness({ respond: routes(() => json(201, added)) });
+  h.feed.start();
+  await h.settle();
+  let got;
+  h.feed.add(input).then((e) => { got = e; });
+  await h.settle();
+  const post = h.requests[1];
+  assert.equal(post.url, '/api/events');
+  assert.equal(post.init.method, 'POST');
+  assert.equal(post.init.headers['content-type'], 'application/json');
+  assert.deepEqual(JSON.parse(post.init.body), input);
+  assert.equal(got.id, 'new1');
+  assert.ok(got.start instanceof Date);
+  assert.equal(got.start.getTime(), Date.UTC(2026, 9, 20, 15, 30));
+  assert.deepEqual(h.timers.map((t) => t.ms), [0], 'calendar refresh queued right away');
+});
+
+test('add rejects with the server error and changes nothing when the input is refused', async () => {
+  const h = harness({ respond: routes(() => json(400, { error: 'title is missing' })) });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.add(input).then(() => null, (e) => e);
+  assert.equal(err.message, 'title is missing');
+  assert.equal(h.feed.state().failed, false);
+  assert.deepEqual(h.timers.map((t) => t.ms), [5 * MIN]);
+});
+
+test('add rejects when Google fails, with its message', async () => {
+  const h = harness({ respond: routes(() => json(502, { error: 'Google Calendar x: 403 Writer access required' })) });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.add(input).then(() => null, (e) => e);
+  assert.match(err.message, /Writer access required/);
+});
+
+test('add that cannot reach the server rejects, marks the feed failed and retries the calendar soon', async () => {
+  const h = harness({ respond: routes(failing) });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.add(input).then(() => null, (e) => e);
+  assert.match(err.message, /Can’t reach the home server/);
+  assert.equal(h.feed.state().failed, true);
+  assert.equal(h.feed.state().status, 'ok', 'the calendar data is still there');
+  assert.ok(h.states >= 2, 'told about it so the add button can turn off');
+  assert.deepEqual(h.timers.map((t) => t.ms), [5000]);
+  await h.next();
+  assert.equal(h.feed.state().failed, false, 'cleared by the next good fetch');
+});
+
+test('add that never settles times out and rejects', async () => {
+  const h = harness({ respond: routes(() => new Promise(() => {})) });
+  h.feed.start();
+  await h.settle();
+  let err;
+  h.feed.add(input).catch((e) => { err = e; });
+  await h.settle();
+  h.timers.sort((a, b) => a.at - b.at);
+  const timeout = h.timers.find((t) => t.ms === 30000);
+  h.timers = h.timers.filter((t) => t !== timeout);
+  timeout.fn();
+  await h.settle();
+  assert.match(err.message, /Can’t reach the home server/);
+});
+
+test('remove sends DELETE for the encoded id, then refreshes the calendar', async () => {
+  const h = harness({ respond: routes(() => ({ ok: true, status: 204, json: () => Promise.reject(new Error('no body')) })) });
+  h.feed.start();
+  await h.settle();
+  await h.feed.remove('a/b=');
+  assert.equal(h.requests[1].url, '/api/events/a%2Fb%3D');
+  assert.equal(h.requests[1].init.method, 'DELETE');
+  assert.deepEqual(h.timers.map((t) => t.ms), [0]);
+});
+
+test('remove rejects with the server error', async () => {
+  const h = harness({ respond: routes(() => json(502, { error: 'Google Calendar x: 500 boom' })) });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.remove('x').then(() => null, (e) => e);
+  assert.match(err.message, /boom/);
+});
+
+test('failed is set by a failed calendar fetch even with data, and cleared by a good one', async () => {
+  const h = harness();
+  h.feed.start();
+  await h.settle();
+  assert.equal(h.feed.state().failed, false);
+  h.respond = failing;
+  await h.next();
+  assert.equal(h.feed.state().failed, true);
+  assert.equal(h.feed.state().stale, false);
+  h.respond = () => json(200, body());
+  await h.next();
+  assert.equal(h.feed.state().failed, false);
 });

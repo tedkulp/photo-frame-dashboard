@@ -3,7 +3,7 @@
   'use strict';
   var D = window.DATA;
   var PX = 72, START = 6, END = 23; // 72px per hour, 6 AM → 11 PM
-  var V = { mode: 'day', date: null, el: null, scroll: null };
+  var V = { mode: 'day', date: null, el: null, scroll: null, adding: false };
   var MODES = [['day', 'Today'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']];
 
   var ids = App.peopleIds;
@@ -201,7 +201,7 @@
       '<button class="btn btn--ghost' + (isToday ? ' is-hidden' : '') + '" data-today>Today</button>' +
       (App.hasCalendar() ? '<span class="cal-feed feed-note">' + App.feedNote() + '</span>' : '') +
       '<div class="seg">' + MODES.map(function (m) { return '<button class="' + (V.mode === m[0] ? 'is-on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
-      '<button class="fab" data-add aria-label="Add event">' + App.icon('plus', 26) + '</button>' +
+      '<button class="fab' + (App.addBlocked() ? ' is-off' : '') + '" data-add aria-label="Add event">' + App.icon('plus', 26) + '</button>' +
       '</header>';
   }
 
@@ -244,7 +244,10 @@
       return render();
     }
     if ((t = e.target.closest('[data-day]'))) { V.mode = 'day'; V.date = new Date(+t.dataset.day); V.scroll = null; return render(); }
-    if ((t = e.target.closest('[data-add]'))) return addSheet();
+    if ((t = e.target.closest('[data-add]'))) {
+      var why = App.addBlocked();
+      return why ? App.toast(why + ' · try again soon', { icon: 'calendar', ms: 3000 }) : addSheet();
+    }
   }
 
   // Swipe left/right to change day (the only swipe gesture in the app)
@@ -313,11 +316,13 @@
       '<div><div class="label">Length</div><div class="chips">' + [[30, '30m'], [60, '1h'], [120, '2h']].map(function (t) {
         return '<button class="chip' + (t[0] === st.dur ? ' is-on' : '') + '" data-dur="' + t[0] + '">' + t[1] + '</button>';
       }).join('') + '</div></div></div>' +
-      '<div class="sheet-actions"><button class="btn btn--ghost" data-close>Cancel</button><button class="btn btn--solid" data-save>Add to calendar</button></div>' +
+      '<div class="sheet-actions"><span class="add-why"></span><button class="btn btn--ghost" data-close>Cancel</button><button class="btn btn--solid" data-save>Add to calendar</button></div>' +
       '</div>', {
       cls: 'sheet--wide',
+      onClose: function () { st.closed = true; },
       onMount: function (s, close) {
         var input = s.querySelector('[data-f=title]');
+        paintAdd();
         s.addEventListener('click', function (ev) {
           var t = ev.target.closest('button');
           if (!t) return;
@@ -335,25 +340,64 @@
               if (k === 'dayi') st.day = +t.dataset.dayi; else if (k === 'dur') st.dur = +t.dataset.dur; else st.time = t.dataset.time;
             }
           });
-          if (t.hasAttribute('data-save')) {
-            var title = input.value.trim() || 'New event';
-            var who = st.who.length ? st.who.slice() : ids().slice(0, 1);
-            var start = App.addDays(App.dayStart(now), st.day), p = st.time.split(':');
-            start.setHours(+p[0], +p[1]);
-            var e = { id: D._eid(), title: title, people: who, start: start, end: new Date(+start + st.dur * 60000) };
-            D.localEvents.push(e); // on this frame only; writing to Google is #5
-            close();
-            V.date = App.dayStart(start); V.mode = V.mode === 'month' ? 'day' : V.mode; V.scroll = null;
-            render();
-            App.emit('data');
-            App.toast('Added <b>' + App.esc(title) + '</b> · ' + App.fmt.rel(start) + ' ' + App.fmt.time(start), {
-              icon: 'calendar', undo: function () { D.localEvents.splice(D.localEvents.indexOf(e), 1); render(); App.emit('data'); }
-            });
-          }
+          if (t.hasAttribute('data-save')) save(t, input.value.trim() || 'New event', close);
         });
       }
     });
+
+    // Written to Google through the home server; shown only once the server confirms it. On a
+    // failure the sheet stays open with what was typed.
+    function save(btn, title, close) {
+      if (V.adding || App.addBlocked()) return;
+      var start = App.addDays(App.dayStart(now), st.day), p = st.time.split(':');
+      start.setHours(+p[0], +p[1]);
+      var end = new Date(+start + st.dur * 60000);
+      V.adding = true;
+      btn.disabled = true;
+      btn.textContent = 'Adding…';
+      App.feed.add({ title: title, start: start.toISOString(), end: end.toISOString(), people: st.who.slice() }).then(function (e) {
+        V.adding = false;
+        D.events.push(e);
+        if (!st.closed) close();
+        V.date = App.dayStart(e.start); V.mode = V.mode === 'month' ? 'day' : V.mode; V.scroll = null;
+        render();
+        App.emit('data');
+        App.toast('Added <b>' + App.esc(e.title) + '</b> · ' + App.fmt.rel(e.start) + ' ' + App.fmt.time(e.start), {
+          icon: 'calendar', undo: function () { undoAdd(e); }
+        });
+      }, function (err) {
+        V.adding = false;
+        btn.textContent = 'Add to calendar';
+        paintAdd();
+        App.toast('Couldn’t add <b>' + App.esc(title) + '</b> · ' + App.esc(err.message), { tone: 'error', icon: 'calendar' });
+      });
+    }
   }
+
+  // Undo right after adding: deleted from Google first, removed here once that worked.
+  function undoAdd(e) {
+    App.toast('Removing <b>' + App.esc(e.title) + '</b>…', { icon: 'calendar', ms: 30000 });
+    App.feed.remove(e.id).then(function () {
+      D.events = D.events.filter(function (x) { return x.id !== e.id; });
+      render();
+      App.emit('data');
+      App.toast('Removed <b>' + App.esc(e.title) + '</b>', { icon: 'calendar', ms: 2500 });
+    }, function (err) {
+      App.toast('Couldn’t remove <b>' + App.esc(e.title) + '</b> · ' + App.esc(err.message), { tone: 'error', icon: 'calendar' });
+    });
+  }
+
+  // The add button and an open add sheet's save button follow App.addBlocked().
+  function paintAdd() {
+    var why = App.addBlocked();
+    var fab = V.el && V.el.querySelector('[data-add]');
+    if (fab) fab.classList.toggle('is-off', !!why);
+    var save = App.$('#sheetLayer [data-save]'), note = App.$('#sheetLayer .add-why');
+    if (save && !V.adding) save.disabled = !!why;
+    if (note) note.textContent = why;
+  }
+  App.on('feedstate', paintAdd);
+  App.on('minute', paintAdd);
 
   App.register('calendar', {
     show: function (el, opts) {

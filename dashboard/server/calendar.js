@@ -1,10 +1,21 @@
 // Builds the dashboard's { people, events, updatedAt } from the configured Google calendars.
 // Family-calendar events belong to everyone; per-person calendars to that person. The same event
 // (iCalUID + start) seen in several calendars is returned once with the people combined.
+// create/remove write single events: to that person's own calendar when exactly one person with
+// one is picked, otherwise to the Family calendar.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const DAYS_BACK = 7;
 export const DAYS_AHEAD = 42;
+export const TITLE_MAX = 200;
+
+// Bad input from the dashboard; `status` is the HTTP status to answer with. Nothing was written.
+export class InputError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
 
 // Opaque to the dashboard; the server maps it back to the calendar and Google event id.
 export function encodeEventId(calendarId, eventId) {
@@ -46,10 +57,45 @@ function toEvent(item, calendarId) {
   return e;
 }
 
+const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+function isDate(s) {
+  const m = typeof s === 'string' && DATE.exec(s);
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+}
+const isDateTime = (s) => typeof s === 'string' && DATE_TIME.test(s) && !isNaN(Date.parse(s));
+
+// { title, start, end, people, allDay? } → the checked fields, or an InputError.
+function checkInput(input, allIds) {
+  const bad = (msg) => new InputError(400, msg);
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw bad('Expected a JSON object');
+  if (typeof input.title !== 'string' || !input.title.trim()) throw bad('title is missing');
+  const title = input.title.trim();
+  if (title.length > TITLE_MAX) throw bad(`title is longer than ${TITLE_MAX} characters`);
+  const allDay = input.allDay === true;
+  const { start, end } = input;
+  if (allDay) {
+    if (!isDate(start) || !isDate(end)) throw bad('An all-day event needs start and end dates like 2026-10-19');
+    if (start >= end) throw bad('start must be before end');
+  } else {
+    if (!isDateTime(start) || !isDateTime(end)) throw bad('start and end must be times with an offset, like 2026-10-19T15:30:00-04:00');
+    if (Date.parse(start) >= Date.parse(end)) throw bad('start must be before end');
+  }
+  if (!Array.isArray(input.people)) throw bad('people must be a list of person ids');
+  for (const id of input.people) {
+    if (!allIds.includes(id)) throw bad(`Unknown person id ${JSON.stringify(id)}`);
+  }
+  return { title, start, end, allDay, people: [...new Set(input.people)] };
+}
+
 export function createCalendar({ settings, google, timeZone = null, now = Date.now }) {
   const allIds = settings.people.map((p) => p.id);
   const family = settings.calendars.find((c) => c.person === 'family');
   const others = settings.calendars.filter((c) => c !== family);
+  const peopleOf = (cal) => (cal.person === 'family' ? allIds : [cal.person]);
 
   async function load() {
     const t = now();
@@ -64,7 +110,7 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
 
     const byKey = new Map();
     const add = (cal, items) => {
-      const people = cal.person === 'family' ? allIds : [cal.person];
+      const people = peopleOf(cal);
       for (const item of items) {
         if (item.status === 'cancelled' || !item.start || !item.end) continue;
         const key = item.iCalUID ? item.iCalUID + '|' + startKey(item.start) : cal.calendarId + '|' + item.id;
@@ -83,5 +129,22 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     return { people: settings.people, events, updatedAt: new Date(t).toISOString() };
   }
 
-  return { load };
+  // Writes one event and returns it as load() would show it.
+  async function create(input) {
+    const e = checkInput(input, allIds);
+    const own = e.people.length === 1 && others.find((c) => c.person === e.people[0]);
+    const cal = own || family;
+    const when = (v) => (e.allDay ? { date: v } : { dateTime: v });
+    const item = await google.insertEvent(cal.calendarId, { summary: e.title, start: when(e.start), end: when(e.end) });
+    return Object.assign(toEvent(item, cal.calendarId), { people: peopleOf(cal).slice() });
+  }
+
+  // Deletes an event by the id load()/create() gave it. Only configured calendars are touched.
+  async function remove(id) {
+    const ref = decodeEventId(id);
+    if (!ref || !settings.calendars.some((c) => c.calendarId === ref.calendarId)) throw new InputError(404, 'No such event');
+    await google.deleteEvent(ref.calendarId, ref.eventId);
+  }
+
+  return { load, create, remove };
 }

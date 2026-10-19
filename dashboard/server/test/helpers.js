@@ -46,10 +46,13 @@ export function tempDir(files) {
 }
 
 // Fake Google. `calendars` maps calendarId -> { timeZone, pages: [[item, ...], ...] } or
-// { status, body } to make that calendar fail. Records every request in `requests`.
+// { status, body } to make that calendar fail. Inserted events are added to the first page (so a
+// later list returns them) and deleted ones removed from every page. Records every request in
+// `requests`.
 export async function fakeGoogle(calendars) {
   const requests = [];
-  let tokensIssued = 0;
+  let tokensIssued = 0, eventsInserted = 0;
+  const deleted = new Set();
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     let body = '';
@@ -70,12 +73,30 @@ export async function fakeGoogle(calendars) {
       return send(200, { access_token: 'token-' + tokensIssued, expires_in: 3600, token_type: 'Bearer' });
     }
 
-    const m = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events$/);
+    const m = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events(?:\/([^/]+))?$/);
     if (m) {
       if (!/^Bearer token-\d+$/.test(req.headers.authorization || '')) return send(401, { error: { code: 401, message: 'no token' } });
       const cal = calendars[decodeURIComponent(m[1])];
       if (!cal) return send(404, { error: { code: 404, message: 'Not Found' } });
       if (cal.status) return send(cal.status, cal.body || { error: { code: cal.status, message: 'boom' } });
+      cal.pages = cal.pages || [[]];
+      if (req.method === 'POST' && !m[2]) {
+        const item = Object.assign({ id: 'new' + ++eventsInserted, status: 'confirmed' }, JSON.parse(body));
+        item.iCalUID = item.id + '@google.com';
+        cal.pages[0].push(item);
+        return send(200, item);
+      }
+      if (req.method === 'DELETE' && m[2]) {
+        const id = decodeURIComponent(m[2]);
+        const page = cal.pages.find((p) => p.some((i) => i.id === id));
+        if (deleted.has(id)) return send(410, { error: { code: 410, message: 'Resource has been deleted' } });
+        if (!page) return send(404, { error: { code: 404, message: 'Not Found' } });
+        page.splice(page.findIndex((i) => i.id === id), 1);
+        deleted.add(id);
+        res.writeHead(204);
+        return res.end();
+      }
+      if (req.method !== 'GET' || m[2]) return send(405, { error: { code: 405, message: 'Method not allowed' } });
       const page = Number(url.searchParams.get('pageToken') || 0);
       const pages = cal.pages || [[]];
       const out = { kind: 'calendar#events', timeZone: cal.timeZone || 'America/Toronto', items: pages[page] || [] };

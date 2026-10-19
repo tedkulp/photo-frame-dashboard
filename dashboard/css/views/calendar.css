@@ -186,3 +186,6 @@
 .more-row i { width: 14px; height: 14px; border-radius: 50%; background: var(--c); }
 .more-row b { font-size: 21px; flex: 1; }
 .more-row span { font-size: 16px; color: var(--mute); }
+.fab.is-off { opacity: .35; }
+.add [data-save]:disabled { opacity: .45; }
+.add-why { margin-right: auto; align-self: center; font-size: 18px; font-weight: 700; color: var(--alert); }

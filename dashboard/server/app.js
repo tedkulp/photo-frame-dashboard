@@ -1,9 +1,10 @@
-// HTTP server: the built dashboard (dist) and GET /api/calendar from one origin. LAN-only, no auth.
+// HTTP server: the built dashboard (dist), GET /api/calendar, POST /api/events and
+// DELETE /api/events/:id from one origin. LAN-only, no auth.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { createGoogle } from './google.js';
-import { createCalendar } from './calendar.js';
+import { createCalendar, InputError } from './calendar.js';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -21,6 +22,40 @@ const TYPES = {
 function sendJson(res, status, obj) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(obj));
+}
+
+const BODY_MAX = 64 * 1024;
+
+// The request's JSON body. Only application/json is accepted: another web page can post a plain
+// form or text/plain to this LAN server without asking, but not JSON.
+async function readJson(req) {
+  if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] || '')) throw new InputError(415, 'Send the event as application/json');
+  let text = '';
+  for await (const chunk of req) {
+    text += chunk;
+    if (text.length > BODY_MAX) throw new InputError(413, 'Request body is too large');
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new InputError(400, 'Request body is not valid JSON');
+  }
+}
+
+// Runs a calendar call: InputError → its status, anything else (Google) → 502.
+async function calendarCall(res, what, status, fn) {
+  try {
+    const out = await fn();
+    if (out === undefined) {
+      res.writeHead(status, { 'cache-control': 'no-store' });
+      return res.end();
+    }
+    return sendJson(res, status, out);
+  } catch (e) {
+    if (e instanceof InputError) return sendJson(res, e.status, { error: e.message });
+    console.error('[' + what + ']', e.message);
+    return sendJson(res, 502, { error: e.message });
+  }
 }
 
 function createHandler({ calendar, distDir }) {
@@ -56,12 +91,21 @@ function createHandler({ calendar, distDir }) {
     try {
       if (pathname === '/api/calendar') {
         if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
+        return await calendarCall(res, 'calendar', 200, () => calendar.load());
+      }
+      if (pathname === '/api/events') {
+        if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
+        return await calendarCall(res, 'add event', 201, async () => calendar.create(await readJson(req)));
+      }
+      if (pathname.startsWith('/api/events/')) {
+        if (req.method !== 'DELETE') return sendJson(res, 405, { error: 'Method not allowed' });
+        let id;
         try {
-          return sendJson(res, 200, await calendar.load());
-        } catch (e) {
-          console.error('[calendar]', e.message);
-          return sendJson(res, 502, { error: e.message });
+          id = decodeURIComponent(pathname.slice('/api/events/'.length));
+        } catch {
+          return sendJson(res, 404, { error: 'No such event' });
         }
+        return await calendarCall(res, 'delete event', 204, () => calendar.remove(id));
       }
       if (pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Not found' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });

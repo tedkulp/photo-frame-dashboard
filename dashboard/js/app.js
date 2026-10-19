@@ -92,7 +92,7 @@
   };
 
   // ------------------------------------------------------------ calendar helpers
-  App.events = function () { return D.events.concat(D.localEvents); };
+  App.events = function () { return D.events; };
   // Everyone in the family is on it (with one person, nothing is a family event).
   App.isFamily = function (e) {
     return D.people.length > 1 && D.people.every(function (p) { return e.people.indexOf(p.id) > -1; });
@@ -134,6 +134,14 @@
     App.emit('feed');
   }
   App.hasCalendar = function () { return !!App.feed && App.feed.state().status === 'ok'; };
+  // Why adding an event is off right now ('' when it is on): no data yet, the last request failed,
+  // or no fetch has worked for 15 minutes. The server would most likely fail the write too.
+  App.addBlocked = function () {
+    var s = App.feed ? App.feed.state() : { status: 'loading' };
+    if (s.status === 'loading') return 'Loading the calendar…';
+    if (s.status === 'offline' || s.failed) return 'Can’t reach the home server';
+    return s.stale ? 'Calendar not updated for ' + App.fmt.mins(s.age) : '';
+  };
   // What to say about the calendar data: why there is none yet, or how old it is once stale.
   App.feedNote = function () {
     var s = App.feed ? App.feed.state() : { status: 'loading' };
@@ -146,6 +154,7 @@
     App.$$('.feed-note').forEach(function (el) { el.innerHTML = t; });
   }
   App.on('minute', paintFeedNotes);
+  function onFeedState() { paintFeedNotes(); App.emit('feedstate'); }
 
   // ------------------------------------------------------------ chores + weather helpers
   App.currentRoutine = function () {
@@ -360,7 +369,7 @@
     App.feed = window.Feed.create({
       url: '/api/calendar', fetch: window.fetch.bind(window), storage: storage,
       now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: onFeed, onState: paintFeedNotes, onError: function (e) { console.error('[feed]', e); }
+      onChange: onFeed, onState: onFeedState, onError: function (e) { console.error('[feed]', e); }
     });
     App.feed.start(); // a cached response is applied right here, before the first view is built
     fit();
