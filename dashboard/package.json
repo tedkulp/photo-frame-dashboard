@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
     "server": "node server/main.js",
-    "test": "node --test \"server/test/*.test.js\""
+    "test": "node --test \"server/test/*.test.js\" \"test/*.test.js\""
   },
   "devDependencies": {
     "vite": "^8.3.1",

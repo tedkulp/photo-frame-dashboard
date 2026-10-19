@@ -1,110 +1,15 @@
-// Mock data for the prototype. Everything is relative to "today" so the demo always looks current.
+// Mock data for the prototype (everything but people and the calendar, which come from the home
+// server). Relative to "today" so the demo always looks current.
 window.DATA = (function () {
   var base = new Date();
   base.setHours(0, 0, 0, 0);
 
-  function at(d, hm) {
-    var p = hm.split(':');
-    var x = new Date(base);
-    x.setDate(x.getDate() + d);
-    x.setHours(+p[0], +p[1], 0, 0);
-    return x;
-  }
-  var n = 0;
-  function ev(d, s, e, title, people, extra) {
-    return Object.assign({ id: 'e' + (++n), start: at(d, s), end: at(d, e), title: title, people: people }, extra || {});
-  }
-  function allDay(d, days, title, people, extra) {
-    return Object.assign({ id: 'e' + (++n), allDay: true, start: at(d, '00:00'), end: at(d + days, '00:00'), title: title, people: people }, extra || {});
-  }
+  var n = 0; // ids for events added on the frame
 
-  var ALL = ['alex', 'jordan', 'maya', 'otto'];
-
-  var people = [
-    { id: 'alex', name: 'Wes', color: '#2D5BFF', rgb: '45 91 255', ink: '#FFFFFF', home: false, status: 'Driving home', eta: 12 },
-    { id: 'jordan', name: 'Claudia', color: '#E4007C', rgb: '228 0 124', ink: '#FFFFFF', home: false, status: 'At the office' },
-    { id: 'maya', name: 'Buzzsaw', age: 10, color: '#00A36C', rgb: '0 163 108', ink: '#FFFFFF', home: true, status: 'Home' },
-    { id: 'otto', name: 'Skidmark', age: 6, color: '#FFB000', rgb: '255 176 0', ink: '#111111', home: true, status: 'Home' }
-  ];
+  // Mock family: only the ids matter now. They say who the still-mock chores, stars and photos
+  // belong to, and are handed to the real people from the home server by position (feed.js).
+  var mockIds = ['alex', 'jordan', 'maya', 'otto'];
   var family = { id: 'family', name: 'Family', color: '#111111', rgb: '17 17 17', ink: '#FFFFFF' };
-
-  // ---------------------------------------------------------------- calendar
-  var events = [
-    // Today
-    allDay(0, 1, 'Pajama Day at school', ['otto']),
-    allDay(0, 1, 'Garbage + recycling night', ALL),
-    ev(0, '07:00', '07:45', 'Gym', ['jordan'], { loc: 'Iron Works' }),
-    ev(0, '08:15', '08:40', 'School drop-off', ['alex'], { travel: 10, loc: 'Parkdale Elementary' }),
-    ev(0, '09:30', '10:30', 'Design review', ['jordan'], { loc: 'Office · Room 4B' }),
-    ev(0, '12:00', '12:45', 'Dentist', ['maya', 'jordan'], { travel: 15, loc: 'Bright Smiles Dental' }),
-    ev(0, '13:00', '14:00', 'Lunch with Sam', ['alex'], { loc: 'Café Rustica' }),
-    ev(0, '15:45', '16:30', 'Piano lesson', ['otto'], { travel: 12, loc: "Ms. Park's Studio", notes: 'Bring the blue theory book.' }),
-    ev(0, '16:05', '16:30', 'Drive Buzzsaw to soccer', ['jordan']),
-    ev(0, '16:25', '16:50', 'Pick up Skidmark', ['jordan'], { loc: "Ms. Park's Studio" }),
-    ev(0, '16:30', '18:00', 'Soccer practice', ['maya'], { travel: 20, loc: 'Lakeshore Fields', notes: 'Shin guards + water bottle. Rain likely — pack a jacket.' }),
-    ev(0, '17:00', '17:30', 'Parent–teacher call', ['alex', 'jordan'], { loc: 'Zoom' }),
-    ev(0, '18:30', '19:30', "Dinner at Nonna's", ALL, { travel: 20, loc: "Nonna's", notes: 'Bring the lemon cake.' }),
-    ev(0, '20:00', '20:30', 'Bath + books', ['otto']),
-
-    // Tomorrow → +6
-    allDay(1, 3, 'Wes in Montréal', ['alex'], { loc: 'Hotel William Gray' }),
-    ev(1, '07:00', '07:45', 'Gym', ['jordan'], { loc: 'Iron Works' }),
-    ev(1, '08:15', '08:40', 'School drop-off', ['jordan'], { travel: 10 }),
-    ev(1, '10:30', '11:15', 'Vet — Biscuit', ['jordan'], { travel: 10, loc: 'Riverdale Animal Clinic' }),
-    ev(1, '15:30', '16:30', 'Art club', ['maya'], { loc: 'School' }),
-    ev(1, '16:00', '18:00', 'Playdate with Leo', ['otto'], { travel: 8, loc: "Leo's house" }),
-    ev(1, '19:00', '21:00', 'Book club', ['jordan'], { travel: 10, loc: "Priya's" }),
-
-    ev(2, '09:00', '14:00', 'Science Centre trip', ['otto'], { loc: 'Ontario Science Centre' }),
-    ev(2, '13:00', '13:45', 'Haircuts', ['maya', 'otto'], { travel: 10, loc: 'Snip Snip Kids' }),
-    ev(2, '16:30', '18:00', 'Soccer practice', ['maya'], { travel: 20, loc: 'Lakeshore Fields' }),
-    ev(2, '18:00', '19:30', 'Pizza night', ALL),
-
-    ev(3, '10:00', '10:45', 'Swim lessons', ['otto'], { travel: 12, loc: 'Wellesley Pool' }),
-    ev(3, '11:00', '12:00', 'Grocery run', ['jordan']),
-    ev(3, '13:00', '15:30', "Zoe's birthday party", ['maya'], { travel: 15, loc: 'Pottery Place' }),
-    ev(3, '19:00', '21:00', 'Movie night', ALL),
-
-    ev(4, '10:30', '12:00', 'Sunday brunch', ALL, { travel: 15, loc: 'Lady Marmalade' }),
-    ev(4, '17:05', '18:20', 'Flight home · AC 418', ['alex'], { loc: 'YUL → YYZ' }),
-
-    ev(5, '07:00', '07:45', 'Gym', ['jordan']),
-    ev(5, '15:45', '16:30', 'Piano lesson', ['otto'], { travel: 12 }),
-    ev(5, '16:30', '18:00', 'Soccer practice', ['maya'], { travel: 20 }),
-    ev(5, '19:00', '20:00', 'Yoga', ['jordan']),
-
-    allDay(6, 2, 'Grandma visits', ALL),
-    ev(6, '09:00', '09:45', 'Dentist', ['otto'], { travel: 15, loc: 'Bright Smiles Dental' }),
-    ev(6, '16:30', '18:00', 'Soccer practice', ['maya'], { travel: 20 })
-  ];
-
-  // Background recurring events so the month view has texture
-  for (var d = -40; d <= 45; d++) {
-    if (d >= 0 && d <= 6) continue;
-    var dow = new Date(at(d, '00:00')).getDay();
-    if (dow === 1) events.push(ev(d, '15:45', '16:30', 'Piano lesson', ['otto']));
-    if (dow === 2 || dow === 4) events.push(ev(d, '16:30', '18:00', 'Soccer practice', ['maya']));
-    if (dow === 3) events.push(ev(d, '19:00', '20:00', 'Yoga', ['jordan']));
-    if (dow === 6) events.push(ev(d, '10:00', '10:45', 'Swim lessons', ['otto']));
-    if (dow === 0) events.push(ev(d, '17:30', '19:30', "Dinner at Nonna's", ALL));
-    if (dow === 5 && d % 2 === 0) events.push(ev(d, '18:00', '19:30', 'Pizza night', ALL));
-    if (d % 9 === 0) events.push(ev(d, '12:00', '13:00', 'Lunch meeting', ['alex']));
-    if (d % 11 === 0) events.push(ev(d, '09:00', '10:00', 'Doctor', ['jordan']));
-  }
-  events.push(allDay(12, 1, "Buzzsaw's birthday 🎂", ALL));
-  events.push(allDay(-8, 3, 'Cottage weekend', ALL));
-
-  // Extra events for the "overloaded day" demo
-  var busyExtras = [
-    ev(0, '10:00', '11:00', 'Plumber window', ['jordan']),
-    ev(0, '11:00', '11:30', 'Call with bank', ['alex']),
-    ev(0, '14:30', '15:30', 'Library volunteer', ['jordan']),
-    ev(0, '15:30', '16:00', 'Snack prep', ['maya']),
-    ev(0, '16:00', '16:45', 'Math tutor', ['otto']),
-    ev(0, '16:15', '17:00', 'Swim make-up', ['otto'], { travel: 10 }),
-    ev(0, '19:45', '20:30', 'Bake sale prep', ['maya', 'jordan']),
-    ev(0, '20:30', '21:30', 'Hockey', ['alex'], { travel: 15 })
-  ];
 
   // ---------------------------------------------------------------- chores
   var routines = [
@@ -338,8 +243,9 @@ window.DATA = (function () {
   ];
 
   return {
-    people: people, family: family, ALL: ALL,
-    events: events, busyExtras: busyExtras,
+    // people + events come from the home server (feed.js); localEvents are added on the frame.
+    people: [], family: family, mockIds: mockIds,
+    events: [], localEvents: [],
     routines: routines, chores: chores, stars: stars, week: week,
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
     rooms: rooms, devices: devices, climate: climate, media: media, cameras: cameras, scenes: scenes,

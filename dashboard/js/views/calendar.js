@@ -6,6 +6,10 @@
   var V = { mode: 'day', date: null, el: null, scroll: null };
   var MODES = [['day', 'Today'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']];
 
+  function ids() { return D.people.map(function (p) { return p.id; }); }
+  // One column per person, however many there are.
+  function cols() { return 'grid-template-columns:repeat(' + Math.max(1, D.people.length) + ', minmax(0, 1fr))'; }
+
   function y(d) { return ((d.getHours() + d.getMinutes() / 60) - START) * PX; }
   function clampTop(e, day) {
     var s = App.dayStart(day);
@@ -53,7 +57,7 @@
       '<span class="ev-title">' + App.esc(e.title) + '</span>' +
       '<span class="ev-meta">' + App.fmt.range(e.start, e.end) + (e.travel ? ' · <b>' + App.icon('car', 16) + 'Leave ' + App.fmt.time(App.leaveBy(e), false) + '</b>' : '') + '</span>' +
       (others.length && !App.isFamily(e) ? '<span class="ev-with">' + App.dots(others, 14) + '</span>' : '') +
-      (App.isFamily(e) ? '<span class="ev-with">' + App.dots(D.ALL, 14) + '</span>' : '') +
+      (App.isFamily(e) ? '<span class="ev-with">' + App.dots(ids(), 14) + '</span>' : '') +
       '</button>';
   }
 
@@ -88,9 +92,9 @@
     var day = V.date;
     var fam = App.timedOn(day).filter(App.isFamily);
     var allDay = App.allDayOn(day);
-    var ad = allDay.length ? '<div class="allday"><div class="gutter label">All day</div><div class="allday-grid">' + allDay.map(function (e) {
+    var ad = allDay.length ? '<div class="allday"><div class="gutter label">All day</div><div class="allday-grid" style="' + cols() + '">' + allDay.map(function (e) {
       var fam2 = App.isFamily(e);
-      var idx = D.people.map(function (p) { return p.id; }).indexOf(e.people[0]);
+      var idx = ids().indexOf(e.people[0]);
       var col = fam2 ? '1 / -1' : (idx + 1) + ' / span 1';
       var s = App.dayStart(day), spanDays = Math.round((e.end - e.start) / 864e5), dayN = Math.round((s - e.start) / 864e5) + 1;
       return '<button class="ad' + (e.start < s ? ' ad--cont' : '') + '" data-ev="' + e.id + '" style="grid-column:' + col + ';' + App.pstyle(App.evColor(e)) + '">' +
@@ -98,7 +102,7 @@
     }).join('') + '</div></div>' : '';
     var grid = '<div class="grid-scroll"><div class="grid" style="height:' + (END - START) * PX + 'px">' +
       '<div class="hours">' + hoursCol() + '</div>' +
-      '<div class="lanes">' + D.people.map(function (p) {
+      '<div class="lanes" style="' + cols() + '">' + D.people.map(function (p) {
         var list = App.timedOn(day, p.id).filter(function (e) { return !App.isFamily(e); });
         return '<div class="lane" style="' + App.pstyle(p) + '">' + placeBlocks(list, null, p.id) + '</div>';
       }).join('') +
@@ -196,13 +200,17 @@
       '<div class="cal-title"><div class="serif">' + t.t + '</div><div class="label">' + t.k + '</div></div>' +
       '<button class="icon-btn" data-nav="1" aria-label="Next">' + App.icon('right', 24) + '</button>' +
       '<button class="btn btn--ghost' + (isToday ? ' is-hidden' : '') + '" data-today>Today</button>' +
+      (App.hasCalendar() ? '<span class="cal-feed feed-note">' + App.feedNote() + '</span>' : '') +
       '<div class="seg">' + MODES.map(function (m) { return '<button class="' + (V.mode === m[0] ? 'is-on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
       '<button class="fab" data-add aria-label="Add event">' + App.icon('plus', 26) + '</button>' +
       '</header>';
   }
 
   function render() {
-    var body = { day: dayView, '3day': threeDay, week: weekView, month: monthView }[V.mode]();
+    // No data yet (first boot, server unreachable): say so instead of an empty calendar.
+    var body = App.hasCalendar()
+      ? { day: dayView, '3day': threeDay, week: weekView, month: monthView }[V.mode]()
+      : '<div class="cal-empty serif feed-note">' + App.feedNote() + '</div>';
     V.el.innerHTML = '<div class="cal cal--' + V.mode + '">' + header() + '<div class="cal-body">' + body + '</div></div>';
     var sc = V.el.querySelector('.grid-scroll');
     if (sc) {
@@ -265,7 +273,7 @@
       (e.travel ? '<div class="evs-row evs-leave">' + App.icon('car', 28) + '<div><b>Leave by ' + App.fmt.time(App.leaveBy(e)) + '</b><span>' + e.travel + ' min drive in current traffic</span></div></div>' : '') +
       (e.loc ? '<div class="evs-row">' + App.icon('pin', 28) + '<div><b>' + App.esc(e.loc) + '</b><span>Tap to send directions to phone</span></div></div>' : '') +
       '<div class="evs-row">' + App.icon('person', 28) + '<div class="evs-people">' + (fam ? D.people : e.people.map(App.person)).map(function (x) {
-        return '<span class="chip" style="' + App.pstyle(x) + '">' + App.avatar(x, 32) + x.name + '</span>';
+        return '<span class="chip" style="' + App.pstyle(x) + '">' + App.avatar(x, 32) + App.esc(x.name) + '</span>';
       }).join('') + '</div></div>' +
       (e.notes ? '<div class="evs-notes serif">“' + App.esc(e.notes) + '”</div>' : '') +
       '</div></div>', { cls: 'sheet--event' });
@@ -284,6 +292,7 @@
   function addSheet() {
     var now = App.now();
     var st = { who: [], day: 0, time: '15:30', dur: 60, title: '' };
+    function everyone() { return D.people.length > 0 && st.who.length === D.people.length; }
     var days = [0, 1, 2, 3, 4];
     var times = [['08:00', '8 AM'], ['12:00', 'Noon'], ['15:30', '3:30 PM'], ['16:30', '4:30 PM'], ['18:00', '6 PM'], ['19:30', '7:30 PM']];
     var ideas = ['Soccer', 'Playdate', 'Dentist', 'Dinner out', 'Swim', 'Birthday party'];
@@ -293,7 +302,7 @@
       '<input class="big-input serif" placeholder="What’s happening?" data-f="title">' +
       '<div class="chips">' + ideas.map(function (i) { return '<button class="chip chip--ghost" data-idea="' + i + '">' + i + '</button>'; }).join('') + '</div>' +
       '<div class="label">Who</div><div class="add-who">' + D.people.map(function (p) {
-        return '<button class="who-btn" data-who="' + p.id + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 56) + '<span>' + p.name + '</span></button>';
+        return '<button class="who-btn" data-who="' + p.id + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 56) + '<span>' + App.esc(p.name) + '</span></button>';
       }).join('') + '<button class="who-btn" data-who="all" style="' + App.pstyle(D.family) + '">' + App.avatar(D.family, 56) + '<span>Everyone</span></button></div>' +
       '<div class="add-row"><div><div class="label">When</div><div class="chips">' + days.map(function (i) {
         var d = App.addDays(now, i);
@@ -315,10 +324,10 @@
           if (!t) return;
           if (t.dataset.idea) { input.value = t.dataset.idea; }
           if (t.dataset.who) {
-            if (t.dataset.who === 'all') st.who = st.who.length === 4 ? [] : D.ALL.slice();
+            if (t.dataset.who === 'all') st.who = everyone() ? [] : ids();
             else { var i = st.who.indexOf(t.dataset.who); if (i > -1) st.who.splice(i, 1); else st.who.push(t.dataset.who); }
             App.$$('[data-who]', s).forEach(function (b) {
-              b.classList.toggle('is-on', b.dataset.who === 'all' ? st.who.length === 4 : st.who.indexOf(b.dataset.who) > -1);
+              b.classList.toggle('is-on', b.dataset.who === 'all' ? everyone() : st.who.indexOf(b.dataset.who) > -1);
             });
           }
           ['dayi', 'time', 'dur'].forEach(function (k) {
@@ -329,17 +338,17 @@
           });
           if (t.hasAttribute('data-save')) {
             var title = input.value.trim() || 'New event';
-            var who = st.who.length ? st.who.slice() : ['jordan'];
+            var who = st.who.length ? st.who.slice() : ids().slice(0, 1);
             var start = App.addDays(App.dayStart(now), st.day), p = st.time.split(':');
             start.setHours(+p[0], +p[1]);
             var e = { id: D._eid(), title: title, people: who, start: start, end: new Date(+start + st.dur * 60000) };
-            D.events.push(e);
+            D.localEvents.push(e); // on this frame only; writing to Google is #5
             close();
             V.date = App.dayStart(start); V.mode = V.mode === 'month' ? 'day' : V.mode; V.scroll = null;
             render();
             App.emit('data');
             App.toast('Added <b>' + App.esc(title) + '</b> · ' + App.fmt.rel(start) + ' ' + App.fmt.time(start), {
-              icon: 'calendar', undo: function () { D.events.splice(D.events.indexOf(e), 1); render(); App.emit('data'); }
+              icon: 'calendar', undo: function () { D.localEvents.splice(D.localEvents.indexOf(e), 1); render(); App.emit('data'); }
             });
           }
         });

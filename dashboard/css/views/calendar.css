@@ -10,6 +10,8 @@
 .cal-title { display: flex; align-items: baseline; gap: 12px; min-width: 300px; padding: 0 6px; }
 .cal-title .serif { font-size: 34px; line-height: 1; white-space: nowrap; }
 .cal-head [data-today] { margin-right: auto; }
+.cal-feed { font-size: var(--fs-min); font-weight: 700; color: var(--mute); white-space: nowrap; }
+.cal-feed:empty { display: none; }
 .cal-body { flex: 1; min-height: 0; position: relative; }
 
 /* ---- time grid (Today + 3 day) */

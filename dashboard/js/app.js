@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var D = window.DATA;
-  var App = window.App = { state: D, views: {}, current: null, mode: 'day', calMode: 'normal' };
+  var App = window.App = { state: D, views: {}, current: null, mode: 'day' };
   var $ = App.$ = function (s, r) { return (r || document).querySelector(s); };
   App.$$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
@@ -82,21 +82,18 @@
   App.avatar = function (p, size, cls) {
     if (typeof p === 'string') p = App.person(p);
     size = size || 48;
-    return '<span class="avatar ' + (cls || '') + '" style="' + App.pstyle(p) + ';width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.46) + 'px">' + (p.id === 'family' ? '★' : p.name[0]) + '</span>';
+    return '<span class="avatar ' + (cls || '') + '" style="' + App.pstyle(p) + ';width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.46) + 'px">' + (p.id === 'family' ? '★' : App.esc(p.name.charAt(0))) + '</span>';
   };
   App.dots = function (ids, size) {
     return '<span class="dots">' + ids.map(function (id) { return '<i style="' + App.pstyle(id) + (size ? ';width:' + size + 'px;height:' + size + 'px' : '') + '"></i>'; }).join('') + '</span>';
   };
 
   // ------------------------------------------------------------ calendar helpers
-  App.events = function () {
-    var list = D.events.slice();
-    var today = App.dayStart(App.now());
-    if (App.calMode === 'busy') list = list.concat(D.busyExtras);
-    if (App.calMode === 'empty') list = list.filter(function (e) { return e.allDay || !App.sameDay(e.start, today); });
-    return list;
+  App.events = function () { return D.events.concat(D.localEvents); };
+  // Everyone in the family is on it (with one person, nothing is a family event).
+  App.isFamily = function (e) {
+    return D.people.length > 1 && D.people.every(function (p) { return e.people.indexOf(p.id) > -1; });
   };
-  App.isFamily = function (e) { return e.people.length >= D.people.length; };
   App.evColor = function (e) { return App.isFamily(e) ? D.family : App.person(e.people[0]); };
   App.timedOn = function (day, pid) {
     var s = App.dayStart(day), e = App.addDays(s, 1);
@@ -121,6 +118,31 @@
   App.findEvent = function (id) {
     return App.events().filter(function (e) { return e.id === id; })[0];
   };
+
+  // ------------------------------------------------------------ calendar feed (home server)
+  // People + events from GET /api/calendar (feed.js). The first real people list also hands the
+  // still-mock chores, stars and photos to them by position.
+  var owners = D.mockIds;
+  function onFeed(d) {
+    var ids = d.people.map(function (p) { return p.id; });
+    if (ids.join() !== owners.join()) { window.Feed.remap(D, owners, ids); owners = ids; }
+    D.people = d.people;
+    D.events = d.events;
+    App.emit('feed');
+  }
+  App.hasCalendar = function () { return !!App.feed && App.feed.state().status === 'ok'; };
+  // What to say about the calendar data: why there is none yet, or how old it is once stale.
+  App.feedNote = function () {
+    var s = App.feed ? App.feed.state() : { status: 'loading' };
+    if (s.status === 'loading') return 'Loading the calendar…';
+    if (s.status === 'offline') return 'Can’t reach the home server · retrying';
+    return s.stale ? 'Updated ' + App.fmt.mins(s.age) + ' ago' : '';
+  };
+  function paintFeedNotes() {
+    var t = App.feedNote();
+    App.$$('.feed-note').forEach(function (el) { el.innerHTML = t; });
+  }
+  App.on('minute', paintFeedNotes);
 
   // ------------------------------------------------------------ chores + weather helpers
   App.currentRoutine = function () {
@@ -209,6 +231,7 @@
     refreshStale(1500);
   }
   App.on('data', markStale);
+  App.on('feed', function () { markStale(); App.rerender(); });
   App.on('time', markStale);
   App.rerender = function () {
     if (App.current) App.views[App.current].show($('#view-' + App.current), { rerender: true });
@@ -329,6 +352,14 @@
   App.start = function () {
     // Real time by default; ?demo pins a busy weekday afternoon.
     if (/[?&]demo(=|&|$)/.test(location.search)) App.setTime(15, 18);
+    var storage = null;
+    try { storage = window.localStorage; } catch (e) {}
+    App.feed = window.Feed.create({
+      url: '/api/calendar', fetch: window.fetch.bind(window), storage: storage,
+      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
+      onChange: onFeed, onState: paintFeedNotes
+    });
+    App.feed.start(); // a cached response is applied right here, before the first view is built
     fit();
     window.addEventListener('resize', fit);
     // Switch tabs the instant a finger lands (pointerdown), not on release. Keyboard "clicks"

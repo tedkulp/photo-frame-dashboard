@@ -3,7 +3,6 @@
   'use strict';
   var D = window.DATA;
   var V = { el: null, routine: null, pending: {} };
-  var LANES = ['alex', 'jordan', 'maya', 'otto', 'any'];
 
   function routine() { return V.routine ? D.routines.filter(function (r) { return r.id === V.routine; })[0] : App.currentRoutine(); }
   function listFor(who, r) {
@@ -16,7 +15,7 @@
     return '<button class="ch' + (c.done ? ' is-done' : '') + (pend ? ' is-checking' : '') + (c.overdue && !c.done ? ' is-overdue' : '') + '" data-ch="' + c.id + '">' +
       '<span class="ch-emoji">' + c.emoji + '<span class="ch-check"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span></span>' +
       '<span class="ch-text"><b>' + App.esc(c.title) + '</b>' +
-      (c.overdue && !c.done ? '<small class="ch-late">Overdue</small>' : c.stars ? '<small>' + App.icon('star', 14, 'i--fill') + c.stars + (c.doneBy ? ' · ' + App.person(c.doneBy).name : '') + '</small>' : (c.doneBy ? '<small>by ' + App.person(c.doneBy).name + '</small>' : '')) +
+      (c.overdue && !c.done ? '<small class="ch-late">Overdue</small>' : c.stars ? '<small>' + App.icon('star', 14, 'i--fill') + c.stars + (c.doneBy ? ' · ' + App.esc(App.person(c.doneBy).name) : '') + '</small>' : (c.doneBy ? '<small>by ' + App.esc(App.person(c.doneBy).name) + '</small>' : '')) +
       '</span>' +
       '</button>';
   }
@@ -38,7 +37,7 @@
     var kid = D.stars[who] != null;
     return '<section class="ch-lane' + (all ? ' is-complete' : '') + '" data-lane="' + who + '" style="' + App.pstyle(p) + '">' +
       '<header class="ch-head">' + App.avatar(p, 42) +
-      '<div><b>' + (who === 'any' ? 'Anyone' : p.name) + '</b>' +
+      '<div><b>' + (who === 'any' ? 'Anyone' : App.esc(p.name)) + '</b>' +
       (kid ? '<span class="ch-stars">' + App.icon('star', 18, 'i--fill') + '<span class="num">' + D.stars[who] + '</span></span>' : '<span class="ch-sub">' + (who === 'any' ? 'Up for grabs' : (list.length ? done + ' of ' + list.length : 'Nothing')) + '</span>') + '</div>' +
       '<div class="ch-ring">' + App.ring(done, list.length || 1, 46) + '<span class="num">' + (all ? '✓' : list.length ? done + '/' + list.length : '–') + '</span></div>' +
       '</header>' +
@@ -52,13 +51,14 @@
     var r = routine(), auto = App.currentRoutine();
     var inR = D.chores.filter(function (c) { return c.r === r.id; });
     var done = inR.filter(function (c) { return c.done; }).length;
+    var lanes = D.people.map(function (p) { return p.id; }).concat(['any']);
     V.el.innerHTML = '<div class="tasks">' +
       '<header class="t-head">' +
       '<div class="t-title"><div class="label">' + (r.id === auto.id ? 'Right now · ' : '') + r.range + '</div><h1 class="serif">' + r.name + '</h1></div>' +
       '<div class="seg">' + D.routines.map(function (x) { return '<button class="' + (x.id === r.id ? 'is-on' : '') + '" data-r="' + x.id + '">' + x.name + '</button>'; }).join('') + '</div>' +
       '<div class="t-progress"><span class="num">' + done + '<small>/' + inR.length + '</small></span><div class="t-bar"><i style="width:' + (inR.length ? done / inR.length * 100 : 0) + '%"></i></div><span class="label">done</span></div>' +
       '</header>' +
-      '<div class="ch-lanes">' + LANES.map(function (w) { return lane(w, r); }).join('') + '</div>' +
+      '<div class="ch-lanes" style="grid-template-columns:repeat(' + lanes.length + ', minmax(0, 1fr))">' + lanes.map(function (w) { return lane(w, r); }).join('') + '</div>' +
       '</div>';
   }
 
@@ -81,7 +81,7 @@
         App.toast('<b>' + r.name + ' routine complete!</b> Everyone crushed it.', { icon: 'star', ms: 5000 });
         return;
       }
-      App.toast('<b>' + App.esc(c.title) + '</b> done' + (earner && c.stars ? ' · +' + c.stars + '★ ' + App.person(earner).name : ''), {
+      App.toast('<b>' + App.esc(c.title) + '</b> done' + (earner && c.stars ? ' · +' + c.stars + '★ ' + App.esc(App.person(earner).name) : ''), {
         icon: 'check',
         undo: function () {
           c.done = false;
@@ -98,7 +98,7 @@
   function whoDidIt(c, btn) {
     App.sheet('<div class="sheet-pad"><div class="label">' + c.emoji + ' ' + App.esc(c.title) + '</div><h2 class="serif sheet-h">Who did it?</h2>' +
       '<div class="add-who add-who--big">' + D.people.map(function (p) {
-        return '<button class="who-btn" data-by="' + p.id + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 88) + '<span>' + p.name + '</span></button>';
+        return '<button class="who-btn" data-by="' + p.id + '" style="' + App.pstyle(p) + '">' + App.avatar(p, 88) + '<span>' + App.esc(p.name) + '</span></button>';
       }).join('') + '</div></div>', {
       onMount: function (s, close) {
         s.addEventListener('click', function (e) {

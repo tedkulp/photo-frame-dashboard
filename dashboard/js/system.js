@@ -100,7 +100,7 @@
   App.garageOpenAlert = function () {
     App.setDevice('g-door', { state: 'open' });
     App.banner({
-      icon: 'garage', title: 'Garage open for 15 min', sub: 'No one is in the garage · Wes is 12 min away',
+      icon: 'garage', title: 'Garage open for 15 min', sub: 'No one is in the garage',
       action: 'Close garage', dismiss: 'Leave open',
       onAction: function () { App.openGarageSheet(); }
     });
@@ -125,10 +125,6 @@
       '<button data-mode="ambient">Ambient</button><button data-mode="night">Night</button><button data-fastidle>' + (App.idle.home < 60 ? 'Idle: fast ✓' : 'Idle: fast') + '</button></div></div>' +
       '<div class="demo-sec"><div class="label label--light">Alerts</div><div class="demo-grid">' +
       '<button data-alert="doorbell">Doorbell</button><button data-alert="leak">Water leak</button><button data-alert="garage">Garage open</button><button data-alert="package">Package</button></div></div>' +
-      '<div class="demo-sec"><div class="label label--light">Calendar data</div><div class="demo-grid">' +
-      ['normal', 'empty', 'busy'].map(function (m) {
-        return '<button data-cal="' + m + '" class="' + (App.calMode === m ? 'is-on' : '') + '">' + { normal: 'Normal day', empty: 'Empty day', busy: 'Overloaded' }[m] + '</button>';
-      }).join('') + '</div></div>' +
       '<p class="demo-note">Keyboard: <b>D</b> demo · <b>A</b> ambient · <b>N</b> night · <b>1–7</b> views</p>' +
       '</div>';
   }
@@ -162,7 +158,6 @@
       ({ doorbell: App.doorbell, leak: App.leak, garage: App.garageOpenAlert, package: App.packageNotice })[b.dataset.alert]();
       return;
     }
-    if (b.dataset.cal) { App.calMode = b.dataset.cal; App.rerender(); App.openDemo(); }
   }
 
   App.on('ready', function () {

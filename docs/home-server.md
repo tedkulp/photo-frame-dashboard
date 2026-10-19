@@ -1,8 +1,9 @@
 # Home server: the dashboard with your Google Calendar
 
-The dashboard ships with mock data. `dashboard/server/` is a small Node server for an always-on
-machine at home (in Docker) that serves the built dashboard and a read-only calendar API from one
-address on your LAN:
+The dashboard takes its family (names, colours) and its calendar from this server's
+`GET /api/calendar`; everything else (chores, shopping, weather, photos, home controls) is still
+mock data. `dashboard/server/` is a small Node server for an always-on machine at home (in Docker)
+that serves the built dashboard and a read-only calendar API from one address on your LAN:
 
 - `GET /` and the built files from `dashboard/dist`. `index.html` is sent with
   `Cache-Control: no-cache`, so the frame picks up a new build on reload.
@@ -92,6 +93,22 @@ The container runs as the `node` user (uid 1000), so the key file must be readab
 Without Docker: `npm install && npm run build && npm run server` in `dashboard/` (Node 20.19 or
 newer).
 
+## What the dashboard does with it
+
+- On boot it fetches `/api/calendar` (same origin as the page), then again every 5 minutes. A
+  failed fetch is retried after 5 s, doubling up to 5 minutes, forever; Wi-Fi coming up after the
+  page is fine.
+- The last good response is kept in the page's `localStorage` and shown straight away on the next
+  boot, so a reload while the server is down still shows the calendar. Once no fetch has worked for
+  15 minutes, the Today and Calendar views say "Updated N min ago".
+- With no saved response and no server, the calendar says it can't reach the home server instead
+  of showing events.
+- All-day events go on their date in the frame's time zone; timed events show in the frame's local
+  time, so set the frame's time zone to match the family's.
+- The mock chores, stars and photo credits are handed to your people by position (first mock
+  person → first person in `settings.people`, and so on). Nobody shows a home/away status: there
+  is no source for it. Events added on the frame stay on the frame until a reload.
+
 ## 5. Point the frame at it
 
 Give the home machine a fixed LAN address (a DHCP reservation in your router), then with the frame
@@ -107,5 +124,5 @@ scripts/set-kiosk-url.sh http://<server-ip>:8080/
 cd dashboard
 npm run server   # API + dist on :8080 (needs config/)
 npm run dev      # Vite on :5173, proxies /api to :8080
-npm test         # server tests against a local fake Google; no network or real key needed
+npm test         # server tests (local fake Google, no network or real key) + dashboard feed tests
 ```

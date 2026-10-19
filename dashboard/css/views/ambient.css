@@ -17,7 +17,6 @@
 }
 .amb-next i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px #fff; }
 .amb-who { display: flex; gap: 8px; }
-.amb-who .avatar--away { background: rgba(0, 0, 0, .3); }
 
 /* Night (dim red clock) — kept above a minimum readable brightness */
 .night { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 66; background: #000; display: none; place-items: center; cursor: pointer; }

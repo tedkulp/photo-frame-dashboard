@@ -27,17 +27,21 @@
       }).join('') + '</div>';
   }
 
-  function presence() {
+  // The family, and a note while the calendar is missing or stale. No presence: there's no real source.
+  function people() {
+    var size = D.people.length > 4 ? 26 : 36;
     return D.people.map(function (p) {
-      var sub = p.home ? 'Home' : (p.eta ? '<b>ETA ' + p.eta + ' min</b>' : p.status);
-      return '<div class="h-who' + (p.home ? ' is-home' : '') + '" style="' + App.pstyle(p) + '">' +
-        App.avatar(p, 36, p.home ? '' : 'avatar--away') +
-        '<span><b>' + p.name + '</b><small>' + sub + '</small></span></div>';
-    }).join('');
+      return '<div class="h-who" style="' + App.pstyle(p) + '">' + App.avatar(p, size) + '<b>' + App.esc(p.name) + '</b></div>';
+    }).join('') + '<small class="h-feed feed-note">' + App.feedNote() + '</small>';
   }
 
   function hero() {
     var e = App.nextEvent(), now = App.now();
+    if (!App.hasCalendar()) {
+      return '<div class="h-hero h-hero--empty" data-go="calendar">' +
+        '<div class="label label--light">Calendar</div>' +
+        '<div class="h-hero-title serif feed-note">' + App.feedNote() + '</div></div>';
+    }
     if (!e) {
       var tomorrow = App.timedOn(App.addDays(now, 1))[0];
       return '<div class="h-hero h-hero--empty" data-go="calendar">' +
@@ -49,7 +53,7 @@
     var p = App.evColor(e);
     var mins = (e.start - now) / 60000;
     var leave = (App.leaveBy(e) - now) / 60000;
-    var who = e.people.map(function (id) { return App.person(id).name; });
+    var who = e.people.map(function (id) { return App.esc(App.person(id).name); });
     var whoText = App.isFamily(e) ? 'Everyone' : who.join(' + ');
     var big = mins < 100
       ? '<div class="h-hero-count num">' + Math.round(mins) + '<small>min</small></div>'
@@ -75,7 +79,7 @@
       var list = App.timedOn(now, p.id).filter(function (e) { return e.end > now; });
       var shown = list.slice(0, 3), more = list.length - shown.length;
       return '<div class="h-lane" style="' + App.pstyle(p) + '">' +
-        '<div class="h-lane-head">' + App.avatar(p, 30) + '<b>' + p.name + '</b></div>' +
+        '<div class="h-lane-head">' + App.avatar(p, 30) + '<b>' + App.esc(p.name) + '</b></div>' +
         (list.length ? shown.map(function (e) {
           var cur = e.start <= now;
           return '<button class="h-ev' + (cur ? ' is-now' : '') + '" data-ev="' + e.id + '">' +
@@ -104,7 +108,7 @@
       var done = list.filter(function (c) { return c.done; }).length;
       var p = App.person(id);
       return '<div class="h-ring' + (done === list.length ? ' is-done' : '') + '" style="' + App.pstyle(p) + '">' + ring(done, list.length, 64) +
-        '<b class="num">' + (done === list.length ? '✓' : done + '/' + list.length) + '</b><span>' + (id === 'any' ? 'Anyone' : p.name) + '</span></div>';
+        '<b class="num">' + (done === list.length ? '✓' : done + '/' + list.length) + '</b><span>' + (id === 'any' ? 'Anyone' : App.esc(p.name)) + '</span></div>';
     }).join('') + '</div>';
   }
 
@@ -134,8 +138,9 @@
     var el = V.el;
     el.querySelector('.h-clock').innerHTML = clock();
     el.querySelector('.h-weather').innerHTML = weather();
-    el.querySelector('.h-presence').innerHTML = presence();
+    el.querySelector('.h-presence').innerHTML = people();
     el.querySelector('.h-hero-slot').innerHTML = hero();
+    el.querySelector('.h-lanes').style.gridTemplateColumns = 'repeat(' + Math.max(1, D.people.length) + ', minmax(0, 1fr))';
     el.querySelector('.h-lanes').innerHTML = lanes();
     el.querySelector('.h-chores').innerHTML = chores();
     el.querySelector('.h-shop').innerHTML = shopping();
