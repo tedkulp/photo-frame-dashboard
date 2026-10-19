@@ -106,6 +106,14 @@ test('people need id, name and colour', () => {
   });
 });
 
+test('colour must be a 6-digit hex colour', () => {
+  const s = settings({ people: [{ id: 'alex', name: 'Alex', colour: '#2D5BFFCC' }] });
+  s.calendars = [{ calendarId: 'f', person: 'family' }];
+  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/people\[0\]\.colour.*6-digit/));
+  });
+});
+
 test('a key without private_key or client_email is named', () => {
   withDir({ 'config/settings.json': settings(), 'config/service-account.json': { client_email: 'a@b' } }, (t) => {
     assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/private_key/));

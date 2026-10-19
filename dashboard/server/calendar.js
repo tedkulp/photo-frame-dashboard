@@ -25,8 +25,10 @@ function startKey(start) {
   return start.date ? start.date : String(Date.parse(start.dateTime));
 }
 
+// Every calendar is fetched in one time zone, so sort by wall-clock time: an all-day event starts
+// at local midnight, a timed one at the local time written before its offset.
 function sortKey(e) {
-  return e.allDay ? Date.parse(e.start + 'T00:00:00Z') : Date.parse(e.start);
+  return Date.parse((e.allDay ? e.start + 'T00:00:00' : e.start.slice(0, 19)) + 'Z');
 }
 
 function toEvent(item, calendarId) {

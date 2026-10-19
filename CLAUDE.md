@@ -40,7 +40,7 @@ python3 scripts/zc002-fel/test_fel_read.py
 python3 scripts/aimor-network-adb/test-protocol.py
 ```
 
-Pre-push checks (conflict markers, broken Markdown links/anchors, `py_compile`/`bash -n`, kiosk build if SDK present, privacy sweep of the diff):
+Pre-push checks (conflict markers, broken Markdown links/anchors, `py_compile`/`bash -n`, home-server `npm test`, kiosk build if SDK present, privacy sweep of the diff):
 
 ```sh
 .agents/skills/triage-contributions/scripts/checks.sh [base]   # base defaults to origin/main

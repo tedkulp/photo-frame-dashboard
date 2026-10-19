@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checks before pushing a triage branch. Read-only. Exit status 1 if anything needs attention.
 #   checks.sh [base]     base defaults to origin/main
-# Conflict markers, broken links and anchors, Python/shell syntax, the kiosk build (if the Android
+# Conflict markers, broken links and anchors, Python/shell syntax, the home-server tests, the kiosk build (if the Android
 # SDK is installed), and a privacy sweep of everything the branch adds compared with base.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -38,6 +38,13 @@ for f in $(git ls-files '*.py'); do python3 -m py_compile "$f" 2>/dev/null || { 
 for f in $(git ls-files '*.sh'); do bash -n "$f" 2>/dev/null || { echo "shell: $f"; n=1; }; done
 find . -name __pycache__ -not -path './.git/*' -prune -exec rm -rf {} + 2>/dev/null
 [ $n = 0 ] && echo "ok" || status=1
+
+echo "== Home server tests"
+if command -v node >/dev/null; then
+  (cd dashboard && npm test >/dev/null 2>&1) && echo "ok" || { echo "server tests FAILED (cd dashboard && npm test)"; status=1; }
+else
+  echo "node not found; run cd dashboard && npm test by hand if dashboard/server changed"
+fi
 
 echo "== Kiosk build"
 SDK=${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}

@@ -16,13 +16,12 @@ const b64url = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
 
 async function readError(res) {
   const text = await res.text().catch(() => '');
+  let msg = text;
   try {
     const j = JSON.parse(text);
-    if (j.error && typeof j.error === 'object') return j.error.message || j.error.status || text;
-    return j.error_description || j.error || text;
-  } catch {
-    return text.slice(0, 200);
-  }
+    msg = (j.error && typeof j.error === 'object') ? (j.error.message || j.error.status) : (j.error_description || j.error);
+  } catch {}
+  return String(msg || res.statusText).slice(0, 200);
 }
 
 export function createGoogle({ serviceAccount, tokenUrl = TOKEN_URL, apiBase = API_BASE, now = Date.now }) {
@@ -47,6 +46,7 @@ export function createGoogle({ serviceAccount, tokenUrl = TOKEN_URL, apiBase = A
     }
     if (!res.ok) throw new GoogleError(`Google token request failed: ${res.status} ${await readError(res)}`);
     const body = await res.json();
+    if (!body.access_token) throw new GoogleError('Google token request failed: no access_token in the response');
     return { token: body.access_token, expiresAt: iat * 1000 + (body.expires_in || 3600) * 1000 };
   }
 

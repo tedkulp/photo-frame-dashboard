@@ -82,6 +82,22 @@ test('per-person events get that person; duplicates across calendars merge', asy
   });
 });
 
+test('events sort by local time, all-day first on its day; Z timestamps pass through', async () => {
+  await withServer({
+    [FAMILY]: { pages: [[
+      timed('late', 'Late', '2026-10-20T22:00:00-04:00', '2026-10-20T23:00:00-04:00'),
+      { id: 'ad', iCalUID: 'ad@google.com', summary: 'All day 21st', start: { date: '2026-10-21' }, end: { date: '2026-10-22' } },
+      timed('utc', 'UTC', '2026-10-21T09:00:00Z', '2026-10-21T10:00:00Z'),
+    ]] },
+    'alex@example.com': { pages: [[]] },
+    'sam@example.com': { pages: [[]] },
+  }, async ({ url }) => {
+    const { body } = await getCalendar(url);
+    assert.deepEqual(body.events.map((e) => e.title), ['Late', 'All day 21st', 'UTC']);
+    assert.equal(body.events[2].start, '2026-10-21T09:00:00Z');
+  });
+});
+
 test('recurring instances are returned and pagination is followed', async () => {
   const inst = (d) => timed('piano_202610' + d, 'Piano', `2026-10-${d}T15:45:00-04:00`, `2026-10-${d}T16:30:00-04:00`, { iCalUID: 'piano@google.com', recurringEventId: 'piano' });
   await withServer({

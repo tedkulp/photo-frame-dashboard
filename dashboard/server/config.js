@@ -43,6 +43,7 @@ function checkSettings(s) {
     for (const key of ['id', 'name', 'colour']) {
       if (!p || !isText(p[key])) throw new ConfigError(`settings.people[${i}].${key} is missing`);
     }
+    if (!/^#[0-9a-fA-F]{6}$/.test(p.colour)) throw new ConfigError(`settings.people[${i}].colour "${p.colour}" must be a 6-digit hex colour like #2D5BFF`);
     if (p.id === 'family') throw new ConfigError(`settings.people[${i}].id cannot be "family"`);
     if (ids.has(p.id)) throw new ConfigError(`settings.people[${i}].id "${p.id}" is used twice`);
     ids.add(p.id);
