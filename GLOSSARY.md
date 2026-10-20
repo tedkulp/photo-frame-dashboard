@@ -54,6 +54,14 @@ _Avoid_: Preset, mode
 Indoor temperature, humidity and thermostat setting. Always in Fahrenheit.
 _Avoid_: Weather, inside weather
 
+**Home** (of a person):
+A family member is home when Home Assistant places them in the home zone. Being at another zone, such as School, is away.
+_Avoid_: In, present
+
+**Away**:
+A family member Home Assistant knows is somewhere other than home. When Home Assistant doesn't know, the person is neither home nor away.
+_Avoid_: Out, absent, not home
+
 ### Chores
 
 **Chore**:
