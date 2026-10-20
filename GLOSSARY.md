@@ -34,6 +34,22 @@ A condition on the weather (and time of day) paired with the advice it produces.
 
 ### Home
 
+**Today**:
+The glanceable overview page: clock, weather, next event, the family's day, chores, shopping and a home summary.
+_Avoid_: Home page, home screen
+
+**Home controls**:
+The page for seeing and changing the house: lights, the lock, climate and the rest of what Home Assistant runs. It's labelled "Home" on the frame.
+_Avoid_: Control, smart home, devices page
+
+**Room**:
+A part of the house that groups things on Home controls. It's the area the thing belongs to in Home Assistant.
+_Avoid_: Area, zone
+
+**Scene**:
+A saved setup of the house, such as "Goodnight", started with one tap. Scenes are made and named in Home Assistant, not on the frame.
+_Avoid_: Preset, mode
+
 **Climate**:
 Indoor temperature, humidity and thermostat setting. Always in Fahrenheit.
 _Avoid_: Weather, inside weather
