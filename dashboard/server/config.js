@@ -1,5 +1,6 @@
 // Startup configuration: settings (people + calendars, optionally Home Assistant), the Google
-// service-account key, the Home Assistant token, port and time zone. Each item is read from an
+// service-account key, the Home Assistant token, port, time zone and data dir (DASHBOARD_DATA_DIR,
+// else data/; opened by store.js). Each item is read from an
 // inline env var, else a path env var, else a default file under config/. Anything missing or
 // invalid throws a ConfigError naming the item, so the server never starts serving an empty
 // calendar. Home Assistant is optional: without settings.homeAssistant there is no weather.
@@ -111,5 +112,6 @@ export function loadConfig({ env = process.env, cwd = process.cwd() } = {}) {
     port = Number(env.PORT);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new ConfigError(`PORT "${env.PORT}" is not a valid port`);
   }
-  return { settings, serviceAccount, homeAssistant, port, timeZone: env.TZ || null };
+  const dataDir = resolve(cwd, env.DASHBOARD_DATA_DIR || 'data');
+  return { settings, serviceAccount, homeAssistant, port, timeZone: env.TZ || null, dataDir };
 }

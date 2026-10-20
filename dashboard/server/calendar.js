@@ -96,6 +96,7 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
   const family = settings.calendars.find((c) => c.person === 'family');
   const others = settings.calendars.filter((c) => c !== family);
   const peopleOf = (cal) => (cal.person === 'family' ? allIds : [cal.person]);
+  let familyZone = null;
 
   async function load() {
     const t = now();
@@ -105,6 +106,7 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     };
     // Without TZ, the family calendar's own time zone (returned with its events) is used for the rest.
     const familyResult = await google.listEvents(family.calendarId, Object.assign({ timeZone }, range));
+    if (familyResult.timeZone) familyZone = familyResult.timeZone;
     const zone = timeZone || familyResult.timeZone;
     const otherResults = await Promise.all(others.map((c) => google.listEvents(c.calendarId, Object.assign({ timeZone: zone }, range))));
 
@@ -146,5 +148,17 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     await google.deleteEvent(ref.calendarId, ref.eventId);
   }
 
-  return { load, create, remove };
+  // The time zone the dashboard lives in: TZ, else the Family calendar's own (asked once).
+  async function zone() {
+    if (timeZone) return timeZone;
+    if (!familyZone) {
+      const t = now();
+      const r = await google.listEvents(family.calendarId, { timeMin: new Date(t).toISOString(), timeMax: new Date(t + 60000).toISOString() });
+      if (!r.timeZone) throw new Error('Google did not say which time zone the Family calendar is in; set TZ');
+      familyZone = r.timeZone;
+    }
+    return familyZone;
+  }
+
+  return { load, create, remove, zone };
 }

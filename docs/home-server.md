@@ -84,6 +84,7 @@ the default file (relative to the folder it runs in; `/app` in Docker).
 | Home Assistant token (only with `homeAssistant`) | `HOME_ASSISTANT_TOKEN` | `HOME_ASSISTANT_TOKEN_FILE` | `config/home-assistant-token` |
 | Port | `PORT` | | `8080` |
 | Time zone | `TZ` | | the Family calendar's time zone |
+| Data dir (chores) | | `DASHBOARD_DATA_DIR` | `data/` |
 
 If anything is missing or wrong (no key, bad JSON, a calendar naming a person who isn't in
 `people`, no Family calendar), the server stops at startup and says which item.
@@ -125,13 +126,41 @@ From `dashboard/`, copy [`compose.example.yaml`](../dashboard/compose.example.ya
 
 ```sh
 cd dashboard
+mkdir -p data && sudo chown 1000:1000 data  # chores are saved here; see "Data and backups"
 docker compose up -d --build dashboard      # or dashboard-env
 curl http://localhost:8080/api/calendar     # should list your events
 ```
 
 The container runs as the `node` user (uid 1000), so the key file must be readable by that uid.
-Without Docker: `npm install && npm run build && npm run server` in `dashboard/` (Node 20.19 or
-newer).
+Without Docker: `npm install && npm run build && npm run server` in `dashboard/` (Node 22.13 or
+newer; Node 24 may print an experimental warning for SQLite at startup).
+
+## Data and backups
+
+The server saves what it is told to remember (chores, and which chores were done on which day) in
+one SQLite file, `home.db`, in its data dir: `data/` next to where it runs (`/app/data` in Docker,
+mounted from `dashboard/data`), or `DASHBOARD_DATA_DIR`. It starts with no chores. The folder is
+created if missing and is git-ignored; it is private, like `config/`.
+
+- Mount the folder, not the file: SQLite keeps `home.db-wal` and `home.db-shm` beside `home.db`.
+- In Docker the folder must be writable by uid 1000 (`chown 1000:1000 ./data`). If it isn't, the
+  server stops at startup with `data dir /app/data is not writable by uid 1000 ...` and the
+  `chown` to run.
+- Back up by copying the whole folder while the container is stopped, or while it is running:
+
+  ```sh
+  sqlite3 data/home.db ".backup /path/to/backup.db"
+  ```
+
+  To restore, stop the server and put the backup in place as `data/home.db`, with no `-wal`/`-shm`
+  files left beside it.
+- Changing a chore's owner or days, or deleting it, applies from today; earlier days keep what was
+  scheduled then. Deleted chores are hidden, never removed. Chores belonging to someone you take
+  out of `settings.people` are hidden too, and come back if you add them again.
+
+```sh
+curl http://localhost:8080/api/chores       # { "date": ..., "chores": [], "done": [], "week": {} }
+```
 
 ## What the dashboard does with it
 

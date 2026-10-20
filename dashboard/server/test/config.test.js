@@ -17,6 +17,14 @@ test('reads the default files under config/', () => {
     assert.equal(c.serviceAccount.client_email, 'frame@example-project.iam.gserviceaccount.com');
     assert.equal(c.port, 8080);
     assert.equal(c.timeZone, null);
+    assert.equal(c.dataDir, t.path('data'));
+  });
+});
+
+test('DASHBOARD_DATA_DIR sets the data dir, relative to the working directory', () => {
+  withDir({ 'config/settings.json': settings(), 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.equal(loadConfig({ env: { DASHBOARD_DATA_DIR: 'state' }, cwd: t.dir }).dataDir, t.path('state'));
+    assert.equal(loadConfig({ env: { DASHBOARD_DATA_DIR: '/srv/frame' }, cwd: t.dir }).dataDir, '/srv/frame');
   });
 });
 

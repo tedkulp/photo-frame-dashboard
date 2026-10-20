@@ -1,5 +1,5 @@
 // HTTP server: the built dashboard (dist), GET /api/calendar, POST /api/events,
-// DELETE /api/events/:id and GET /api/weather from one origin. LAN-only, no auth.
+// DELETE /api/events/:id, GET /api/weather and /api/chores from one origin. LAN-only, no auth.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
@@ -7,6 +7,7 @@ import { createGoogle } from './google.js';
 import { createCalendar, InputError } from './calendar.js';
 import { createHomeAssistant } from './homeassistant.js';
 import { createWeather } from './weather.js';
+import { createChores, localDate } from './chores.js';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -31,7 +32,7 @@ const BODY_MAX = 64 * 1024;
 // The request's JSON body. Only application/json is accepted: another web page can post a plain
 // form or text/plain to this LAN server without asking, but not JSON.
 async function readJson(req) {
-  if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] || '')) throw new InputError(415, 'Send the event as application/json');
+  if (!/^application\/json\s*(;|$)/i.test(req.headers['content-type'] || '')) throw new InputError(415, 'Send the body as application/json');
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -62,7 +63,7 @@ async function apiCall(res, what, status, fn) {
   }
 }
 
-function createHandler({ calendar, weather, distDir }) {
+function createHandler({ calendar, weather, chores, distDir }) {
   const root = resolve(distDir);
 
   async function serveStatic(req, res, pathname) {
@@ -116,6 +117,10 @@ function createHandler({ calendar, weather, distDir }) {
         if (!weather) return sendJson(res, 200, { configured: false });
         return await apiCall(res, 'weather', 200, () => weather.load());
       }
+      if (pathname === '/api/chores' || pathname.startsWith('/api/chores/')) {
+        if (!chores) return sendJson(res, 503, { error: 'Chores need a data dir' });
+        return await routeChores(req, res, pathname, chores);
+      }
       if (pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Not found' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });
       return await serveStatic(req, res, pathname);
@@ -127,13 +132,34 @@ function createHandler({ calendar, weather, distDir }) {
   };
 }
 
-// config comes from loadConfig(); tokenUrl/apiBase/now are overridable for tests.
-export async function startServer({ config, distDir, tokenUrl, apiBase, now = Date.now }) {
+// /api/chores, /api/chores/:id and /api/chores/:id/done.
+async function routeChores(req, res, pathname, chores) {
+  const m = pathname.match(/^\/api\/chores(?:\/([^/]+)(\/done)?)?$/);
+  if (!m) return sendJson(res, 404, { error: 'Not found' });
+  const [, id, done] = m;
+  const allow = (...methods) => methods.includes(req.method);
+  if (!id) {
+    if (allow('GET')) return apiCall(res, 'chores', 200, () => chores.load());
+    if (allow('POST')) return apiCall(res, 'add chore', 201, async () => chores.create(await readJson(req)));
+  } else if (!done) {
+    if (allow('PATCH')) return apiCall(res, 'edit chore', 200, async () => chores.update(id, await readJson(req)));
+    if (allow('DELETE')) return apiCall(res, 'delete chore', 204, () => chores.remove(id));
+  } else {
+    if (allow('PUT')) return apiCall(res, 'tick chore', 204, () => chores.setDone(id, true));
+    if (allow('DELETE')) return apiCall(res, 'untick chore', 204, () => chores.setDone(id, false));
+  }
+  return sendJson(res, 405, { error: 'Method not allowed' });
+}
+
+// config comes from loadConfig(), store from openStore() (without one, /api/chores answers 503);
+// tokenUrl/apiBase/now are overridable for tests.
+export async function startServer({ config, store, distDir, tokenUrl, apiBase, now = Date.now }) {
   const google = createGoogle({ serviceAccount: config.serviceAccount, tokenUrl, apiBase, now });
   const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now });
   const ha = config.homeAssistant;
   const weather = ha ? createWeather({ ha: createHomeAssistant(ha), entity: ha.weatherEntity, now }) : null;
-  const server = createServer(createHandler({ calendar, weather, distDir }));
+  const chores = store ? createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await calendar.zone()) }) : null;
+  const server = createServer(createHandler({ calendar, weather, chores, distDir }));
   await new Promise((ok, fail) => {
     server.once('error', fail);
     server.listen(config.port, () => { server.off('error', fail); ok(); });

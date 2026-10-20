@@ -1,4 +1,4 @@
-# Home server: the built dashboard plus GET /api/calendar. See docs/home-server.md.
+# Home server: the built dashboard plus its /api endpoints. See docs/home-server.md.
 # Build context is this folder: docker build -t photo-frame-dashboard dashboard
 
 FROM node:24.22.0-alpine3.24 AS build
@@ -15,7 +15,10 @@ WORKDIR /app
 COPY package.json ./
 COPY server ./server
 COPY --from=build /src/dist ./dist
-RUN rm -rf server/test
+RUN rm -rf server/test \
+ && mkdir -p /app/data && chown node:node /app/data
+# Chores and other saved state: home.db (plus SQLite's -wal/-shm). Mount ./data here, owned by uid 1000.
+VOLUME /app/data
 USER node
 EXPOSE 8080
 CMD ["node", "server/main.js"]
