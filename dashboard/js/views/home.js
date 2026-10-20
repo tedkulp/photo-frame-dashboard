@@ -129,16 +129,18 @@
       }).join('') + '</ul>';
   }
 
+  // Home Assistant's lights, locks and inside temperature (App.home), with the same note as Home
+  // controls while it's loading, not set up or unreachable.
   function status() {
-    var lights = D.devices.filter(function (d) { return d.type === 'light' && d.on; }).length;
-    var unlocked = D.devices.filter(function (d) { return d.type === 'lock' && !d.locked; });
-    var garage = D.devices.filter(function (d) { return d.type === 'garage'; })[0];
-    var secure = !unlocked.length && garage.state === 'closed';
-    var secText = secure ? 'All locked' : (garage.state !== 'closed' ? 'Garage open' : unlocked[0].name + ' unlocked');
+    var h = App.home(), note = App.homeNote();
+    if (!h || !h.configured) return '<div class="label">Home</div><small class="h-st-note">' + note + '</small>';
+    var s = window.House.stats(h), secure = !s.unlocked.length;
+    var secText = !s.locks ? 'No locks' : secure ? 'All locked' : App.esc(s.unlocked[0]) + ' unlocked';
     return '<div class="label">Home</div>' +
-      '<div class="h-st-row">' + App.icon('bulb', 24) + '<b class="num">' + lights + '</b><span>lights on</span></div>' +
+      '<div class="h-st-row">' + App.icon('bulb', 24) + '<b class="num">' + s.lightsOn + '</b><span>' + (s.lightsOn === 1 ? 'light' : 'lights') + ' on</span></div>' +
       '<div class="h-st-row' + (secure ? '' : ' is-warn') + '">' + App.icon(secure ? 'lock' : 'unlock', 24) + '<span>' + secText + '</span></div>' +
-      '<div class="h-st-row">' + App.icon('thermo', 24) + '<b class="num">' + D.climate.current + '°</b><span>inside</span></div>';
+      (s.inside != null ? '<div class="h-st-row">' + App.icon('thermo', 24) + '<b class="num">' + s.inside + '°</b><span>inside</span></div>' : '') +
+      (note ? '<small class="h-st-note">' + note + '</small>' : '');
   }
 
   function paint() {
@@ -151,7 +153,7 @@
     el.querySelector('.h-lanes').innerHTML = lanes();
     el.querySelector('.h-chores').innerHTML = chores();
     el.querySelector('.h-shop').innerHTML = shopping();
-    el.querySelector('.h-status').innerHTML = status();
+    el.querySelector('.h-status').innerHTML = V.status = status();
   }
 
   function photoCaption(s) {
@@ -200,4 +202,13 @@
   App.on('weatherstate', paintWeather);
   App.on('choresstate', function () { if (V.el && V.el.firstChild) V.el.querySelector('.h-chores').innerHTML = chores(); });
   App.on('data', function () { if (App.current === 'home') paint(); });
+  // Home Assistant changes repaint just the Home card (every 3 s while Home controls is open).
+  function paintStatus() {
+    if (!V.el || !V.el.firstChild) return;
+    var html = status(), box = V.el.querySelector('.h-status');
+    if (V.status !== html) { V.status = html; box.innerHTML = html; }
+  }
+  App.on('home', paintStatus);
+  App.on('homestate', paintStatus);
+  App.on('minute', paintStatus);
 })();

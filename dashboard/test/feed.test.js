@@ -421,3 +421,29 @@ test('failed is set by a failed calendar fetch even with data, and cleared by a 
   await h.next();
   assert.equal(h.feed.state().failed, false);
 });
+
+test('setRefresh changes the interval; with now it fetches straight away', async () => {
+  const h = harness();
+  h.feed.start();
+  await h.settle();
+  h.feed.setRefresh(3000);
+  assert.deepEqual(h.timers.map((t) => t.ms), [3000]);
+  assert.equal(await h.next(), 3000);
+  assert.deepEqual(h.timers.map((t) => t.ms), [3000], 'later refreshes keep the new interval');
+  h.feed.setRefresh(MIN, true);
+  assert.equal(await h.next(), 0);
+  assert.equal(h.calls, 3);
+  assert.deepEqual(h.timers.map((t) => t.ms), [MIN]);
+});
+
+test('setRefresh leaves a fetch in flight or a failure backoff alone', async () => {
+  const h = harness({ respond: failing });
+  h.feed.start();
+  await h.settle();
+  h.feed.setRefresh(3000, true);
+  assert.deepEqual(h.timers.map((t) => t.ms), [5000], 'still backing off');
+  h.respond = () => new Promise(() => {});
+  await h.next();
+  h.feed.setRefresh(3000, true);
+  assert.deepEqual(h.timers.map((t) => t.ms), [30000], 'only the in-flight timeout');
+});

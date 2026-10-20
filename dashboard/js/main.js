@@ -5,6 +5,7 @@ import './feed.js';
 import './advice.js';
 import './weather.js';
 import './chores.js';
+import './house.js';
 import './app.js';
 import './system.js';
 import './slideshow.js';

@@ -1,5 +1,5 @@
-// Mock data for the prototype (everything but people, the calendar, weather and chores, which come
-// from the home server). Relative to "today" so the demo always looks current.
+// Mock data for the prototype (everything but people, the calendar, weather, chores and Home
+// controls, which come from the home server). Relative to "today" so the demo always looks current.
 window.DATA = (function () {
   var base = new Date();
   base.setHours(0, 0, 0, 0);
@@ -71,50 +71,6 @@ window.DATA = (function () {
     ['Laundry detergent', 'Household'], ['Paper towels', 'Household'], ['Toilet paper', 'Household'], ['Toothpaste', 'Household']
   ];
   var usuals = ['Milk 2%', 'Eggs', 'Bananas', 'Bread', 'Apples', 'Coffee beans', 'Greek yogurt', 'Cheddar', 'Butter', 'Baby spinach', 'Chicken thighs', 'Paper towels'];
-
-  // ---------------------------------------------------------------- home control
-  var rooms = [
-    { id: 'kitchen', name: 'Kitchen' },
-    { id: 'living', name: 'Living Room' },
-    { id: 'entry', name: 'Entry + Garage' },
-    { id: 'upstairs', name: 'Upstairs' },
-    { id: 'yard', name: 'Backyard' }
-  ];
-  var devices = [
-    { id: 'k-pend', room: 'kitchen', type: 'light', name: 'Pendants', on: true, level: 80 },
-    { id: 'k-under', room: 'kitchen', type: 'light', name: 'Under Cabinet', on: true, level: 55 },
-    { id: 'k-island', room: 'kitchen', type: 'light', name: 'Island', on: false, level: 100 },
-    { id: 'k-speaker', room: 'kitchen', type: 'blind', name: 'Window Shade', pos: 100 },
-    { id: 'l-lamp', room: 'living', type: 'light', name: 'Floor Lamp', on: true, level: 45 },
-    { id: 'l-ceil', room: 'living', type: 'light', name: 'Ceiling', on: false, level: 100 },
-    { id: 'l-blinds', room: 'living', type: 'blind', name: 'Blinds', pos: 60 },
-    { id: 'l-fire', room: 'living', type: 'light', name: 'Mantel', on: false, level: 70 },
-    { id: 'e-door', room: 'entry', type: 'lock', name: 'Front Door', locked: true },
-    { id: 'e-porch', room: 'entry', type: 'light', name: 'Porch', on: true, level: 100 },
-    { id: 'g-door', room: 'entry', type: 'garage', name: 'Garage', state: 'closed' },
-    { id: 'g-side', room: 'entry', type: 'lock', name: 'Side Door', locked: true },
-    { id: 'u-maya', room: 'upstairs', type: 'light', name: "Buzzsaw's Lamp", on: true, level: 30 },
-    { id: 'u-otto', room: 'upstairs', type: 'light', name: "Skidmark's Nightlight", on: false, level: 15 },
-    { id: 'u-hall', room: 'upstairs', type: 'light', name: 'Hallway', on: false, level: 60 },
-    { id: 'u-bath', room: 'upstairs', type: 'light', name: 'Bathroom', on: false, level: 100 },
-    { id: 'y-string', room: 'yard', type: 'light', name: 'String Lights', on: false, level: 100, flaky: true },
-    { id: 'y-back', room: 'yard', type: 'lock', name: 'Back Door', locked: true },
-    { id: 'y-flood', room: 'yard', type: 'light', name: 'Floodlight', on: false, level: 100 }
-  ];
-  var climate = { current: 69, set: 71, mode: 'heat', humidity: 42 };
-  var media = { room: 'Kitchen', title: 'Harvest Moon', artist: 'Neil Young', playing: true, volume: 35, seed: 'harvest-vinyl' };
-  var cameras = [
-    { id: 'c-front', name: 'Front Porch', seed: 'porch-steps' },
-    { id: 'c-drive', name: 'Driveway', seed: 'driveway-maple' },
-    { id: 'c-yard', name: 'Backyard', seed: 'garden-yard' }
-  ];
-  var scenes = [
-    { id: 'morning', name: 'Morning', icon: 'sunrise', set: { 'k-pend': 100, 'k-under': 80, 'l-blinds': 100, 'l-lamp': 0, 'u-hall': 60 } },
-    { id: 'dinner', name: 'Dinner', icon: 'utensils', set: { 'k-pend': 55, 'k-under': 30, 'k-island': 70, 'l-lamp': 40, 'l-ceil': 0 } },
-    { id: 'movie', name: 'Movie', icon: 'film', set: { 'k-pend': 0, 'k-under': 15, 'k-island': 0, 'l-lamp': 15, 'l-ceil': 0, 'l-blinds': 0, 'l-fire': 30 } },
-    { id: 'away', name: 'Away', icon: 'away', set: { 'k-pend': 0, 'k-under': 0, 'k-island': 0, 'l-lamp': 0, 'l-ceil': 0, 'l-fire': 0, 'u-maya': 0, 'u-hall': 0, 'e-porch': 100 } },
-    { id: 'night', name: 'Goodnight', icon: 'moon', set: { 'k-pend': 0, 'k-under': 10, 'k-island': 0, 'l-lamp': 0, 'l-ceil': 0, 'l-fire': 0, 'u-hall': 10, 'u-otto': 15, 'e-porch': 0 } }
-  ];
 
   // ---------------------------------------------------------------- photos
   var t = new Date(base);
@@ -189,13 +145,13 @@ window.DATA = (function () {
   ];
 
   return {
-    // people + events, weather and chores come from the home server (feed.js, weather.js, chores.js).
+    // people + events, weather, chores and the house come from the home server (feed.js,
+    // weather.js, chores.js, house.js).
     people: [], family: family, mockIds: mockIds,
     events: [],
     routines: routines, chores: null,
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
-    rooms: rooms, devices: devices, climate: climate, media: media, cameras: cameras, scenes: scenes,
-    weather: null, photos: photos, agents: agents,
+    weather: null, home: null, photos: photos, agents: agents,
     _gid: function () { return 'g' + (++gid); }
   };
 })();

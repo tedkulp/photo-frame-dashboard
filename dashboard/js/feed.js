@@ -70,6 +70,7 @@
     var lastOk = null, lastBody = null, failures = 0, timer = null, status = 'loading';
     var failed = false; // the last calendar fetch, or an add/delete, failed (no answer or a 5xx)
     var answered = false; // the last failed fetch got an HTTP error back: the server is up, something behind it isn't
+    var inFlight = false;
 
     function read() {
       try { var c = JSON.parse(o.storage.getItem(cacheKey)); return c && c.body && c.at ? c : null; } catch (e) { return null; }
@@ -108,6 +109,7 @@
     }
     function load() {
       var p;
+      inFlight = true;
       try { p = Promise.resolve(o.fetch(o.url, { cache: 'no-store' })); } catch (e) { p = Promise.reject(e); }
       return withTimeout(p.then(function (res) {
         if (!res.ok) { var e = new Error('HTTP ' + res.status); e.answered = true; throw e; }
@@ -119,7 +121,7 @@
         failed = false;
         answered = false;
         schedule(refresh);
-      }).catch(function (e) { answered = !!(e && e.answered); fail(); }).then(function () { if (o.onState) o.onState(); });
+      }).catch(function (e) { answered = !!(e && e.answered); fail(); }).then(function () { inFlight = false; if (o.onState) o.onState(); });
     }
 
     // An add or delete. Resolves with the JSON body (null for 204); rejects with the server's error,
@@ -156,6 +158,13 @@
       },
       remove: function (id) {
         return send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {});
+      },
+      // A new refresh interval (Home controls polls faster while it's open). With `now`, fetches
+      // straight away. A fetch in flight or a failure backoff is left alone; the interval applies
+      // from the next good fetch.
+      setRefresh: function (ms, now) {
+        refresh = ms;
+        if (!inFlight && !failures && status === 'ok') schedule(now ? 0 : ms);
       },
       start: function () {
         var c = read();

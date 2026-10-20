@@ -239,6 +239,78 @@
     });
   };
 
+  // ------------------------------------------------------------ home feed (home server)
+  // Home Assistant's labelled entities from GET /api/home (house.js), on the calendar feed's loop:
+  // every 3 s while Home controls is open (views/control.js sets it), 60 s otherwise. Taps are
+  // optimistic: shown at once with a pending mark, confirmed by a later poll or put back after 5 s.
+  var pendingHome = {}; // { key: { id, name, show, match, at } }, see House.view / House.settle
+  var homeTimers = {};  // debounced changes not sent yet, by key
+  function onHome(d) { D.home = d; settleHome(); App.emit('home'); }
+  function homeState() { return App.homeFeed ? App.homeFeed.state() : { status: 'loading' }; }
+  function settleHome() {
+    var r = window.House.settle(D.home, pendingHome, Date.now());
+    r.expired.forEach(function (p) { App.toast('Couldn’t reach <b>' + App.esc(p.name) + '</b>', { tone: 'error', icon: 'bolt' }); });
+    return r.confirmed.length + r.expired.length > 0;
+  }
+  App.on('second', function () { if (settleHome()) App.emit('home'); });
+  // What Home controls and the Today card show: the data with pending taps over it (null before
+  // anything has loaded; { configured: false } without Home Assistant).
+  App.home = function () { return window.House.view(D.home, pendingHome); };
+  // Why the house can't be shown or changed right now ('' when it can). While set, taps toast it.
+  App.homeNote = function () { return window.House.note(homeState(), D.home, Date.now()); };
+  function homeBlocked() {
+    var why = App.homeNote();
+    if (why) App.toast(why, { tone: 'error', icon: 'bolt' });
+    return !!why;
+  }
+  function homeFailed(key, entry) {
+    return function (e) {
+      if (pendingHome[key] === entry) delete pendingHome[key]; // else a later tap owns it now
+      App.toast('<b>' + App.esc(entry.name) + '</b> · ' + App.esc(e.message), { tone: 'error', icon: 'bolt' });
+      App.emit('home');
+      return false;
+    };
+  }
+  // POST /api/home/:id { action, value }. `target` is the tile, climate or player ({ id, name }).
+  // opts.key: what a later change replaces (default the entity; climate uses one per action) and
+  // opts.delay: send only after this many ms without another change to the same key (−/+ taps).
+  // Without a delay, returns a Promise of true once the server took it (false after a failure,
+  // which has been toasted and put back); undefined when refused (blocked, or debouncing).
+  App.homeAct = function (target, action, value, opts) {
+    opts = opts || {};
+    if (homeBlocked()) return;
+    var key = opts.key || target.id, ex = window.House.expect(action, value);
+    var entry = ex && { id: target.id, name: target.name, show: ex.show, match: ex.match, at: null };
+    function send() {
+      delete homeTimers[key];
+      if (entry) entry.at = Date.now();
+      var body = value === undefined ? { action: action } : { action: action, value: value };
+      return App.homeFeed.send('POST', '/api/home/' + encodeURIComponent(target.id), body)
+        .then(function () { return true; }, homeFailed(key, entry || { name: target.name }));
+    }
+    if (entry) { pendingHome[key] = entry; App.emit('home'); }
+    clearTimeout(homeTimers[key]);
+    if (opts.delay) homeTimers[key] = setTimeout(send, opts.delay);
+    else return send();
+  };
+  // A room's "All off": its lights, switches and fans that are on go off at once.
+  App.homeRoomOff = function (room) {
+    if (homeBlocked()) return;
+    var off = window.House.expect('off'), entries = [];
+    room.tiles.forEach(function (t) {
+      if (!t.available || !t.on || !/^(light|switch|fan)$/.test(t.kind)) return;
+      var entry = { id: t.id, name: t.name, show: off.show, match: off.match, at: Date.now() };
+      pendingHome[t.id] = entry;
+      entries.push(entry);
+    });
+    App.emit('home');
+    App.homeFeed.send('POST', '/api/home/rooms/' + encodeURIComponent(room.name) + '/off').then(null, function (e) {
+      entries.forEach(function (entry) { if (pendingHome[entry.id] === entry) delete pendingHome[entry.id]; });
+      App.toast('<b>' + App.esc(room.name) + '</b> · ' + App.esc(e.message), { tone: 'error', icon: 'bolt' });
+      App.emit('home');
+    });
+  };
+
   // ------------------------------------------------------------ edit mode (reusable)
   // How a screen gets an Edit mode (Chores does this in views/tasks.js; shopping can follow):
   //   var edit = App.editMode('tasks', render);   // one per view; render runs when it turns on/off
@@ -562,6 +634,15 @@
       onChange: onChores, onState: function () { App.emit('choresstate'); }, onError: function (e) { console.error('[chores]', e); }
     });
     App.choresFeed.start();
+    App.homeFeed = window.Feed.create({
+      url: '/api/home', cacheKey: 'homehq.home', refresh: window.House.REFRESH_IDLE, stale: window.House.STALE,
+      parse: window.House.parse, changeKey: window.House.changeKey,
+      noAnswer: 'No answer from the home server · check it before trying again',
+      fetch: window.fetch.bind(window), storage: storage,
+      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
+      onChange: onHome, onState: function () { App.emit('homestate'); }, onError: function (e) { console.error('[home]', e); }
+    });
+    App.homeFeed.start();
     fit();
     window.addEventListener('resize', fit);
     // Switch tabs the instant a finger lands (pointerdown), not on release. Keyboard "clicks"

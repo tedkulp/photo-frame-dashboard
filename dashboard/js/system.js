@@ -1,7 +1,7 @@
 // Alerts (takeovers, banners, notices) + the hidden demo drawer.
 (function () {
   'use strict';
-  var D = window.DATA, $ = App.$;
+  var $ = App.$;
 
   function img(seed, w, h) { return 'https://picsum.photos/seed/' + seed + '/' + w + '/' + h; }
   App.img = img;
@@ -45,7 +45,6 @@
     var u = el.querySelector('[data-unlock]');
     App.hold(u, 1000, {
       done: function () {
-        App.setDevice('e-door', { locked: false });
         u.classList.add('is-on');
         u.querySelector('span').textContent = 'Unlocked';
         App.toast('Front door unlocked · relocks in 2 min', { icon: 'unlock' });
@@ -97,20 +96,13 @@
     return kill;
   };
 
-  App.garageOpenAlert = function () {
-    App.setDevice('g-door', { state: 'open' });
-    App.banner({
-      icon: 'garage', title: 'Garage open for 15 min', sub: 'No one is in the garage',
-      action: 'Close garage', dismiss: 'Leave open',
-      onAction: function () { App.openGarageSheet(); }
-    });
-  };
-
+  // "View camera" opens the first camera on the frame, if there is one.
   App.packageNotice = function () {
+    var h = App.home(), cam = h && h.configured && h.cameras.filter(function (c) { return c.available; })[0];
     App.banner({
       tone: 'ink', icon: 'box', title: 'Package delivered', sub: 'Front porch · ' + App.fmt.time(App.now()),
-      action: 'View camera', dismiss: 'OK', ms: 9000,
-      onAction: function () { App.cameraSheet(D.cameras[0]); }
+      action: cam ? 'View camera' : '', dismiss: 'OK', ms: 9000,
+      onAction: function () { App.cameraSheet(cam); }
     });
   };
 
@@ -124,7 +116,7 @@
       '<div class="demo-sec"><div class="label label--light">Modes</div><div class="demo-grid">' +
       '<button data-mode="ambient">Ambient</button><button data-mode="night">Night</button><button data-fastidle>' + (App.idle.home < 60 ? 'Idle: fast ✓' : 'Idle: fast') + '</button></div></div>' +
       '<div class="demo-sec"><div class="label label--light">Alerts</div><div class="demo-grid">' +
-      '<button data-alert="doorbell">Doorbell</button><button data-alert="leak">Water leak</button><button data-alert="garage">Garage open</button><button data-alert="package">Package</button></div></div>' +
+      '<button data-alert="doorbell">Doorbell</button><button data-alert="leak">Water leak</button><button data-alert="package">Package</button></div></div>' +
       '<p class="demo-note">Keyboard: <b>D</b> demo · <b>A</b> ambient · <b>N</b> night · <b>1–7</b> views</p>' +
       '</div>';
   }
@@ -155,7 +147,7 @@
     }
     if (b.dataset.alert) {
       closeDemo();
-      ({ doorbell: App.doorbell, leak: App.leak, garage: App.garageOpenAlert, package: App.packageNotice })[b.dataset.alert]();
+      ({ doorbell: App.doorbell, leak: App.leak, package: App.packageNotice })[b.dataset.alert]();
       return;
     }
   }
