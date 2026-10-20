@@ -176,5 +176,6 @@ scripts/set-kiosk-url.sh http://<server-ip>:8080/
 cd dashboard
 npm run server   # API + dist on :8080 (needs config/)
 npm run dev      # Vite on :5173, proxies /api to :8080
+npm run dev:all  # both at once; the server restarts when server/ changes, Ctrl+C stops both
 npm test         # server tests (local fake Google + Home Assistant, no network or real key) + dashboard tests
 ```

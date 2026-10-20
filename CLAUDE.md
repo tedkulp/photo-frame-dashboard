@@ -18,6 +18,7 @@ npm run dev        # served on the LAN (server.host: true) so a frame can load i
 npm run build      # -> dashboard/dist
 npm run deploy     # build + wrangler deploy
 npm run server     # home server: dist + /api/calendar, /api/events, /api/weather on :8080 (needs dashboard/config/)
+npm run dev:all    # server (restarts on server/ changes) + Vite together, prefixed output
 npm test           # node --test: server tests (local fake Google + Home Assistant) + dashboard/test (feed, weather + advice)
 ```
 
