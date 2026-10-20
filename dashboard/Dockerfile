@@ -1,7 +1,9 @@
 # Home server: the built dashboard plus its /api endpoints. See docs/home-server.md.
 # Build context is this folder: docker build -t photo-frame-dashboard dashboard
 
-FROM node:24.22.0-alpine3.24 AS build
+# The build stage runs on the builder's own platform (dist is plain static files), so multi-arch
+# builds only emulate the small runtime stage.
+FROM --platform=$BUILDPLATFORM node:24.22.0-alpine3.24 AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund

@@ -131,6 +131,13 @@ docker compose up -d --build dashboard      # or dashboard-env
 curl http://localhost:8080/api/calendar     # should list your events
 ```
 
+To skip building on the home server, use the image GitHub Actions builds from every push to
+`main` (`.github/workflows/docker.yml`, amd64 and arm64): in `compose.yaml` replace `build: .`
+with `image: ghcr.io/tedkulp/photo-frame-dashboard:latest`, then
+`docker compose pull && docker compose up -d dashboard`. Each build is also tagged `sha-<commit>`
+if you want to pin one. On a fork, use your own `ghcr.io/<owner>/<repo>`; a new GHCR package is
+private until you make it public in the package settings (or `docker login ghcr.io` first).
+
 The container runs as the `node` user (uid 1000), so the key file must be readable by that uid.
 Without Docker: `npm install && npm run build && npm run server` in `dashboard/` (Node 22.13 or
 newer; Node 24 may print an experimental warning for SQLite at startup).
