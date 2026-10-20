@@ -12,8 +12,8 @@ window.DATA = (function () {
   // ---------------------------------------------------------------- chores
   // The two parts of the day chores are grouped into; the hours pick the default tab.
   var routines = [
-    { id: 'morning', name: 'Morning', range: 'Until noon', from: 0, to: 12 },
-    { id: 'evening', name: 'Evening', range: 'Noon on', from: 12, to: 24 }
+    { id: 'morning', name: 'Morning', range: 'Before noon', from: 0, to: 12 },
+    { id: 'evening', name: 'Evening', range: 'After noon', from: 12, to: 24 }
   ];
 
   // ---------------------------------------------------------------- shopping
