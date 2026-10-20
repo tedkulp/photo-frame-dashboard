@@ -101,16 +101,17 @@
   App.ring = ring;
 
   function chores() {
-    var r = App.currentRoutine();
+    var r = App.currentRoutine(), today = App.choresToday(r.id), note = App.choresNote();
     var who = App.peopleIds().concat(['any']);
+    if (!D.chores) return '<div class="label">Chores · ' + r.name + '</div><div class="h-chores-note">' + note + '</div>';
     return '<div class="label">Chores · ' + r.name + '</div><div class="h-rings">' + who.map(function (id) {
-      var list = D.chores.filter(function (c) { return c.r === r.id && c.who === id; });
+      var list = today.filter(function (c) { return c.owner === id; });
       if (!list.length) return '';
       var done = list.filter(function (c) { return c.done; }).length;
       var p = App.person(id);
       return '<div class="h-ring' + (done === list.length ? ' is-done' : '') + '" style="' + App.pstyle(p) + '">' + ring(done, list.length, 64) +
         '<b class="num">' + (done === list.length ? '✓' : done + '/' + list.length) + '</b><span>' + (id === 'any' ? 'Anyone' : App.esc(p.name)) + '</span></div>';
-    }).join('') + '</div>';
+    }).join('') + '</div>' + (note ? '<small class="h-chores-note">' + note + '</small>' : '');
   }
 
   function shopping() {
@@ -192,5 +193,6 @@
     if (n.getMinutes() === 0) V.el.querySelector('.h-lanes').innerHTML = lanes();
   });
   App.on('weatherstate', paintWeather);
+  App.on('choresstate', function () { if (V.el && V.el.firstChild) V.el.querySelector('.h-chores').innerHTML = chores(); });
   App.on('data', function () { if (App.current === 'home') paint(); });
 })();

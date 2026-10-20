@@ -124,7 +124,7 @@
 
   // ------------------------------------------------------------ calendar feed (home server)
   // People + events from GET /api/calendar (feed.js). The first real people list also hands the
-  // still-mock chores, stars and photos to them by position.
+  // still-mock photos to them by position.
   var owners = D.mockIds;
   function onFeed(d) {
     var ids = d.people.map(function (p) { return p.id; }); // D.people is still the old list here
@@ -176,11 +176,48 @@
     return s.stale ? 'Weather from ' + App.fmt.mins(Math.floor(s.age / 60) * 60) + ' ago' : '';
   };
 
-  // ------------------------------------------------------------ chores helpers
+  // ------------------------------------------------------------ chores feed (home server)
+  // Chores from GET /api/chores (chores.js), on the calendar feed's loop every 30 s.
   App.currentRoutine = function () {
     var h = App.now().getHours();
     for (var i = 0; i < D.routines.length; i++) if (h >= D.routines[i].from && h < D.routines[i].to) return D.routines[i];
-    return D.routines[2];
+    return D.routines[D.routines.length - 1];
+  };
+  var pendingTicks = {}; // { choreId: done } sent but not answered yet
+  function onChores(d) { D.chores = d; App.emit('chores'); }
+  // Today's chores (the server's weekday) in a routine, with done; the one selection the Chores
+  // view and the home screen's rings both use.
+  App.choresToday = function (routineId) { return window.Chores.today(D.chores, routineId, pendingTicks); };
+  App.choresWeek = function (personId) { return window.Chores.week(D.chores, personId); };
+  function choresState() { return App.choresFeed ? App.choresFeed.state() : { status: 'loading' }; }
+  // Why ticking is off right now ('' when it is on): nothing loaded yet, or the server isn't
+  // reachable (the last request failed, or no fetch has worked for a couple of minutes).
+  App.tickBlocked = function () {
+    var s = choresState();
+    if (s.status === 'loading') return 'Loading chores…';
+    return s.status === 'offline' || s.failed || s.stale ? window.Feed.UNREACHABLE : '';
+  };
+  // What to say about the chores data: why there is none yet, or that it may be out of date.
+  App.choresNote = function () {
+    var s = choresState();
+    if (s.status === 'loading') return 'Loading chores…';
+    if (s.status === 'offline') return 'Can’t reach the home server · retrying';
+    if (s.failed || s.stale) return 'Can’t reach the home server · ' + (s.age ? 'chores from ' + App.fmt.mins(s.age) + ' ago' : 'retrying');
+    return '';
+  };
+  // Tick (done = true) or untick a chore. Shows at once; resolves when the server has it, or
+  // rejects with the reason after putting it back. The feed refetches after every write.
+  App.tickChore = function (id, done) {
+    pendingTicks[id] = done;
+    App.emit('chores');
+    function settle(ok) {
+      if (pendingTicks[id] !== done) return; // a later tap on the same chore owns it now
+      delete pendingTicks[id];
+      if (ok && D.chores) { if (done) D.chores.done[id] = true; else delete D.chores.done[id]; }
+      App.emit('chores');
+    }
+    return App.choresFeed.send(done ? 'PUT' : 'DELETE', '/api/chores/' + encodeURIComponent(id) + '/done')
+      .then(function () { settle(true); }, function (e) { settle(false); throw e; });
   };
   // ------------------------------------------------------------ router
   App.register = function (name, view) { App.views[name] = view; };
@@ -236,6 +273,7 @@
   App.on('data', markStale);
   App.on('feed', function () { markStale(); App.rerender(); });
   App.on('weather', function () { markStale(); App.rerender(); });
+  App.on('chores', function () { markStale(); App.rerender(); });
   App.on('time', markStale);
   App.rerender = function () {
     if (App.current) App.views[App.current].show($('#view-' + App.current), { rerender: true });
@@ -372,6 +410,15 @@
       onChange: onWeather, onState: function () { App.emit('weatherstate'); }, onError: function (e) { console.error('[weather]', e); }
     });
     App.weatherFeed.start();
+    App.choresFeed = window.Feed.create({
+      url: '/api/chores', cacheKey: 'homehq.chores', refresh: window.Chores.REFRESH, stale: window.Chores.STALE,
+      parse: window.Chores.parse, changeKey: window.Chores.changeKey,
+      noAnswer: 'No answer from the home server · check the chores before trying again',
+      fetch: window.fetch.bind(window), storage: storage,
+      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
+      onChange: onChores, onState: function () { App.emit('choresstate'); }, onError: function (e) { console.error('[chores]', e); }
+    });
+    App.choresFeed.start();
     fit();
     window.addEventListener('resize', fit);
     // Switch tabs the instant a finger lands (pointerdown), not on release. Keyboard "clicks"

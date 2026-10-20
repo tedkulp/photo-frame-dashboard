@@ -48,23 +48,11 @@
   };
 
   // ------------------------------------------------------------ still-mock data
-  // Chores, stars and photos are still mock; hand them to real people by position (mock person 1
-  // → real person 1). Entries for positions beyond the real list are dropped.
+  // Photos are still mock; hand them to real people by position (mock person 1 → real person 1).
+  // Photos from positions beyond the real list are dropped.
   Feed.remap = function (D, from, to) {
     var map = {};
     from.forEach(function (id, i) { if (i < to.length) map[id] = to[i]; });
-    function keep(id) { return id === 'any' || id in map; }
-    function move(id) { return id === 'any' ? id : map[id]; }
-    D.chores = D.chores.filter(function (c) { return keep(c.who); });
-    D.chores.forEach(function (c) {
-      c.who = move(c.who);
-      if (c.doneBy) { if (c.doneBy in map) c.doneBy = map[c.doneBy]; else delete c.doneBy; }
-    });
-    ['stars', 'week'].forEach(function (k) {
-      var out = {};
-      Object.keys(D[k]).forEach(function (id) { if (id in map) out[map[id]] = D[k][id]; });
-      D[k] = out;
-    });
     D.photos = D.photos.filter(function (p) { return p.from in map; });
     D.photos.forEach(function (p) { p.from = map[p.from]; });
   };
@@ -73,10 +61,11 @@
   // deps: url, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the data changes,
   // onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
   // Optional, for feeds other than the calendar: cacheKey, refresh and stale (ms), parse(body) (throws
-  // on a bad body) and changeKey(body) (a string that changes only when the data does).
+  // on a bad body), changeKey(body) (a string that changes only when the data does) and noAnswer (what
+  // a write that timed out rejects with).
   Feed.create = function (o) {
     var cacheKey = o.cacheKey || CACHE_KEY, refresh = o.refresh || REFRESH, staleMs = o.stale || STALE;
-    var parse = o.parse || Feed.parse;
+    var parse = o.parse || Feed.parse, noAnswer = o.noAnswer || NO_ANSWER;
     var changeKey = o.changeKey || function (body) { return JSON.stringify([body.people, body.events]); };
     var lastOk = null, lastBody = null, failures = 0, timer = null, status = 'loading';
     var failed = false; // the last calendar fetch, or an add/delete, failed (no answer or a 5xx)
@@ -150,11 +139,13 @@
           return out;
         });
       }, function (e) {
-        throw failNow(new Error(e && e.timedOut ? NO_ANSWER : UNREACHABLE));
+        throw failNow(new Error(e && e.timedOut ? noAnswer : UNREACHABLE));
       });
     }
 
     return {
+      // Any write: (method, url, body?) → the JSON answer (null for 204). See send() above.
+      send: send,
       // { title, start, end, people, allDay? } with ISO strings → the created event, parsed.
       add: function (input) {
         return send('POST', '/api/events', input).then(function (raw) {

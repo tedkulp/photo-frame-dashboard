@@ -57,36 +57,25 @@ test('drops events with unparseable dates instead of failing the whole response'
 });
 
 // ------------------------------------------------------------ mock data reassignment
+// Only photos are still mock; chores come from the home server.
 function mock() {
   return {
-    chores: [
-      { id: 'c1', who: 'alex' }, { id: 'c2', who: 'jordan' }, { id: 'c3', who: 'maya' },
-      { id: 'c4', who: 'otto', doneBy: 'maya' }, { id: 'c5', who: 'any', doneBy: 'otto' }, { id: 'c6', who: 'any', doneBy: 'alex' },
-    ],
-    stars: { maya: 42, otto: 57 },
-    week: { maya: [1], otto: [0] },
-    photos: [{ seed: 'p1', from: 'alex' }, { seed: 'p2', from: 'otto' }],
+    photos: [{ seed: 'p1', from: 'alex' }, { seed: 'p2', from: 'otto' }, { seed: 'p3', from: 'maya' }],
+    chores: { date: '2026-10-21', chores: [{ id: '1', owner: 'otto' }] },
   };
 }
 
-test('reassigns mock entries to real people by position and drops the rest', () => {
+test('reassigns mock photos to real people by position and drops the rest', () => {
   const D = mock();
   Feed.remap(D, ['alex', 'jordan', 'maya', 'otto'], ['a', 'b', 'c']);
-  assert.deepEqual(D.chores.map((c) => c.who), ['a', 'b', 'c', 'any', 'any']);
-  assert.equal(D.chores.filter((c) => c.who === 'any')[0].doneBy, undefined);
-  assert.equal(D.chores.filter((c) => c.who === 'any')[1].doneBy, 'a');
-  assert.deepEqual(D.stars, { c: 42 });
-  assert.deepEqual(D.week, { c: [1] });
-  assert.deepEqual(D.photos.map((p) => p.from), ['a']);
+  assert.deepEqual(D.photos.map((p) => p.from), ['a', 'c']);
 });
 
-test('real people beyond the mock list get nothing', () => {
+test('real people beyond the mock list get nothing, and real chores are left alone', () => {
   const D = mock();
   Feed.remap(D, ['alex', 'jordan', 'maya', 'otto'], ['a', 'b', 'c', 'd', 'e']);
-  assert.deepEqual(D.chores.map((c) => c.who), ['a', 'b', 'c', 'd', 'any', 'any']);
-  assert.equal(D.chores[3].doneBy, 'c');
-  assert.deepEqual(D.stars, { c: 42, d: 57 });
-  assert.equal(D.chores.some((c) => c.who === 'e'), false);
+  assert.deepEqual(D.photos.map((p) => p.from), ['a', 'd', 'c']);
+  assert.deepEqual(D.chores, mock().chores);
 });
 
 // ------------------------------------------------------------ refresh loop
@@ -103,7 +92,7 @@ function harness(opts) {
     seen: [],
     respond: opts.respond || (() => ({ ok: true, json: () => Promise.resolve(body()) })),
   };
-  h.feed = Feed.create({
+  h.feed = Feed.create(Object.assign({
     url: '/api/calendar',
     fetch: (url, init) => { h.calls++; h.requests.push({ url, init }); return Promise.resolve().then(() => h.respond(url, init)); },
     storage: opts.storage || {
@@ -115,7 +104,7 @@ function harness(opts) {
     clearTimeout: (t) => { h.timers = h.timers.filter((x) => x !== t); },
     onChange: (d) => { h.changes.push(d); h.seen.push(h.feed.state()); },
     onState: () => h.states++,
-  });
+  }, opts.create));
   h.settle = () => new Promise((r) => setImmediate(r));
   // Run the next timer (advancing the clock to it) and let its fetch settle.
   h.next = async () => {
@@ -381,6 +370,42 @@ test('remove rejects with the server error', async () => {
   await h.settle();
   const err = await h.feed.remove('x').then(() => null, (e) => e);
   assert.match(err.message, /boom/);
+});
+
+// ------------------------------------------------------------ other writes (chores ticks)
+test('send makes any write without a body, resolves with null on 204, then refreshes', async () => {
+  const h = harness({ respond: routes(() => ({ ok: true, status: 204, json: () => Promise.reject(new Error('no body')) })) });
+  h.feed.start();
+  await h.settle();
+  const out = await h.feed.send('PUT', '/api/chores/7/done');
+  assert.equal(out, null);
+  assert.equal(h.requests[1].url, '/api/chores/7/done');
+  assert.equal(h.requests[1].init.method, 'PUT');
+  assert.equal(h.requests[1].init.body, undefined);
+  assert.deepEqual(h.timers.map((t) => t.ms), [0]);
+});
+
+test('send rejects with the server error for a refused write, without failing the feed', async () => {
+  const h = harness({ respond: routes(() => json(409, { error: 'Chore is not scheduled today' })) });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.send('PUT', '/api/chores/7/done').then(() => null, (e) => e);
+  assert.equal(err.message, 'Chore is not scheduled today');
+  assert.equal(h.feed.state().failed, false);
+});
+
+test('a feed can say what to check when a write gets no answer', async () => {
+  const h = harness({ respond: routes(() => new Promise(() => {})), create: { noAnswer: 'No answer · check the chores' } });
+  h.feed.start();
+  await h.settle();
+  let err;
+  h.feed.send('PUT', '/api/chores/7/done').catch((e) => { err = e; });
+  await h.settle();
+  const timeout = h.timers.find((t) => t.ms === 30000);
+  h.timers = h.timers.filter((t) => t !== timeout);
+  timeout.fn();
+  await h.settle();
+  assert.equal(err.message, 'No answer · check the chores');
 });
 
 test('failed is set by a failed calendar fetch even with data, and cleared by a good one', async () => {

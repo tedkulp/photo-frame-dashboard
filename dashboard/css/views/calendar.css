@@ -177,8 +177,6 @@
 }
 .who-btn:active { transform: scale(.95); }
 .who-btn.is-on { background: rgb(var(--c-rgb) / .16); box-shadow: inset 0 0 0 3px var(--c); }
-.add-who--big { justify-content: space-between; }
-.add-who--big .who-btn { font-size: 22px; padding: 14px 18px; }
 .add-row { display: flex; gap: 36px; }
 
 .more-list { display: flex; flex-direction: column; gap: 8px; }
