@@ -158,7 +158,13 @@ export async function startServer({ config, store, distDir, tokenUrl, apiBase, n
   const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now });
   const ha = config.homeAssistant;
   const weather = ha ? createWeather({ ha: createHomeAssistant(ha), entity: ha.weatherEntity, now }) : null;
-  const chores = store ? createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await calendar.zone()) }) : null;
+  // Chores must not depend on Google being up: until the Family zone has been read once, a failed
+  // lookup falls back to this process's own zone for that request (not cached, so it retries).
+  const choreZone = () => calendar.zone().catch((e) => {
+    console.error(`chores: using the server's local time zone, could not read the Family calendar's: ${e.message}`);
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  });
+  const chores = store ? createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await choreZone()) }) : null;
   const server = createServer(createHandler({ calendar, weather, chores, distDir }));
   await new Promise((ok, fail) => {
     server.once('error', fail);

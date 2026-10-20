@@ -7,6 +7,7 @@
   var MIN = 60000;
   Chores.REFRESH = 30000;
   Chores.STALE = 2 * MIN; // no good fetch for this long: treat the server as unreachable
+  Chores.ANYONE = 'any'; // the owner of a chore anyone can do (the server's word for it too)
 
   var MARKS = { hit: 'hit', miss: 'miss' };
 
@@ -82,7 +83,9 @@
     '🍽️', '🥣', '🧽', '🧼', '🧹', '🗑️', '♻️', '🚮', '🪣', '🧻',
     '🐕', '🐈', '🐟', '🐾', '🌱', '🪴', '💧', '🍎', '🥪', '🥛',
     '🧸', '🧩', '🚲', '🚗', '📬', '🛒', '💊', '🧴', '💤', '✅'];
-  Chores.DAY_NAMES =['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  // Weekdays in JS numbering, 0 = Sunday.
+  Chores.DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  Chores.DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   // A chore's weekday badge: "Sun Wed", or "Every day".
   Chores.daysLabel = function (days) {
     if (days.length === 7) return 'Every day';

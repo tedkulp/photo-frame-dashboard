@@ -71,7 +71,7 @@
     return '<svg class="i ' + (cls || '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (window.ICONS[name] || '') + '</svg>';
   };
   App.person = function (id) {
-    if (id === 'family' || id === 'any') return D.family;
+    if (id === 'family' || id === window.Chores.ANYONE) return D.family;
     for (var i = 0; i < D.people.length; i++) if (D.people[i].id === id) return D.people[i];
     return D.family;
   };
@@ -189,20 +189,24 @@
   // view and the home screen's rings both use.
   App.choresToday = function (routineId) { return window.Chores.today(D.chores, routineId, pendingTicks); };
   App.choresWeek = function (personId) { return window.Chores.week(D.chores, personId); };
+  // Who a chore can belong to, in lane order: each person, then Anyone.
+  App.choreOwners = function () { return App.peopleIds().concat([window.Chores.ANYONE]); };
+  App.choreOwnerName = function (id) { return id === window.Chores.ANYONE ? 'Anyone' : App.person(id).name; };
   function choresState() { return App.choresFeed ? App.choresFeed.state() : { status: 'loading' }; }
   // Why ticking is off right now ('' when it is on): nothing loaded yet, or the server isn't
   // reachable (the last request failed, or no fetch has worked for a couple of minutes).
+  var LOADING_CHORES = 'Loading chores…';
   App.tickBlocked = function () {
     var s = choresState();
-    if (s.status === 'loading') return 'Loading chores…';
+    if (s.status === 'loading') return LOADING_CHORES;
     return s.status === 'offline' || s.failed || s.stale ? window.Feed.UNREACHABLE : '';
   };
   // What to say about the chores data: why there is none yet, or that it may be out of date.
   App.choresNote = function () {
     var s = choresState();
-    if (s.status === 'loading') return 'Loading chores…';
-    if (s.status === 'offline') return 'Can’t reach the home server · retrying';
-    if (s.failed || s.stale) return 'Can’t reach the home server · ' + (s.age ? 'chores from ' + App.fmt.mins(s.age) + ' ago' : 'retrying');
+    if (s.status === 'loading') return LOADING_CHORES;
+    if (s.status === 'offline') return window.Feed.UNREACHABLE + ' · retrying';
+    if (s.failed || s.stale) return window.Feed.UNREACHABLE + ' · ' + (s.age ? 'chores from ' + App.fmt.mins(s.age) + ' ago' : 'retrying');
     return '';
   };
   // Tick (done = true) or untick a chore. Shows at once; resolves when the server has it, or
@@ -416,6 +420,7 @@
   };
 
   // ------------------------------------------------------------ toasts (single, with undo)
+  // A new toast replaces the one showing. Returns { dismiss }.
   var toastTimer;
   App.toast = function (html, opts) {
     opts = opts || {};
@@ -433,6 +438,8 @@
     function kill() { t.remove(); }
     toastTimer = setTimeout(kill, ms);
     if (opts.undo) t.querySelector('.toast-undo').addEventListener('click', function () { clearTimeout(toastTimer); opts.undo(); kill(); });
+    // dismiss() takes this toast away if it is still showing (a later toast already replaced it).
+    return { dismiss: function () { if (t.parentNode) { clearTimeout(toastTimer); kill(); } } };
   };
 
   // ------------------------------------------------------------ sheets (modal cards)

@@ -181,8 +181,7 @@ export function createChores({ db, settings, today, now = Date.now }) {
 
   async function remove(id) {
     const date = await today();
-    const chore = find(id, date);
-    putToday(chore, date, { deleted: true });
+    transaction(() => putToday(find(id, date), date, { deleted: true }));
   }
 
   // Ticks (or unticks) a chore for today. Only a chore scheduled today can be ticked.

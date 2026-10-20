@@ -102,7 +102,7 @@
 
   function chores() {
     var r = App.currentRoutine(), today = App.choresToday(r.id), note = App.choresNote();
-    var who = App.peopleIds().concat(['any']);
+    var who = App.choreOwners();
     if (!D.chores) return '<div class="label">Chores · ' + r.name + '</div><div class="h-chores-note">' + note + '</div>';
     return '<div class="label">Chores · ' + r.name + '</div><div class="h-rings">' + who.map(function (id) {
       var list = today.filter(function (c) { return c.owner === id; });
@@ -110,7 +110,7 @@
       var done = list.filter(function (c) { return c.done; }).length;
       var p = App.person(id);
       return '<div class="h-ring' + (done === list.length ? ' is-done' : '') + '" style="' + App.pstyle(p) + '">' + ring(done, list.length, 64) +
-        '<b class="num">' + (done === list.length ? '✓' : done + '/' + list.length) + '</b><span>' + (id === 'any' ? 'Anyone' : App.esc(p.name)) + '</span></div>';
+        '<b class="num">' + (done === list.length ? '✓' : done + '/' + list.length) + '</b><span>' + App.esc(App.choreOwnerName(id)) + '</span></div>';
     }).join('') + '</div>' + (note ? '<small class="h-chores-note">' + note + '</small>' : '');
   }
 

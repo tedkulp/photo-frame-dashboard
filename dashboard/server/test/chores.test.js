@@ -15,7 +15,8 @@ async function withServer(fn, opts) {
   opts = opts || {};
   const t = tempDir();
   const clock = { now: opts.now || TUE };
-  const google = await fakeGoogle({ [FAMILY]: { timeZone: opts.familyZone || 'America/Toronto', pages: [[]] }, 'alex@example.com': {}, 'sam@example.com': {} });
+  const calendars = { [FAMILY]: Object.assign({ timeZone: opts.familyZone || 'America/Toronto', pages: [[]] }, opts.family), 'alex@example.com': {}, 'sam@example.com': {} };
+  const google = await fakeGoogle(calendars);
   let store = openStore(t.path('data'));
   const start = (s) => startServer({
     config: { settings: s || settings(), serviceAccount: serviceAccount(), port: 0, timeZone: 'timeZone' in opts ? opts.timeZone : 'America/Toronto' },
@@ -24,6 +25,7 @@ async function withServer(fn, opts) {
   let srv = await start();
   const ctx = {
     clock,
+    calendars,
     get url() { return srv.url; },
     call: (method, path, body) => call(srv.url, method, path, body),
     // Restarts the server with other settings on the same store.
@@ -337,4 +339,17 @@ test('without TZ, "today" is in the Family calendar\'s time zone', async () => {
   await withServer(async ({ call }) => {
     assert.equal((await call('GET', '/api/chores')).body.date, '2026-10-20');
   }, { now: t, timeZone: null, familyZone: 'Asia/Tokyo' });
+});
+
+test('without TZ, chores still load while Google is down, and pick up the Family zone later', async () => {
+  const t = Date.parse('2026-10-20T03:30:00Z');
+  const d = new Date(t);
+  const local = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  await withServer(async ({ call, calendars }) => {
+    const down = await call('GET', '/api/chores');
+    assert.equal(down.status, 200);
+    assert.equal(down.body.date, local);
+    delete calendars[FAMILY].status;
+    assert.equal((await call('GET', '/api/chores')).body.date, '2026-10-20');
+  }, { now: t, timeZone: null, familyZone: 'Asia/Tokyo', family: { status: 500 } });
 });
