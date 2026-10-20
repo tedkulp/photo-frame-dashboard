@@ -31,6 +31,7 @@ async function withServer(entities, fn, opts) {
     config: { settings: settings(), serviceAccount: serviceAccount(), homeAssistant, port: 0, timeZone: null },
     distDir: '/nonexistent',
     now: () => NOW,
+    log: { log() {}, warn() {}, error() {} },
   });
   try {
     await fn({ url: srv.url, ha });

@@ -1,5 +1,6 @@
 // HTTP server: the built dashboard (dist), GET /api/calendar, POST /api/events,
-// DELETE /api/events/:id, GET /api/weather and /api/chores from one origin. LAN-only, no auth.
+// DELETE /api/events/:id, GET /api/weather, /api/chores and /api/home from one origin. LAN-only,
+// no auth.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
@@ -7,6 +8,7 @@ import { createGoogle } from './google.js';
 import { createCalendar, InputError } from './calendar.js';
 import { createHomeAssistant } from './homeassistant.js';
 import { createWeather } from './weather.js';
+import { createHome } from './home.js';
 import { createChores, localDate } from './chores.js';
 
 const TYPES = {
@@ -63,7 +65,7 @@ async function apiCall(res, what, status, fn) {
   }
 }
 
-function createHandler({ calendar, weather, chores, distDir }) {
+function createHandler({ calendar, weather, chores, home, distDir }) {
   const root = resolve(distDir);
 
   async function serveStatic(req, res, pathname) {
@@ -121,6 +123,13 @@ function createHandler({ calendar, weather, chores, distDir }) {
         if (!chores) return sendJson(res, 503, { error: 'Chores need a data dir' });
         return await routeChores(req, res, pathname, chores);
       }
+      if (pathname === '/api/home' || pathname.startsWith('/api/home/')) {
+        if (!home) {
+          if (pathname === '/api/home' && req.method === 'GET') return sendJson(res, 200, { configured: false });
+          return sendJson(res, 404, { error: 'Home Assistant is not set up' });
+        }
+        return await routeHome(req, res, pathname, home);
+      }
       if (pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Not found' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });
       return await serveStatic(req, res, pathname);
@@ -151,13 +160,62 @@ async function routeChores(req, res, pathname, chores) {
   return sendJson(res, 405, { error: 'Method not allowed' });
 }
 
+// An image from Home Assistant (camera snapshot, media art), never cached.
+async function sendImage(res, what, fn) {
+  let img;
+  try {
+    img = await fn();
+  } catch (e) {
+    if (e instanceof InputError) return sendJson(res, e.status, { error: e.message });
+    console.error('[' + what + ']', e.message);
+    return sendJson(res, 502, { error: e.message });
+  }
+  res.writeHead(200, { 'content-type': img.type, 'content-length': img.body.length, 'cache-control': 'no-store' });
+  res.end(img.body);
+}
+
+const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
+
+// /api/home, /api/home/:entityId, /api/home/rooms/:name/off, /api/home/cameras/:entityId.jpg and
+// /api/home/media/:entityId/art.
+async function routeHome(req, res, pathname, home) {
+  const parts = pathname.split('/').slice(3);
+  let seg;
+  try {
+    seg = parts.map(decodeURIComponent);
+  } catch {
+    return sendJson(res, 404, { error: 'Not found' });
+  }
+  const method = (m) => req.method === m;
+  const notAllowed = () => sendJson(res, 405, { error: 'Method not allowed' });
+  if (seg.length === 0) return method('GET') ? sendJson(res, 200, home.load()) : notAllowed();
+  if (seg.length === 1 && ENTITY.test(seg[0])) {
+    if (!method('POST')) return notAllowed();
+    return apiCall(res, 'home action', 204, async () => home.act(seg[0], await readJson(req)));
+  }
+  if (seg.length === 3 && seg[0] === 'rooms' && seg[2] === 'off') {
+    if (!method('POST')) return notAllowed();
+    return apiCall(res, 'room off', 204, () => home.roomOff(seg[1]));
+  }
+  if (seg.length === 2 && seg[0] === 'cameras' && /\.jpg$/.test(seg[1]) && ENTITY.test(seg[1].slice(0, -4))) {
+    if (!method('GET')) return notAllowed();
+    return sendImage(res, 'camera', () => home.camera(seg[1].slice(0, -4)));
+  }
+  if (seg.length === 3 && seg[0] === 'media' && ENTITY.test(seg[1]) && seg[2] === 'art') {
+    if (!method('GET')) return notAllowed();
+    return sendImage(res, 'media art', () => home.mediaArt(seg[1]));
+  }
+  return sendJson(res, 404, { error: 'Not found' });
+}
+
 // config comes from loadConfig(), store from openStore() (without one, /api/chores answers 503);
-// tokenUrl/apiBase/now are overridable for tests.
-export async function startServer({ config, store, distDir, tokenUrl, apiBase, now = Date.now }) {
+// tokenUrl/apiBase/now/homeRetryMs/log are overridable for tests.
+export async function startServer({ config, store, distDir, tokenUrl, apiBase, now = Date.now, homeRetryMs, log = console }) {
   const google = createGoogle({ serviceAccount: config.serviceAccount, tokenUrl, apiBase, now });
   const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now });
   const ha = config.homeAssistant;
   const weather = ha ? createWeather({ ha: createHomeAssistant(ha), entity: ha.weatherEntity, now }) : null;
+  const home = ha ? createHome({ url: ha.url, token: ha.token, label: ha.label, rooms: ha.rooms, retryMs: homeRetryMs, now, log }) : null;
   // Chores must not depend on Google being up: until the Family zone has been read once, a failed
   // lookup falls back to this process's own zone for that request (not cached, so it retries).
   const choreZone = () => calendar.zone().catch((e) => {
@@ -165,14 +223,14 @@ export async function startServer({ config, store, distDir, tokenUrl, apiBase, n
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
   });
   const chores = store ? createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await choreZone()) }) : null;
-  const server = createServer(createHandler({ calendar, weather, chores, distDir }));
+  const server = createServer(createHandler({ calendar, weather, chores, home, distDir }));
   await new Promise((ok, fail) => {
-    server.once('error', fail);
+    server.once('error', (e) => { if (home) home.close(); fail(e); });
     server.listen(config.port, () => { server.off('error', fail); ok(); });
   });
   return {
     server,
     url: 'http://127.0.0.1:' + server.address().port,
-    close: () => new Promise((ok) => { server.closeAllConnections(); server.close(ok); }),
+    close: () => new Promise((ok) => { if (home) home.close(); server.closeAllConnections(); server.close(ok); }),
   };
 }

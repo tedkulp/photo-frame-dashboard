@@ -2,8 +2,9 @@
 
 The dashboard takes its family (names, colours) and its calendar from this server's
 `GET /api/calendar`, adds events through it, and takes the weather from your Home Assistant
-through `GET /api/weather`; everything else (chores, shopping, photos, home controls) is still
-mock data. `dashboard/server/` is a small Node server for an
+through `GET /api/weather`. The server also keeps the live state of the Home Assistant entities
+you label for the frame at `GET /api/home` (the dashboard's Home controls page doesn't use it
+yet); shopping and photos are still mock data. `dashboard/server/` is a small Node server for an
 always-on machine at home (in Docker) that serves the built dashboard and a calendar API from one
 address on your LAN:
 
@@ -25,6 +26,8 @@ address on your LAN:
   Assistant weather entity, in whole °F (see [Weather](#weather-from-home-assistant-optional)), or
   `{ configured: false }` when Home Assistant isn't set up. If Home Assistant fails it answers
   `502` with a JSON `error`.
+- `GET /api/home` and its actions: Home controls from Home Assistant, see
+  [Home controls](#home-controls-from-home-assistant-optional).
 
 It has no npm runtime dependencies and no login of its own: it is meant for your LAN only, so do
 not expose its port to the internet.
@@ -112,6 +115,86 @@ fog, wind), rain (also pouring, hail), snow (also sleet) and storm (lightning).
 
 ```sh
 curl http://localhost:8080/api/weather   # should show "configured": true and a forecast
+```
+
+### Home controls from Home Assistant (optional)
+
+With `homeAssistant` set, the server also holds one websocket connection to Home Assistant
+(same URL and token) and keeps the state of the entities you have put on the frame. Nothing is
+picked in `settings.json`: in Home Assistant, create a label `frame` (Settings → Areas, labels &
+zones → Labels) and add it to each entity that belongs on the panel (see
+[ADR 0003](adr/0003-home-controls-curated-by-ha-label.md)). Room = the entity's area, else its
+device's area; name = its friendly name. Supported: `light`, `switch`, `input_boolean`, `fan`,
+`lock`, `climate`, `scene`, `script`, `camera`, `media_player`; labelled entities in other
+domains, and disabled ones, are ignored. Tag a light group only when it acts as one fixture, not
+both a group and its members.
+
+Two optional keys in `homeAssistant`:
+
+```json
+"homeAssistant": {
+  "url": "http://homeassistant.local:8123",
+  "weatherEntity": "weather.pirateweather",
+  "label": "frame",
+  "rooms": ["Living Room", "Office", "Robin's Room"]
+}
+```
+
+- `label` (default `"frame"`): the label's id or name (any case).
+- `rooms`: area names in the order the page shows them. Case and curly vs straight apostrophes
+  don't matter. Rooms not listed come next, alphabetically, then "Other" for labelled entities
+  with no area. On each connect the server logs a warning for a listed room that isn't an area,
+  and for a label Home Assistant doesn't have.
+
+Renaming, moving or tagging things in Home Assistant shows up straight away (the server re-reads
+the registries when they change). If the connection drops it reconnects with a growing delay (1 s
+up to 1 min) and in the meantime still answers with the last-known state.
+
+API (all JSON, `cache-control: no-store`; without `homeAssistant`, `GET /api/home` is
+`{ configured: false }` and the rest 404):
+
+- `GET /api/home` →
+  `{ configured: true, connected, updated, rooms, climate, scenes, cameras, media }`.
+  `connected` is false while the websocket is down; `updated` is when the last registry or
+  labelled-entity update arrived (ISO time, null before the first connection).
+  - `rooms`: `[{ name, tiles }]`; tiles sorted by name, each `{ id, kind, name, available }`
+    plus: `light` → `on`, `dimmable`, `level` (1–100; null when off, not dimmable, or on at
+    brightness 0 as some Govee/Matter lights report); `switch`, `fan`, `toggle`
+    (input_boolean) → `on`; `lock` → `locked`, `state` (HA's: `locked`, `unlocked`, `jammed`, …).
+    `available` is false when Home Assistant says `unavailable`.
+  - `climate`: the labelled climate entity (the first by id if there are several), or null:
+    `{ id, name, available, mode, modes, action, current, humidity, target, low, high }`.
+    Temperatures are whole °F; `target` is the single setpoint (heat/cool), `low`/`high` the
+    range (`heat_cool`, Auto). `modes` is what the entity supports out of `heat`, `cool`,
+    `heat_cool`, `off`.
+  - `scenes`: labelled `scene.*` and `script.*`, `[{ id, name, icon }]` (`icon` is HA's
+    `mdi:…` or null).
+  - `cameras`: `[{ id, name, available }]`.
+  - `media`: `[{ id, name, available, state, title, artist, hasArt }]`.
+- `POST /api/home/:entityId` with `{ action, value? }`, answered `204` once Home Assistant has
+  acknowledged the service call:
+
+  | Domain | Actions |
+  | --- | --- |
+  | `light` | `on`, `off`, `level` (value 0–100, brightness %) |
+  | `switch`, `input_boolean`, `fan` | `on`, `off` |
+  | `lock` | `lock`, `unlock` |
+  | `climate` | `mode` (value one of `modes`), `target` (°F), `range` (`{ low, high }` in °F) |
+  | `scene`, `script` | `run` |
+  | `media_player` | `play`, `pause` |
+
+  An entity without the label (or unknown) is `404`; any other action or a bad value is `400`;
+  Home Assistant disconnected is `503`; Home Assistant refusing the call is `502` with its message.
+- `POST /api/home/rooms/:name/off` turns off that room's available lights, switches and fans
+  (`204`; a room with none is `404`). `:name` matches like `rooms`; `Other` is the no-area room.
+- `GET /api/home/cameras/:entityId.jpg`: a snapshot of a labelled camera.
+- `GET /api/home/media/:entityId/art`: a labelled player's current artwork.
+
+The images are fetched from Home Assistant with the token on the server; the token never reaches
+the frame.
+
+```sh
+curl http://localhost:8080/api/home   # "connected": true and your labelled entities by room
 ```
 
 ## 4. Run it with Docker

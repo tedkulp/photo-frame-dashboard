@@ -1,6 +1,6 @@
 // Shared fixtures for the server tests: a throwaway service-account key, sample settings, a temp
 // config folder, and a fake Google (OAuth token + Calendar events endpoints) on a local port.
-import { generateKeyPairSync, createPublicKey, verify } from 'node:crypto';
+import { generateKeyPairSync, createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -116,11 +116,60 @@ export async function fakeGoogle(calendars) {
   };
 }
 
+// Server side of a websocket for the fake: the handshake, masked text frames in, unmasked out.
+// Close frames are answered and end the socket; pings and fragments aren't needed by the client.
+function acceptWebSocket(req, socket, onMessage) {
+  const accept = createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+  socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
+  socket.on('error', () => {});
+  let buf = Buffer.alloc(0);
+  socket.on('data', (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    while (buf.length >= 2) {
+      const op = buf[0] & 0x0f;
+      let len = buf[1] & 0x7f, off = 2;
+      if (len === 126) { if (buf.length < 4) return; len = buf.readUInt16BE(2); off = 4; }
+      else if (len === 127) { if (buf.length < 10) return; len = Number(buf.readBigUInt64BE(2)); off = 10; }
+      const mask = buf[1] & 0x80 ? buf.subarray(off, off + 4) : null;
+      if (mask) off += 4;
+      if (buf.length < off + len) return;
+      const payload = Buffer.from(buf.subarray(off, off + len));
+      if (mask) for (let i = 0; i < len; i++) payload[i] ^= mask[i % 4];
+      buf = buf.subarray(off + len);
+      if (op === 8) return socket.end(Buffer.from([0x88, 0]));
+      if (op === 1) onMessage(JSON.parse(payload.toString('utf8')));
+    }
+  });
+  return (obj) => {
+    const data = Buffer.from(JSON.stringify(obj));
+    let head;
+    if (data.length < 126) head = Buffer.from([0x81, data.length]);
+    else if (data.length < 65536) { head = Buffer.from([0x81, 126, 0, 0]); head.writeUInt16BE(data.length, 2); }
+    else { head = Buffer.alloc(10); head[0] = 0x81; head[1] = 127; head.writeBigUInt64BE(BigInt(data.length), 2); }
+    if (!socket.destroyed) socket.write(Buffer.concat([head, data]));
+  };
+}
+
 // Fake Home Assistant. `entities` maps entity id -> { state, attributes, hourly: [...], daily: [...] }
-// or { status, body } to make every call for that entity fail. Only `token` is accepted. Records
-// every request in `requests`.
-export async function fakeHomeAssistant(entities, { token = 'ha-token' } = {}) {
+// or { status, body } to make every REST call for that entity fail. Only `token` is accepted.
+// Records every REST request in `requests`.
+//
+// `home` is the websocket side (/api/websocket): { unit, labels, areas, devices, entities (the
+// entity registry), states: { entity_id: { state, attributes } }, failService(call) → message or
+// null }. `calls` records call_service messages; `push(id, state)` changes a state and sends
+// state_changed; `fire(type)` sends a registry-updated event; `drop()` cuts every socket;
+// `connections` counts accepted sockets. /api/camera_proxy/:id and entity_picture paths
+// (/api/media_player_proxy/…) answer with `picture` bytes for entities in `home.states`.
+export async function fakeHomeAssistant(entities, { token = 'ha-token', home = {} } = {}) {
   const requests = [];
+  const calls = [];
+  const sockets = new Set();
+  const subscribers = [];
+  let connections = 0;
+  home = Object.assign({ unit: '°F', labels: [], areas: [], devices: [], entities: [], states: {} }, home);
+  const stamp = () => new Date().toISOString();
+  const stateObj = (id) => Object.assign({ entity_id: id, last_updated: home.states[id].last_updated || '2026-10-19T11:55:00+00:00' }, home.states[id]);
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     let body = '';
@@ -132,6 +181,12 @@ export async function fakeHomeAssistant(entities, { token = 'ha-token' } = {}) {
     };
     if (req.headers.authorization !== 'Bearer ' + token) return send(401, { message: 'Invalid access token' });
 
+    const pic = url.pathname.match(/^\/api\/(camera_proxy|media_player_proxy)\/([^/]+)$/);
+    if (pic && req.method === 'GET') {
+      if (!home.states[decodeURIComponent(pic[2])]) return send(404, { message: 'Entity not found' });
+      res.writeHead(200, { 'content-type': 'image/jpeg' });
+      return res.end(Buffer.from('jpeg:' + decodeURIComponent(pic[2])));
+    }
     const st = url.pathname.match(/^\/api\/states\/([^/]+)$/);
     if (st && req.method === 'GET') {
       const id = decodeURIComponent(st[1]);
@@ -150,11 +205,71 @@ export async function fakeHomeAssistant(entities, { token = 'ha-token' } = {}) {
     }
     send(404, { message: 'Not Found' });
   });
+
+  server.on('upgrade', (req, socket) => {
+    if (new URL(req.url, 'http://x').pathname !== '/api/websocket') return socket.destroy();
+    connections++;
+    sockets.add(socket);
+    socket.on('close', () => {
+      sockets.delete(socket);
+      for (let i = subscribers.length - 1; i >= 0; i--) if (subscribers[i].socket === socket) subscribers.splice(i, 1);
+    });
+    let authed = false;
+    const send = acceptWebSocket(req, socket, (msg) => {
+      if (!authed) {
+        if (msg.type !== 'auth') return;
+        if (msg.access_token !== token) {
+          send({ type: 'auth_invalid', message: 'Invalid access token or password' });
+          return socket.end();
+        }
+        authed = true;
+        return send({ type: 'auth_ok', ha_version: '2026.10.0' });
+      }
+      const ok = (result) => send({ id: msg.id, type: 'result', success: true, result });
+      const fail = (code, message) => send({ id: msg.id, type: 'result', success: false, error: { code, message } });
+      switch (msg.type) {
+        case 'get_config': return ok({ unit_system: { temperature: home.unit } });
+        case 'get_states': return ok(Object.keys(home.states).map(stateObj));
+        case 'config/label_registry/list': return ok(home.labels);
+        case 'config/area_registry/list': return ok(home.areas);
+        case 'config/device_registry/list': return ok(home.devices);
+        case 'config/entity_registry/list': return ok(home.entities);
+        case 'subscribe_events':
+          subscribers.push({ socket, send, id: msg.id, eventType: msg.event_type });
+          return ok(null);
+        case 'call_service': {
+          calls.push({ domain: msg.domain, service: msg.service, service_data: msg.service_data, target: msg.target });
+          const err = home.failService && home.failService(msg);
+          return err ? fail('home_assistant_error', err) : ok({ context: { id: 'ctx' } });
+        }
+        default: return fail('unknown_command', 'Unknown command.');
+      }
+    });
+    send({ type: 'auth_required', ha_version: '2026.10.0' });
+  });
+
+  const emit = (eventType, data) => {
+    for (const s of subscribers) {
+      if (s.eventType === eventType) s.send({ id: s.id, type: 'event', event: { event_type: eventType, data, time_fired: stamp() } });
+    }
+  };
+
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return {
     url: 'http://127.0.0.1:' + server.address().port,
     token,
     requests,
-    close: () => new Promise((r) => server.close(r)),
+    calls,
+    home,
+    get connections() { return connections; },
+    push(id, state) {
+      const old = home.states[id] ? stateObj(id) : null;
+      if (state) home.states[id] = Object.assign({ last_updated: stamp() }, state);
+      else delete home.states[id];
+      emit('state_changed', { entity_id: id, old_state: old, new_state: state ? stateObj(id) : null });
+    },
+    fire: (type) => emit(type, { action: 'update' }),
+    drop() { for (const s of sockets) s.destroy(); },
+    close: () => new Promise((r) => { for (const s of sockets) s.destroy(); server.close(r); }),
   };
 }

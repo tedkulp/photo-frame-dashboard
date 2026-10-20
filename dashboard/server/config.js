@@ -64,7 +64,8 @@ function checkSettings(s) {
   };
 }
 
-// settings.homeAssistant → { url, weatherEntity } (url without a trailing slash), or null if absent.
+// settings.homeAssistant → { url, weatherEntity, label, rooms } (url without a trailing slash), or
+// null if absent. label (default "frame") picks the entities on Home controls; rooms orders them.
 function checkHomeAssistant(h) {
   if (h === undefined) return null;
   if (!h || typeof h !== 'object' || Array.isArray(h)) throw new ConfigError('settings.homeAssistant must be a JSON object');
@@ -78,7 +79,16 @@ function checkHomeAssistant(h) {
   if (!isText(h.weatherEntity) || !/^weather\.[a-z0-9_]+$/.test(h.weatherEntity)) {
     throw new ConfigError(`settings.homeAssistant.weatherEntity "${h.weatherEntity}" must be a weather entity id like weather.pirateweather`);
   }
-  return { url: h.url.replace(/\/+$/, ''), weatherEntity: h.weatherEntity };
+  if (h.label !== undefined && !isText(h.label)) throw new ConfigError('settings.homeAssistant.label must be the name of a Home Assistant label, like "frame"');
+  if (h.rooms !== undefined && (!Array.isArray(h.rooms) || !h.rooms.every(isText))) {
+    throw new ConfigError('settings.homeAssistant.rooms must be a list of Home Assistant area names');
+  }
+  return {
+    url: h.url.replace(/\/+$/, ''),
+    weatherEntity: h.weatherEntity,
+    label: h.label === undefined ? 'frame' : h.label.trim(),
+    rooms: h.rooms === undefined ? [] : h.rooms.map((r) => r.trim()),
+  };
 }
 
 function checkServiceAccount(k) {
