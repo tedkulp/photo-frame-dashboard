@@ -82,10 +82,14 @@
     if (typeof p === 'string') p = App.person(p);
     return '--c:' + p.color + ';--c-rgb:' + p.rgb + ';--c-ink:' + p.ink;
   };
-  App.avatar = function (p, size, cls) {
+  // presence: draw the person Home (solid) or Away (hollow ring) from Home Assistant, and keep it
+  // current in place (paintPresence). Only the Today and ambient "who" places pass it.
+  App.avatar = function (p, size, cls, presence) {
     if (typeof p === 'string') p = App.person(p);
     size = size || 48;
-    return '<span class="avatar ' + (cls || '') + '" style="' + App.pstyle(p) + ';width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.46) + 'px">' + (p.id === 'family' ? '★' : App.esc(p.name.charAt(0))) + '</span>';
+    var live = presence && p.id !== 'family';
+    if (live && App.presence(p.id) === 'away') cls = (cls || '') + ' is-away';
+    return '<span class="avatar ' + (cls || '') + '"' + (live ? ' data-presence="' + App.esc(p.id) + '"' : '') + ' style="' + App.pstyle(p) + ';width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.46) + 'px">' + (p.id === 'family' ? '★' : App.esc(p.name.charAt(0))) + '</span>';
   };
   App.dots = function (ids, size) {
     return '<span class="dots">' + ids.map(function (id) { return '<i style="' + App.pstyle(id) + (size ? ';width:' + size + 'px;height:' + size + 'px' : '') + '"></i>'; }).join('') + '</span>';
@@ -259,6 +263,19 @@
   // Why the house can't be shown or changed right now ('' when it can). While set, taps toast it
   // (App.homeBlocked: toasts it and says true).
   App.homeNote = function () { return window.House.note(homeState(), D.home, Date.now()); };
+  // A person's presence for their avatar: 'home', 'away' or 'unknown', which is all it is while the
+  // house can't be trusted (loading, offline, stale or HA down), so old data never says away.
+  App.presence = function (id) { return App.homeNote() ? 'unknown' : window.House.presence(D.home, id); };
+  // Flips just the presence avatars whose state changed, wherever they are on screen.
+  function paintPresence() {
+    App.$$('.avatar[data-presence]').forEach(function (el) {
+      var away = App.presence(el.getAttribute('data-presence')) === 'away';
+      if (el.classList.contains('is-away') !== away) el.classList.toggle('is-away', away);
+    });
+  }
+  App.on('home', paintPresence);
+  App.on('homestate', paintPresence);
+  App.on('minute', paintPresence);
   var homeBlocked = App.homeBlocked = function () {
     var why = App.homeNote();
     if (why) App.toast(why, { tone: 'error', icon: 'bolt' });

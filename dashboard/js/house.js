@@ -22,8 +22,9 @@
   function copy(o) { var out = {}; Object.keys(o).forEach(function (k) { out[k] = o[k]; }); return out; }
 
   // The server's body → { configured: false } or { configured: true, connected, updated (Date or
-  // null), rooms, climate, scenes, cameras, media } in the server's order. Throws on anything else;
-  // drops malformed tiles (and rooms left empty), scenes, cameras and players.
+  // null), rooms, climate, scenes, cameras, media, presence } in the server's order. Throws on
+  // anything else; drops malformed tiles (and rooms left empty), scenes, cameras, players and
+  // presence entries (a missing or malformed presence is {}: nobody's known).
   House.parse = function (body) {
     if (body && body.configured === false) return { configured: false };
     if (!body || body.configured !== true || !Array.isArray(body.rooms) || !Array.isArray(body.scenes) ||
@@ -41,8 +42,23 @@
       climate: named(body.climate) && Array.isArray(body.climate.modes) ? copy(body.climate) : null,
       scenes: body.scenes.filter(named).map(function (s) { return { id: s.id, name: s.name, icon: str(s.icon) ? s.icon : null }; }),
       cameras: body.cameras.filter(named).map(copy),
-      media: body.media.filter(named).map(copy)
+      media: body.media.filter(named).map(copy),
+      presence: presence(body.presence)
     };
+  };
+  function presence(p) {
+    var out = {};
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return out;
+    Object.keys(p).forEach(function (id) { if (p[id] === 'home' || p[id] === 'away') out[id] = p[id]; });
+    return out;
+  }
+
+  // A person's presence in the data: 'home', 'away', or 'unknown' (unlinked, HA doesn't know, HA
+  // not set up or not connected, or nothing loaded yet). Unknown is shown like home, so missing
+  // data never says away.
+  House.presence = function (data, id) {
+    var p = data && data.configured && data.connected && data.presence;
+    return p && Object.prototype.hasOwnProperty.call(p, id) ? p[id] : 'unknown';
   };
   House.changeKey = function (body) { return JSON.stringify(body); };
 

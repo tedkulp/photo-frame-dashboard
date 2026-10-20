@@ -128,7 +128,7 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     for (const e of events) e.people.sort((a, b) => allIds.indexOf(a) - allIds.indexOf(b));
     events.sort((a, b) => sortKey(a) - sortKey(b) || (b.allDay ? 1 : 0) - (a.allDay ? 1 : 0));
 
-    return { people: settings.people, events, updatedAt: new Date(t).toISOString() };
+    return { people: settings.people.map(({ id, name, colour }) => ({ id, name, colour })), events, updatedAt: new Date(t).toISOString() };
   }
 
   // Writes one event and returns it as load() would show it.

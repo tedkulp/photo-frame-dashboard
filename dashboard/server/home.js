@@ -8,7 +8,8 @@
 //     climate: { id, name, available, mode, modes, action, current, humidity, target, low, high } | null,
 //     scenes: [{ id, name, icon }],          // scene.* and script.*, icon is HA's mdi:… or null
 //     cameras: [{ id, name, available }],    // snapshot at /api/home/cameras/:id.jpg
-//     media: [{ id, name, available, state, title, artist, hasArt }] }  // art at /api/home/media/:id/art
+//     media: [{ id, name, available, state, title, artist, hasArt }],  // art at /api/home/media/:id/art
+//     presence: { [personId]: 'home' | 'away' } }  // linked people HA knows about (see mapPresence)
 //   tile: { id, kind: light|switch|fan|lock|toggle, name, available, ... }
 //     light: on, dimmable, level (1–100, null when off, not dimmable or on at brightness 0)
 //     switch, fan, toggle (input_boolean): on
@@ -148,6 +149,20 @@ export function mapHome({ selected, states, unit, rooms = [] }) {
   return out;
 }
 
+// Pure: people ([{ id, homeAssistant? }]) + states → { [personId]: 'home' | 'away' }. A person's
+// person.* entity in `home` is home, in any other known state (not_home, a zone) away; unlinked
+// people and entities missing, unknown or unavailable are left out. Person entities are never
+// Home controls tiles or service-call targets (person isn't in DOMAINS).
+export function mapPresence(people, states) {
+  const out = {};
+  for (const p of people) {
+    const st = p.homeAssistant && states.get(p.homeAssistant);
+    if (!st || typeof st.state !== 'string' || st.state === 'unknown' || st.state === 'unavailable') continue;
+    out[p.id] = st.state === 'home' ? 'home' : 'away';
+  }
+  return out;
+}
+
 // { action, value? } for an entity → the service call, or an InputError(400). The allowlist.
 export function serviceCall(sel, body, st, unit) {
   const bad = (msg) => new InputError(400, msg);
@@ -195,8 +210,10 @@ export function serviceCall(sel, body, st, unit) {
   throw bad(`"${action}" is not an action for ${d}`);
 }
 
-// settings.homeAssistant (+ token) → the live Home controls. retryMs is the first reconnect delay.
-export function createHome({ url, token, label = 'frame', rooms = [], retryMs, now = Date.now, log = console }) {
+// settings.homeAssistant (+ token) → the live Home controls, plus presence for `people` (settings
+// people, linked by homeAssistant). retryMs is the first reconnect delay.
+export function createHome({ url, token, label = 'frame', rooms = [], people = [], retryMs, now = Date.now, log = console }) {
+  const linked = new Set(people.map((p) => p.homeAssistant).filter(Boolean));
   let registries = null, selected = new Map(), states = new Map(), unit = '°F', updated = null;
   let loading = false, buffered = [], registryReload = null, registryAgain = false;
 
@@ -244,6 +261,7 @@ export function createHome({ url, token, label = 'frame', rooms = [], retryMs, n
       for (const ev of buffered) onEvent(ev);
       touch();
       warnSetup();
+      for (const id of linked) if (!states.has(id)) log.warn(`settings.people links ${id}, which Home Assistant doesn't have; that person shows no presence`);
       log.log(`Home Assistant connected: ${selected.size} entities labelled "${label}"`);
     } finally {
       loading = false;
@@ -268,7 +286,7 @@ export function createHome({ url, token, label = 'frame', rooms = [], retryMs, n
     if (!ev) return;
     if (ev.event_type === 'state_changed' && ev.data) {
       applyState(ev.data.entity_id, ev.data.new_state);
-      if (selected.has(ev.data.entity_id)) touch();
+      if (selected.has(ev.data.entity_id) || linked.has(ev.data.entity_id)) touch();
     } else if (REGISTRY_EVENTS.includes(ev.event_type)) {
       reloadRegistries();
     }
@@ -310,7 +328,8 @@ export function createHome({ url, token, label = 'frame', rooms = [], retryMs, n
 
   return {
     load() {
-      return Object.assign({ configured: true, connected: socket.connected, updated }, mapHome({ selected, states, unit, rooms }));
+      return Object.assign({ configured: true, connected: socket.connected, updated }, mapHome({ selected, states, unit, rooms }),
+        { presence: mapPresence(people, states) });
     },
     // POST /api/home/:entityId { action, value? }: resolves once HA has acknowledged the call.
     async act(entityId, body) {

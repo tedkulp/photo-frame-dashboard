@@ -206,3 +206,24 @@ test('turnsOff: what a room\'s All off turns off (available lights, switches and
   assert.equal(House.turnsOff(Object.assign(on('light'), { on: false })), false);
   assert.equal(House.turnsOff(door), false);
 });
+
+// ------------------------------------------------------------ presence
+test('presence parses from the body: home, away, and unknown for anyone else', () => {
+  const h = House.parse(body({ presence: { alex: 'home', sam: 'away', kit: 'elsewhere', robin: 3 } }));
+  assert.equal(House.presence(h, 'alex'), 'home');
+  assert.equal(House.presence(h, 'sam'), 'away');
+  assert.equal(House.presence(h, 'kit'), 'unknown');
+  assert.equal(House.presence(h, 'robin'), 'unknown');
+  assert.equal(House.presence(h, 'nobody'), 'unknown');
+});
+
+test('a missing or malformed presence, or no data, is unknown for everyone', () => {
+  for (const presence of [undefined, null, 'home', ['alex']]) {
+    const h = House.parse(body({ presence }));
+    assert.equal(House.presence(h, 'alex'), 'unknown', JSON.stringify(presence));
+  }
+  assert.equal(House.presence(House.parse({ configured: false }), 'alex'), 'unknown');
+  assert.equal(House.presence(null, 'alex'), 'unknown');
+  assert.equal(House.presence(House.parse(body({ connected: false, presence: { alex: 'away' } })), 'alex'), 'unknown');
+  assert.equal(House.presence(House.view(House.parse(body({ presence: { alex: 'away' } })), { k: { id: 'light.lamp', show: { on: false }, match: { on: false }, at: 1 } }), 'alex'), 'away');
+});

@@ -81,12 +81,12 @@ const post = (url, path, body) => fetch(url + path, {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body),
 });
 
-async function withHome(home, fn, { rooms = ["Robin's Room", 'living room'], label } = {}) {
+async function withHome(home, fn, { rooms = ["Robin's Room", 'living room'], label, settings: people = settings() } = {}) {
   const ha = await fakeHomeAssistant({}, { home });
   const out = quietLog();
   const homeAssistant = { url: ha.url, weatherEntity: 'weather.home', token: ha.token, label: label || 'frame', rooms };
   const srv = await startServer({
-    config: { settings: settings(), serviceAccount: serviceAccount(), homeAssistant, port: 0, timeZone: null },
+    config: { settings: people, serviceAccount: serviceAccount(), homeAssistant, port: 0, timeZone: null },
     distDir: '/nonexistent',
     now: () => NOW,
     homeRetryMs: 20,
@@ -328,4 +328,60 @@ test('without Home Assistant settings, says Home controls are not configured', a
   } finally {
     await srv.close();
   }
+});
+
+// Sam is linked to person.sam, Alex to person.alex, Kit to nobody.
+const linked = settings({
+  people: [
+    { id: 'alex', name: 'Alex', colour: '#2D5BFF', homeAssistant: 'person.alex' },
+    { id: 'sam', name: 'Sam', colour: '#E4007C', homeAssistant: 'person.sam' },
+    { id: 'kit', name: 'Kit', colour: '#00A86B' },
+  ],
+});
+function withPeople(states, fn) {
+  const h = house();
+  for (const [id, state] of Object.entries(states)) h.states[id] = { state, attributes: { friendly_name: id } };
+  return withHome(h, fn, { settings: linked });
+}
+
+test("presence: a linked person's HA state as home or away, unknown ones left out", async () => {
+  const cases = [
+    [{ 'person.alex': 'home', 'person.sam': 'not_home' }, { alex: 'home', sam: 'away' }],
+    [{ 'person.alex': 'School', 'person.sam': 'home' }, { alex: 'away', sam: 'home' }],
+    [{ 'person.alex': 'unavailable', 'person.sam': 'unknown' }, {}],
+    [{ 'person.sam': 'home' }, { sam: 'home' }],
+    [{ 'person.kit': 'home' }, {}],
+  ];
+  for (const [states, presence] of cases) {
+    await withPeople(states, async ({ url }) => {
+      assert.deepEqual((await getHome(url)).presence, presence, JSON.stringify(states));
+    });
+  }
+});
+
+test('presence: a state_changed for a linked person shows in the next GET', async () => {
+  await withPeople({ 'person.alex': 'home', 'person.sam': 'home' }, async ({ url, ha }) => {
+    ha.push('person.alex', { state: 'Work', attributes: { friendly_name: 'Alex' } });
+    await waitFor(async () => (await getHome(url)).presence.alex === 'away', 'Alex to be away');
+    ha.push('person.sam', null);
+    await waitFor(async () => !('sam' in (await getHome(url)).presence), 'Sam to be unknown');
+  });
+});
+
+test('person entities are not Home controls and cannot be acted on', async () => {
+  const h = house();
+  h.entities.push({ entity_id: 'person.alex', labels: ['frame'], area_id: 'office' });
+  h.states['person.alex'] = { state: 'home', attributes: { friendly_name: 'Alex' } };
+  await withHome(h, async ({ url, ha }) => {
+    const body = await getHome(url);
+    assert.doesNotMatch(JSON.stringify(body.rooms), /person\./);
+    assert.equal((await post(url, '/api/home/person.alex', { action: 'on' })).status, 404);
+    assert.equal(ha.calls.length, 0);
+  }, { settings: linked });
+});
+
+test('without links, presence is empty', async () => {
+  await withHome(house(), async ({ url }) => {
+    assert.deepEqual((await getHome(url)).presence, {});
+  });
 });

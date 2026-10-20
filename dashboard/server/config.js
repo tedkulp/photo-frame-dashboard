@@ -3,7 +3,8 @@
 // else data/; opened by store.js). Each item is read from an
 // inline env var, else a path env var, else a default file under config/. Anything missing or
 // invalid throws a ConfigError naming the item, so the server never starts serving an empty
-// calendar. Home Assistant is optional: without settings.homeAssistant there is no weather.
+// calendar. Home Assistant is optional: without settings.homeAssistant there is no weather. A
+// person's optional homeAssistant names their person.* entity, for presence on /api/home.
 import { createPrivateKey } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -46,6 +47,9 @@ function checkSettings(s) {
     if (!/^#[0-9a-fA-F]{6}$/.test(p.colour)) throw new ConfigError(`settings.people[${i}].colour "${p.colour}" must be a 6-digit hex colour like #2D5BFF`);
     if (p.id === 'family') throw new ConfigError(`settings.people[${i}].id cannot be "family"`);
     if (ids.has(p.id)) throw new ConfigError(`settings.people[${i}].id "${p.id}" is used twice`);
+    if (p.homeAssistant !== undefined && (typeof p.homeAssistant !== 'string' || !/^person\.[a-z0-9_]+$/.test(p.homeAssistant))) {
+      throw new ConfigError(`settings.people[${i}].homeAssistant (${p.name}) "${p.homeAssistant}" must be a Home Assistant person entity id like person.${p.id.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`);
+    }
     ids.add(p.id);
   });
   if (!Array.isArray(s.calendars)) throw new ConfigError('settings.calendars must be a list');
@@ -59,7 +63,7 @@ function checkSettings(s) {
   if (family === 0) throw new ConfigError('settings has no calendar with person "family"');
   if (family > 1) throw new ConfigError('settings must have exactly one calendar with person "family"');
   return {
-    people: s.people.map((p) => ({ id: p.id, name: p.name, colour: p.colour })),
+    people: s.people.map((p) => Object.assign({ id: p.id, name: p.name, colour: p.colour }, p.homeAssistant ? { homeAssistant: p.homeAssistant } : {})),
     calendars: s.calendars.map((c) => ({ calendarId: c.calendarId, person: c.person })),
   };
 }

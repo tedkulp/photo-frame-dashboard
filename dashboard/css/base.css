@@ -93,6 +93,8 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
   font-weight: 900; font-stretch: 70%; line-height: 1;
   padding-top: .22em;
 }
+/* Away (Home Assistant presence, Today and ambient "who" places only): hollow ring, coloured letter. */
+.avatar.is-away { background: transparent; color: var(--c); box-shadow: inset 0 0 0 3px var(--c); }
 .dots { display: inline-flex; gap: 4px; align-items: center; }
 .dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--card); }
 

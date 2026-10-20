@@ -215,7 +215,7 @@ export async function startServer({ config, store, distDir, tokenUrl, apiBase, n
   const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now });
   const ha = config.homeAssistant;
   const weather = ha ? createWeather({ ha: createHomeAssistant(ha), entity: ha.weatherEntity, now }) : null;
-  const home = ha ? createHome({ url: ha.url, token: ha.token, label: ha.label, rooms: ha.rooms, retryMs: homeRetryMs, now, log }) : null;
+  const home = ha ? createHome({ url: ha.url, token: ha.token, label: ha.label, rooms: ha.rooms, people: config.settings.people, retryMs: homeRetryMs, now, log }) : null;
   // Chores must not depend on Google being up: until the Family zone has been read once, a failed
   // lookup falls back to this process's own zone for that request (not cached, so it retries).
   const choreZone = () => calendar.zone().catch((e) => {

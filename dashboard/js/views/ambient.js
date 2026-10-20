@@ -11,7 +11,7 @@
       '<div class="amb-right">' +
       (w ? '<div class="amb-wx">' + App.icon(w.cond, 44) + '<span class="num">' + w.temp + '°</span><small>' + w.summary + '</small></div>' : '') +
       (next ? '<div class="amb-next" style="' + App.pstyle(App.evColor(next)) + '"><i></i>' + App.esc(next.title) + ' · ' + App.fmt.time(next.start) + '</div>' : '') +
-      '<div class="amb-who">' + D.people.map(function (p) { return App.avatar(p, 34); }).join('') + '</div>' +
+      '<div class="amb-who">' + D.people.map(function (p) { return App.avatar(p, 34, '', true); }).join('') + '</div>' +
       '</div>';
   }
   function nightInfo() {

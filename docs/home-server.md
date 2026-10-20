@@ -76,6 +76,10 @@ Copy [`dashboard/settings.example.json`](../dashboard/settings.example.json) and
 - Exactly one calendar has `"person": "family"`. Its events belong to everyone.
 - Per-person calendars are optional. An event that appears in several of your calendars (say,
   an invite on two people's calendars) is shown once, with both people.
+- `people[].homeAssistant` (optional, needs `homeAssistant` below) links a person to their Home
+  Assistant `person.*` entity, e.g. `"homeAssistant": "person.alex"`, so their avatar shows
+  whether they are home (see [presence](#home-controls-from-home-assistant-optional)). Anything
+  that isn't a `person.*` id stops startup with a message naming the person.
 
 The server looks for each item in this order: the inline variable, then the path variable, then
 the default file (relative to the folder it runs in; `/app` in Docker).
@@ -146,6 +150,13 @@ Two optional keys in `homeAssistant`:
   with no area. On each connect the server logs a warning for a listed room that isn't an area,
   and for a label Home Assistant doesn't have.
 
+**Presence.** For each person with `people[].homeAssistant`, the server also follows that
+`person.*` entity (it needs no label and is never a tile or an action target). On the frame, the
+Today "who" row, the Today lane headers and the ambient "who" row draw that person **Home**
+(solid) or **Away** (hollow ring with a coloured letter). A person HA doesn't know about, who isn't
+linked, or whose state can't be trusted right now (Home Assistant or the server unreachable)
+shows solid. On connect the server warns about a linked entity Home Assistant doesn't have.
+
 Renaming, moving or tagging things in Home Assistant shows up straight away (the server re-reads
 the registries when they change). If the connection drops it reconnects with a growing delay (1 s
 up to 1 min) and in the meantime still answers with the last-known state.
@@ -154,7 +165,7 @@ API (all JSON, `cache-control: no-store`; without `homeAssistant`, `GET /api/hom
 `{ configured: false }` and the rest 404):
 
 - `GET /api/home` →
-  `{ configured: true, connected, updated, rooms, climate, scenes, cameras, media }`.
+  `{ configured: true, connected, updated, rooms, climate, scenes, cameras, media, presence }`.
   `connected` is false while the websocket is down; `updated` is when the last registry or
   labelled-entity update arrived (ISO time, null before the first connection).
   - `rooms`: `[{ name, tiles }]`; tiles sorted by name, each `{ id, kind, name, available }`
@@ -171,6 +182,9 @@ API (all JSON, `cache-control: no-store`; without `homeAssistant`, `GET /api/hom
     `mdi:…` or null).
   - `cameras`: `[{ id, name, available }]`.
   - `media`: `[{ id, name, available, state, title, artist, hasArt }]`.
+  - `presence`: `{ [personId]: "home" | "away" }` for linked people: HA state `home` is
+    `"home"`, any other known state (`not_home`, a zone such as `School`) is `"away"`. People
+    whose entity is `unknown`, `unavailable` or missing, and unlinked people, are left out.
 - `POST /api/home/:entityId` with `{ action, value? }`, answered `204` once Home Assistant has
   acknowledged the service call:
 
@@ -273,8 +287,8 @@ Calendar:
 - All-day events go on their date in the frame's time zone; timed events show in the frame's local
   time, so set the frame's time zone to match the family's.
 - The mock chores, stars and photo credits are handed to your people by position (first mock
-  person → first person in `settings.people`, and so on). Nobody shows a home/away status: there
-  is no source for it.
+  person → first person in `settings.people`, and so on). Home/away comes only from Home
+  Assistant, for people linked with `people[].homeAssistant`.
 - **Add event** on the Calendar view writes to Google: the event shows once the server confirms
   it, and **Undo** on the toast deletes it again. If the write fails you get an error toast and the
   sheet stays open with what you typed. Adding is switched off (greyed button, with the reason)

@@ -187,3 +187,19 @@ test('Home Assistant label and rooms are read', () => {
     assert.deepEqual(ha.rooms, ['Kitchen', 'Robin’s Room']);
   });
 });
+
+test("a person's Home Assistant link is read, and must be a person entity", () => {
+  const people = [
+    { id: 'alex', name: 'Alex', colour: '#2D5BFF', homeAssistant: 'person.alex' },
+    { id: 'sam', name: 'Sam', colour: '#E4007C' },
+  ];
+  withDir({ 'config/settings.json': settings({ people }), 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.deepEqual(loadConfig({ env: {}, cwd: t.dir }).settings.people, people);
+  });
+  for (const link of ['device_tracker.alex_phone', 'person.', 'Person.Alex', 3, '']) {
+    const s = settings({ people: [people[0], Object.assign({}, people[1], { homeAssistant: link })] });
+    withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount() }, (t) => {
+      assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/people\[1\]\.homeAssistant .*Sam.*person\./), String(link));
+    });
+  }
+});
