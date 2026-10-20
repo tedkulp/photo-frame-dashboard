@@ -12,6 +12,8 @@
 
   var LABELS = { sun: 'Sunny', moon: 'Clear', partly: 'Partly cloudy', cloud: 'Cloudy', rain: 'Rain', snow: 'Snow', storm: 'Thunderstorms' };
   var PRECIP = { snow: 'Snow', storm: 'Storms' };
+  // Anything else (an older cache, a new server condition) shows as cloud.
+  function cond(c) { return LABELS.hasOwnProperty(c) ? c : 'cloud'; }
 
   function num(v) { return typeof v === 'number' && isFinite(v); }
   function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
@@ -27,8 +29,8 @@
     if (isNaN(updatedAt)) throw new Error('Unexpected weather response');
     return {
       configured: true,
-      reading: { temp: body.now.temp, cond: body.now.cond },
-      hourly: body.hourly.map(function (h) { return { at: new Date(h.at), temp: h.temp, cond: h.cond, pop: h.pop || 0 }; })
+      reading: { temp: body.now.temp, cond: cond(body.now.cond) },
+      hourly: body.hourly.map(function (h) { return { at: new Date(h.at), temp: h.temp, cond: cond(h.cond), pop: h.pop || 0 }; })
         .filter(function (h) { return !isNaN(h.at) && num(h.temp); })
         .sort(function (a, b) { return a.at - b.at; }),
       daily: body.daily.map(function (d) { return { at: new Date(d.at), hi: d.hi, lo: d.lo }; })
@@ -44,26 +46,29 @@
   function hourLabel(d) { var h = d.getHours(); return (h % 12 || 12) + (h >= 12 ? 'p' : 'a'); }
 
   // What to show at `now` from parsed data: { temp, cond, label, hi, lo, summary, advice, hours }
-  // (hours: `count` slots starting with "Now"), or null when the forecast doesn't cover this hour.
+  // (hours: `count` slots starting with "Now"), or null when there's neither a fresh reading nor a
+  // forecast for this hour. A forecast may start at the next hour; then the fresh reading is "now".
   Weather.at = function (data, now, count) {
-    var A = root.Advice, list = data.hourly, i = -1;
-    for (var k = 0; k < list.length; k++) if (list[k].at <= now && now - list[k].at < HOUR) i = k;
-    if (i < 0) return null;
-    var cur = list[i];
+    var A = root.Advice, list = data.hourly, i = -1, k;
+    for (k = 0; k < list.length; k++) if (list[k].at <= now && now - list[k].at < HOUR) i = k;
+    var cur = i < 0 ? null : list[i];
     var fresh = Math.abs(now - data.updatedAt) < Weather.READING_MAX;
-    var temp = fresh ? data.reading.temp : cur.temp, cond = fresh ? data.reading.cond : cur.cond;
+    if (!cur && !(fresh && list.length && list[0].at > now && list[0].at - now < HOUR)) return null;
+    var temp = fresh ? data.reading.temp : cur.temp, c = fresh ? data.reading.cond : cur.cond;
+    var next = cur ? i + 1 : 0; // first forecast hour after this one
 
-    // The rest of today, from the current hour.
-    var today = [];
-    for (k = i; k < list.length && sameDay(list[k].at, now); k++) today.push(list[k]);
+    // The rest of today: the current hour (if forecast), then the hours after it.
     var wet = function (h) { return h.pop >= A.WET; };
-    var wetNow = wet(cur), wetFrom = null, dryAt = null, wetHour = null;
+    var later = [];
+    for (k = next; k < list.length && sameDay(list[k].at, now); k++) later.push(list[k]);
+    var today = cur ? [cur].concat(later) : later;
+    var wetNow = !!cur && wet(cur), wetFrom = null, dryAt = null, wetHour = null;
     if (wetNow) {
       wetHour = cur;
-      for (k = 1; k < today.length && wet(today[k]); k++);
-      dryAt = k < today.length ? today[k].at : null;
+      for (k = 0; k < later.length && wet(later[k]); k++);
+      dryAt = k < later.length ? later[k].at : null;
     } else {
-      for (k = 1; k < today.length; k++) if (wet(today[k])) { wetHour = today[k]; wetFrom = wetHour.at; break; }
+      for (k = 0; k < later.length; k++) if (wet(later[k])) { wetHour = later[k]; wetFrom = wetHour.at; break; }
     }
 
     var day = data.daily.filter(function (d) { return sameDay(d.at, now); })[0];
@@ -71,16 +76,16 @@
     var hi = day ? day.hi : Math.max.apply(null, temps), lo = day ? day.lo : Math.min.apply(null, temps);
 
     var wx = {
-      now: now, temp: temp, cond: cond, hi: hi, lo: lo,
+      now: now, temp: temp, cond: c, hi: hi, lo: lo,
       wetNow: wetNow, wetFrom: wetFrom, dryAt: dryAt,
       precip: (wetHour && PRECIP[wetHour.cond]) || 'Rain'
     };
-    var hours = [{ label: 'Now', temp: temp, cond: cond, wet: wetNow }];
-    for (k = i + 1; k < list.length && hours.length < (count || 7); k++) {
+    var hours = [{ label: 'Now', temp: temp, cond: c, wet: wetNow }];
+    for (k = next; k < list.length && hours.length < (count || 7); k++) {
       hours.push({ label: hourLabel(list[k].at), temp: list[k].temp, cond: list[k].cond, wet: wet(list[k]) });
     }
     return {
-      temp: temp, cond: cond, label: LABELS[cond] || '', hi: hi, lo: lo,
+      temp: temp, cond: c, label: LABELS[c], hi: hi, lo: lo,
       summary: A.pick(A.summaryRules, wx), advice: A.pick(A.adviceRules, wx), hours: hours
     };
   };

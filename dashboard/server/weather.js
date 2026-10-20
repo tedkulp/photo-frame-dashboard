@@ -33,7 +33,7 @@ function toFahrenheit(unit) {
   if (unit === '°F') return (v) => Math.round(v);
   if (unit === '°C') return (v) => Math.round(v * 9 / 5 + 32);
   if (unit === 'K') return (v) => Math.round((v - 273.15) * 9 / 5 + 32);
-  throw new Error(`Weather entity reports temperatures in "${unit}", expected °C or °F`);
+  throw new Error(`Weather entity reports temperatures in "${unit}", expected °C, °F or K`);
 }
 
 export function createWeather({ ha, entity, now = Date.now }) {

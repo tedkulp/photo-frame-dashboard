@@ -170,7 +170,7 @@
   App.weatherNote = function () {
     var s = App.weatherFeed ? App.weatherFeed.state() : { status: 'loading' };
     if (s.status === 'loading') return 'Loading the weather…';
-    if (s.status === 'offline') return 'Can’t reach the home server';
+    if (s.status === 'offline') return s.answered ? 'Home Assistant isn’t answering · retrying' : 'Can’t reach the home server';
     if (!D.weather.configured) return 'Weather not set up';
     if (!App.weatherNow()) return 'Weather unavailable';
     return s.stale ? 'Weather from ' + App.fmt.mins(Math.floor(s.age / 60) * 60) + ' ago' : '';

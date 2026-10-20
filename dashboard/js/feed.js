@@ -80,6 +80,7 @@
     var changeKey = o.changeKey || function (body) { return JSON.stringify([body.people, body.events]); };
     var lastOk = null, lastBody = null, failures = 0, timer = null, status = 'loading';
     var failed = false; // the last calendar fetch, or an add/delete, failed (no answer or a 5xx)
+    var answered = false; // the last failed fetch got an HTTP error back: the server is up, something behind it isn't
 
     function read() {
       try { var c = JSON.parse(o.storage.getItem(cacheKey)); return c && c.body && c.at ? c : null; } catch (e) { return null; }
@@ -120,15 +121,16 @@
       var p;
       try { p = Promise.resolve(o.fetch(o.url, { cache: 'no-store' })); } catch (e) { p = Promise.reject(e); }
       return withTimeout(p.then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.ok) { var e = new Error('HTTP ' + res.status); e.answered = true; throw e; }
         return res.json();
       })).then(function (body) {
         if (!apply(body, o.now())) throw new Error('Unexpected response');
         write(body, lastOk);
         failures = 0;
         failed = false;
+        answered = false;
         schedule(refresh);
-      }).catch(fail).then(function () { if (o.onState) o.onState(); });
+      }).catch(function (e) { answered = !!(e && e.answered); fail(); }).then(function () { if (o.onState) o.onState(); });
     }
 
     // An add or delete. Resolves with the JSON body (null for 204); rejects with the server's error,
@@ -172,9 +174,10 @@
       // status: 'loading' (nothing yet) | 'offline' (nothing yet, fetches failing) | 'ok' (have data).
       // age: whole minutes since the last successful fetch; stale once that reaches 15 (or o.stale).
       // failed: the last request did not work (cleared by the next good calendar fetch).
+      // answered: the last failed fetch got an HTTP error, so the server is reachable.
       state: function () {
         var age = lastOk == null ? null : Math.floor((o.now() - lastOk) / MIN);
-        return { status: status, age: age, stale: age != null && age * MIN >= staleMs, failed: failed };
+        return { status: status, age: age, stale: age != null && age * MIN >= staleMs, failed: failed, answered: answered };
       }
     };
   };

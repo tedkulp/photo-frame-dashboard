@@ -1,6 +1,6 @@
 // The weather summary and advice lines, as two ordered rule tables: the first rule whose `when`
-// matches gives the line. Edit, reorder or add rules here; dashboard/test/advice.test.js has a
-// test per rule. Also loads in Node for those tests.
+// matches gives the line. Edit, reorder or add rules here; the "summary + advice" tests in
+// dashboard/test/weather.test.js cover each rule. Also loads in Node for those tests.
 //
 // Every rule gets the same `wx` (built by weather.js from the forecast, all temperatures in °F):
 //   now      Date, the dashboard's current time

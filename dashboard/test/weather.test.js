@@ -196,3 +196,51 @@ test('not configured is data, not a failure', async () => {
   assert.equal(feed.state().status, 'ok');
   assert.equal(feed.state().failed, false);
 });
+
+// ------------------------------------------------------------ review fixes
+test('a forecast that starts at the next hour still shows the fresh reading', () => {
+  const b = body();
+  b.hourly = b.hourly.filter((h) => new Date(h.at) > at(14, 30));
+  b.hourly[1].pop = 80; // 4 PM
+  const w = show(b);
+  assert.equal(w.temp, 61);
+  assert.deepEqual(w.hours.map((h) => h.label), ['Now', '3p', '4p', '5p', '6p', '7p', '8p']);
+  assert.equal(w.summary, 'Rain from 4 PM');
+  // ...but not once the reading is old.
+  assert.equal(show(Object.assign(b, { updatedAt: iso(at(12, 0)) })), null);
+});
+
+test('unknown conditions show as cloud', () => {
+  const b = body({ reading: { temp: 60 }, conds: { 15: 'tornado' } });
+  const w = show(b);
+  assert.equal(w.cond, 'cloud');
+  assert.equal(w.label, 'Cloudy');
+  assert.equal(w.hours[1].cond, 'cloud');
+});
+
+test('snow for the rest of the day', () => {
+  const pops = {}, conds = {};
+  for (let h = 14; h < 30; h++) { pops[h] = 80; conds[h] = 'snow'; }
+  const w = show(body({ pops, conds }));
+  assert.equal(w.summary, 'Snow for the rest of the day');
+  assert.equal(w.advice, 'Boots and a warm coat');
+});
+
+test('storms later today', () => {
+  const w = show(body({ pops: { 18: 60 }, conds: { 18: 'storm' } }));
+  assert.equal(w.summary, 'Storms from 6 PM');
+  assert.equal(w.advice, 'Grab a rain jacket');
+});
+
+test('an HTTP error is answered (server up, Home Assistant down); a network error is not', async () => {
+  const make = (fetch) => Feed.create({
+    url: '/api/weather', parse: Weather.parse, changeKey: Weather.changeKey, fetch,
+    storage: null, now: () => 0, setTimeout: () => ({}), clearTimeout: () => {}, onChange: () => {},
+  });
+  let feed = make(() => Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({ error: 'Home Assistant: 401' }) }));
+  await feed.start();
+  assert.deepEqual([feed.state().status, feed.state().answered], ['offline', true]);
+  feed = make(() => Promise.reject(new TypeError('Failed to fetch')));
+  await feed.start();
+  assert.deepEqual([feed.state().status, feed.state().answered], ['offline', false]);
+});
