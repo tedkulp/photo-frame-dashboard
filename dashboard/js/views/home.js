@@ -33,7 +33,7 @@
   function people() {
     var size = D.people.length > 4 ? 26 : 36;
     return D.people.map(function (p) {
-      return '<div class="h-who" style="' + App.pstyle(p) + '">' + App.avatar(p, size, '', true) + '<b>' + App.esc(p.name) + '</b></div>';
+      return '<div class="h-who" style="' + App.pstyle(p) + '">' + App.avatar(p, size, '', { presence: true }) + '<b>' + App.esc(p.name) + '</b></div>';
     }).join('') + '<small class="h-feed feed-note">' + App.feedNote() + '</small>';
   }
 
@@ -81,7 +81,7 @@
       var list = App.timedOn(now, p.id).filter(function (e) { return e.end > now; });
       var shown = list.slice(0, 3), more = list.length - shown.length;
       return '<div class="h-lane" style="' + App.pstyle(p) + '">' +
-        '<div class="h-lane-head">' + App.avatar(p, 30, '', true) + '<b>' + App.esc(p.name) + '</b></div>' +
+        '<div class="h-lane-head">' + App.avatar(p, 30, '', { presence: true }) + '<b>' + App.esc(p.name) + '</b></div>' +
         (list.length ? shown.map(function (e) {
           var cur = e.start <= now;
           return '<button class="h-ev' + (cur ? ' is-now' : '') + '" data-ev="' + e.id + '">' +

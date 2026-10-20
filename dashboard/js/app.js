@@ -82,12 +82,12 @@
     if (typeof p === 'string') p = App.person(p);
     return '--c:' + p.color + ';--c-rgb:' + p.rgb + ';--c-ink:' + p.ink;
   };
-  // presence: draw the person Home (solid) or Away (hollow ring) from Home Assistant, and keep it
-  // current in place (paintPresence). Only the Today and ambient "who" places pass it.
-  App.avatar = function (p, size, cls, presence) {
+  // opts.presence: draw the person Home (solid) or Away (hollow ring) from Home Assistant, and keep
+  // it current in place (paintPresence). Only the Today and ambient "who" places pass it.
+  App.avatar = function (p, size, cls, opts) {
     if (typeof p === 'string') p = App.person(p);
     size = size || 48;
-    var live = presence && p.id !== 'family';
+    var live = !!(opts && opts.presence) && p.id !== 'family';
     if (live && App.presence(p.id) === 'away') cls = (cls || '') + ' is-away';
     return '<span class="avatar ' + (cls || '') + '"' + (live ? ' data-presence="' + App.esc(p.id) + '"' : '') + ' style="' + App.pstyle(p) + ';width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.46) + 'px">' + (p.id === 'family' ? '★' : App.esc(p.name.charAt(0))) + '</span>';
   };

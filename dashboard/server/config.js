@@ -48,7 +48,7 @@ function checkSettings(s) {
     if (p.id === 'family') throw new ConfigError(`settings.people[${i}].id cannot be "family"`);
     if (ids.has(p.id)) throw new ConfigError(`settings.people[${i}].id "${p.id}" is used twice`);
     if (p.homeAssistant !== undefined && (typeof p.homeAssistant !== 'string' || !/^person\.[a-z0-9_]+$/.test(p.homeAssistant))) {
-      throw new ConfigError(`settings.people[${i}].homeAssistant (${p.name}) "${p.homeAssistant}" must be a Home Assistant person entity id like person.${p.id.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`);
+      throw new ConfigError(`settings.people[${i}].homeAssistant (${p.name}) "${p.homeAssistant}" must be a Home Assistant person entity id like person.alex`);
     }
     ids.add(p.id);
   });

@@ -166,8 +166,8 @@ API (all JSON, `cache-control: no-store`; without `homeAssistant`, `GET /api/hom
 
 - `GET /api/home` →
   `{ configured: true, connected, updated, rooms, climate, scenes, cameras, media, presence }`.
-  `connected` is false while the websocket is down; `updated` is when the last registry or
-  labelled-entity update arrived (ISO time, null before the first connection).
+  `connected` is false while the websocket is down; `updated` is when the last registry,
+  labelled-entity or linked-person update arrived (ISO time, null before the first connection).
   - `rooms`: `[{ name, tiles }]`; tiles sorted by name, each `{ id, kind, name, available }`
     plus: `light` → `on`, `dimmable`, `level` (1–100; null when off, not dimmable, or on at
     brightness 0 as some Govee/Matter lights report); `switch`, `fan`, `toggle`
