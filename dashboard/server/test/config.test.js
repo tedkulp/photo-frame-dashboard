@@ -122,3 +122,47 @@ test('a key without private_key or client_email is named', () => {
     assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/private_key/));
   });
 });
+
+test('Home Assistant is optional', () => {
+  withDir({ 'config/settings.json': settings(), 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.equal(loadConfig({ env: { HOME_ASSISTANT_TOKEN: 'ignored' }, cwd: t.dir }).homeAssistant, null);
+  });
+});
+
+test('Home Assistant settings + token from env, path env or default file', () => {
+  const s = settings({ homeAssistant: { url: 'http://ha.local:8123/', weatherEntity: 'weather.pirateweather' } });
+  withDir({
+    'config/settings.json': s,
+    'config/service-account.json': serviceAccount(),
+    'config/home-assistant-token': 'from-file\n',
+    'other/token': 'from-path',
+  }, (t) => {
+    const ha = (env) => loadConfig({ env, cwd: t.dir }).homeAssistant;
+    assert.deepEqual(ha({}), { url: 'http://ha.local:8123', weatherEntity: 'weather.pirateweather', token: 'from-file' });
+    assert.equal(ha({ HOME_ASSISTANT_TOKEN_FILE: t.path('other/token') }).token, 'from-path');
+    assert.equal(ha({ HOME_ASSISTANT_TOKEN_FILE: t.path('other/token'), HOME_ASSISTANT_TOKEN: 'inline' }).token, 'inline');
+  });
+});
+
+test('Home Assistant settings without a token are named', () => {
+  const s = settings({ homeAssistant: { url: 'http://ha.local:8123', weatherEntity: 'weather.home' } });
+  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/Home Assistant token.*HOME_ASSISTANT_TOKEN.*HOME_ASSISTANT_TOKEN_FILE.*config\/home-assistant-token/s));
+  });
+  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount(), 'config/home-assistant-token': '  \n' }, (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/token is empty/));
+  });
+});
+
+test('bad Home Assistant settings are named', () => {
+  const bad = (homeAssistant, re) => withDir({
+    'config/settings.json': settings({ homeAssistant }),
+    'config/service-account.json': serviceAccount(),
+    'config/home-assistant-token': 't',
+  }, (t) => assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(re)));
+  bad('http://ha', /homeAssistant must be a JSON object/);
+  bad({ url: 'ha.local', weatherEntity: 'weather.home' }, /homeAssistant\.url "ha\.local"/);
+  bad({ url: 'ftp://ha.local', weatherEntity: 'weather.home' }, /http:\/\/ or https:\/\//);
+  bad({ url: 'http://ha.local' }, /weatherEntity "undefined"/);
+  bad({ url: 'http://ha.local', weatherEntity: 'sensor.temp' }, /weatherEntity "sensor\.temp"/);
+});

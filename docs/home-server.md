@@ -1,8 +1,9 @@
 # Home server: the dashboard with your Google Calendar
 
 The dashboard takes its family (names, colours) and its calendar from this server's
-`GET /api/calendar`, and adds events through it; everything else (chores, shopping, weather,
-photos, home controls) is still mock data. `dashboard/server/` is a small Node server for an
+`GET /api/calendar`, adds events through it, and takes the weather from your Home Assistant
+through `GET /api/weather`; everything else (chores, shopping, photos, home controls) is still
+mock data. `dashboard/server/` is a small Node server for an
 always-on machine at home (in Docker) that serves the built dashboard and a calendar API from one
 address on your LAN:
 
@@ -20,6 +21,10 @@ address on your LAN:
   nothing is written; the body must be sent as `application/json`.
 - `DELETE /api/events/:id` deletes an event by the `id` the API gave it (`204`). Only events in
   the configured calendars can be deleted. The dashboard uses it for **Undo** right after adding.
+- `GET /api/weather` returns `{ configured: true, now, hourly, daily, updatedAt }` from a Home
+  Assistant weather entity, in whole °F (see [Weather](#weather-from-home-assistant-optional)), or
+  `{ configured: false }` when Home Assistant isn't set up. If Home Assistant fails it answers
+  `502` with a JSON `error`.
 
 It has no npm runtime dependencies and no login of its own: it is meant for your LAN only, so do
 not expose its port to the internet.
@@ -76,12 +81,37 @@ the default file (relative to the folder it runs in; `/app` in Docker).
 | --- | --- | --- | --- |
 | People + calendars | `DASHBOARD_SETTINGS_JSON` | `DASHBOARD_SETTINGS_FILE` | `config/settings.json` |
 | Service-account key | `GOOGLE_SERVICE_ACCOUNT_JSON` | `GOOGLE_SERVICE_ACCOUNT_FILE` | `config/service-account.json` |
+| Home Assistant token (only with `homeAssistant`) | `HOME_ASSISTANT_TOKEN` | `HOME_ASSISTANT_TOKEN_FILE` | `config/home-assistant-token` |
 | Port | `PORT` | | `8080` |
 | Time zone | `TZ` | | the Family calendar's time zone |
 
 If anything is missing or wrong (no key, bad JSON, a calendar naming a person who isn't in
 `people`, no Family calendar), the server stops at startup and says which item.
 `dashboard/config/` is git-ignored.
+
+### Weather from Home Assistant (optional)
+
+The weather comes from a Home Assistant weather entity; we use the
+[PirateWeather](https://github.com/Pirate-Weather/pirate-weather-ha) integration, but any entity
+that answers `weather.get_forecasts` with hourly and daily forecasts works. Add to the settings:
+
+```json
+"homeAssistant": { "url": "http://homeassistant.local:8123", "weatherEntity": "weather.pirateweather" }
+```
+
+and give the server a long-lived access token (Home Assistant → your profile → Security →
+Long-lived access tokens) as `HOME_ASSISTANT_TOKEN`, a file named by `HOME_ASSISTANT_TOKEN_FILE`,
+or `config/home-assistant-token`. With `homeAssistant` set, a missing or empty token, a bad URL or
+an entity id that isn't `weather.*` stops the server at startup. Without it the server runs as
+before and the dashboard says "Weather not set up".
+
+Temperatures are converted to whole °F on the server whatever Home Assistant's unit system is.
+Home Assistant's conditions are folded into seven: sunny, clear night, partly cloudy, cloudy (also
+fog, wind), rain (also pouring, hail), snow (also sleet) and storm (lightning).
+
+```sh
+curl http://localhost:8080/api/weather   # should show "configured": true and a forecast
+```
 
 ## 4. Run it with Docker
 
@@ -104,6 +134,14 @@ Without Docker: `npm install && npm run build && npm run server` in `dashboard/`
 newer).
 
 ## What the dashboard does with it
+
+Weather works the same way as the calendar, with its own timings: it is fetched every 10 minutes
+and cached, and the Today view says "Weather from N hr ago" once no fetch has worked for an hour.
+An old forecast is still used for the hours it covers; once it no longer covers the current hour
+the view says "Weather unavailable". The summary and advice lines ("Rain from 4 PM. Grab a rain
+jacket.") come from the rule tables in `dashboard/js/advice.js`; edit them there.
+
+Calendar:
 
 - On boot it fetches `/api/calendar` (same origin as the page), then again every 5 minutes. A
   failed fetch is retried after 5 s, doubling up to 5 minutes, forever; Wi-Fi coming up after the
@@ -138,5 +176,5 @@ scripts/set-kiosk-url.sh http://<server-ip>:8080/
 cd dashboard
 npm run server   # API + dist on :8080 (needs config/)
 npm run dev      # Vite on :5173, proxies /api to :8080
-npm test         # server tests (local fake Google, no network or real key) + dashboard feed tests
+npm test         # server tests (local fake Google + Home Assistant, no network or real key) + dashboard tests
 ```

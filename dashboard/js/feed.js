@@ -1,7 +1,8 @@
 // Calendar feed: real people + events from the home server's GET /api/calendar.
 // Refreshes every 5 minutes, retries failures with backoff (Wi-Fi comes up after the page at boot)
 // and caches the last good response so an offline boot still shows the calendar. Also adds and
-// deletes events through POST /api/events and DELETE /api/events/:id.
+// deletes events through POST /api/events and DELETE /api/events/:id. The refresh loop is shared:
+// the weather feed (weather.js) is the same loop with its own URL, cache, timings and parser.
 (function (root) {
   'use strict';
   var Feed = root.Feed = {};
@@ -71,23 +72,29 @@
   // ------------------------------------------------------------ refresh loop
   // deps: url, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the data changes,
   // onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
+  // Optional, for feeds other than the calendar: cacheKey, refresh and stale (ms), parse(body) (throws
+  // on a bad body) and changeKey(body) (a string that changes only when the data does).
   Feed.create = function (o) {
+    var cacheKey = o.cacheKey || CACHE_KEY, refresh = o.refresh || REFRESH, staleMs = o.stale || STALE;
+    var parse = o.parse || Feed.parse;
+    var changeKey = o.changeKey || function (body) { return JSON.stringify([body.people, body.events]); };
     var lastOk = null, lastBody = null, failures = 0, timer = null, status = 'loading';
     var failed = false; // the last calendar fetch, or an add/delete, failed (no answer or a 5xx)
 
     function read() {
-      try { var c = JSON.parse(o.storage.getItem(CACHE_KEY)); return c && c.body && c.at ? c : null; } catch (e) { return null; }
+      try { var c = JSON.parse(o.storage.getItem(cacheKey)); return c && c.body && c.at ? c : null; } catch (e) { return null; }
     }
     function write(body, at) {
-      try { o.storage.setItem(CACHE_KEY, JSON.stringify({ at: at, body: body })); } catch (e) {}
+      try { o.storage.setItem(cacheKey, JSON.stringify({ at: at, body: body })); } catch (e) {}
     }
     // Takes a good body fetched (or cached) at `at`; returns false, changing nothing, if it doesn't
     // parse. State is updated before onChange so views re-rendering from it see the new state.
     function apply(body, at) {
-      // updatedAt changes on every server load; only people + events count as a change.
-      var text = JSON.stringify([body.people, body.events]), parsed = null;
+      // updatedAt changes on every server load; only the data counts as a change.
+      var text, parsed = null;
+      try { text = changeKey(body); } catch (e) { return false; }
       if (text !== lastBody) {
-        try { parsed = Feed.parse(body); } catch (e) { return false; }
+        try { parsed = parse(body); } catch (e) { return false; }
         lastBody = text;
       }
       lastOk = at;
@@ -116,11 +123,11 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       })).then(function (body) {
-        if (!apply(body, o.now())) throw new Error('Unexpected calendar response');
+        if (!apply(body, o.now())) throw new Error('Unexpected response');
         write(body, lastOk);
         failures = 0;
         failed = false;
-        schedule(REFRESH);
+        schedule(refresh);
       }).catch(fail).then(function () { if (o.onState) o.onState(); });
     }
 
@@ -163,11 +170,11 @@
         return load();
       },
       // status: 'loading' (nothing yet) | 'offline' (nothing yet, fetches failing) | 'ok' (have data).
-      // age: whole minutes since the last successful fetch; stale once that reaches 15.
+      // age: whole minutes since the last successful fetch; stale once that reaches 15 (or o.stale).
       // failed: the last request did not work (cleared by the next good calendar fetch).
       state: function () {
         var age = lastOk == null ? null : Math.floor((o.now() - lastOk) / MIN);
-        return { status: status, age: age, stale: age != null && age * MIN >= STALE, failed: failed };
+        return { status: status, age: age, stale: age != null && age * MIN >= staleMs, failed: failed };
       }
     };
   };

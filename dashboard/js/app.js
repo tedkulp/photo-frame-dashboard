@@ -158,41 +158,30 @@
   App.on('minute', paintFeedNotes);
   function onFeedState() { paintFeedNotes(); App.emit('feedstate'); }
 
-  // ------------------------------------------------------------ chores + weather helpers
+  // ------------------------------------------------------------ weather feed (home server)
+  // Home Assistant's weather from GET /api/weather (weather.js), on the calendar feed's loop.
+  function onWeather(d) { D.weather = d; App.emit('weather'); }
+  // What the views show now (see Weather.at), or null when there's nothing to show; then
+  // App.weatherNote() says why.
+  App.weatherNow = function () {
+    return D.weather && D.weather.configured ? window.Weather.at(D.weather, App.now(), 7) : null;
+  };
+  // Why there is no weather, or how old it is once stale ('' when it's fresh).
+  App.weatherNote = function () {
+    var s = App.weatherFeed ? App.weatherFeed.state() : { status: 'loading' };
+    if (s.status === 'loading') return 'Loading the weather…';
+    if (s.status === 'offline') return 'Can’t reach the home server';
+    if (!D.weather.configured) return 'Weather not set up';
+    if (!App.weatherNow()) return 'Weather unavailable';
+    return s.stale ? 'Weather from ' + App.fmt.mins(Math.floor(s.age / 60) * 60) + ' ago' : '';
+  };
+
+  // ------------------------------------------------------------ chores helpers
   App.currentRoutine = function () {
     var h = App.now().getHours();
     for (var i = 0; i < D.routines.length; i++) if (h >= D.routines[i].from && h < D.routines[i].to) return D.routines[i];
     return D.routines[2];
   };
-  App.weatherNow = function () {
-    var W = D.weather, h = App.now().getHours();
-    var rainAt = -1;
-    for (var i = h; i < 24; i++) if (W.p[i] >= 50) { rainAt = i; break; }
-    var summary, advice;
-    if (rainAt === h) {
-      var stop = h; while (stop < 24 && W.p[stop] >= 50) stop++;
-      summary = 'Rain until ' + App.fmt.hour(new Date(2000, 0, 1, stop));
-      advice = 'Umbrella weather';
-    } else if (rainAt > -1) {
-      summary = 'Rain from ' + App.fmt.hour(new Date(2000, 0, 1, rainAt));
-      var soccer = App.timedOn(App.now()).filter(function (e) { return /soccer/i.test(e.title) && e.start > App.now(); })[0];
-      advice = soccer ? 'Pack a rain jacket for soccer' : 'Grab a rain jacket';
-    } else {
-      summary = W.t[h] < 12 ? 'Clear and cool' : 'Dry all day';
-      advice = W.t[h] < 12 ? 'Jacket weather' : 'Light layers';
-    }
-    var labels = { sun: 'Sunny', moon: 'Clear', partly: 'Partly cloudy', cloud: 'Overcast', rain: 'Rain' };
-    return { temp: W.t[h], cond: W.c[h], label: labels[W.c[h]], hi: W.hi, lo: W.lo, summary: summary, advice: advice, hour: h };
-  };
-  App.hourly = function (count) {
-    var W = D.weather, h = App.now().getHours(), out = [];
-    for (var i = 0; i < count; i++) {
-      var x = (h + i) % 24;
-      out.push({ h: x, t: W.t[x], c: W.c[x], p: W.p[x], label: i === 0 ? 'Now' : ((x % 12 || 12) + (x >= 12 ? 'p' : 'a')) });
-    }
-    return out;
-  };
-
   // ------------------------------------------------------------ router
   App.register = function (name, view) { App.views[name] = view; };
   // Views are built once and kept laid out (hidden with content-visibility), so switching tabs
@@ -246,6 +235,7 @@
   }
   App.on('data', markStale);
   App.on('feed', function () { markStale(); App.rerender(); });
+  App.on('weather', function () { markStale(); App.rerender(); });
   App.on('time', markStale);
   App.rerender = function () {
     if (App.current) App.views[App.current].show($('#view-' + App.current), { rerender: true });
@@ -374,6 +364,14 @@
       onChange: onFeed, onState: onFeedState, onError: function (e) { console.error('[feed]', e); }
     });
     App.feed.start(); // a cached response is applied right here, before the first view is built
+    App.weatherFeed = window.Feed.create({
+      url: '/api/weather', cacheKey: 'homehq.weather', refresh: window.Weather.REFRESH, stale: window.Weather.STALE,
+      parse: window.Weather.parse, changeKey: window.Weather.changeKey,
+      fetch: window.fetch.bind(window), storage: storage,
+      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
+      onChange: onWeather, onState: function () { App.emit('weatherstate'); }, onError: function (e) { console.error('[weather]', e); }
+    });
+    App.weatherFeed.start();
     fit();
     window.addEventListener('resize', fit);
     // Switch tabs the instant a finger lands (pointerdown), not on release. Keyboard "clicks"

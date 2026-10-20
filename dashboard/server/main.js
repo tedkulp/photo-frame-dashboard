@@ -27,6 +27,6 @@ const { server } = await startServer({
   tokenUrl: process.env.GOOGLE_TOKEN_URL || undefined,
   apiBase: process.env.GOOGLE_CALENDAR_API_URL || undefined,
 });
-console.log(`Dashboard on http://0.0.0.0:${server.address().port}/ (calendar time zone: ${config.timeZone || 'from the Family calendar'})`);
+console.log(`Dashboard on http://0.0.0.0:${server.address().port}/ (calendar time zone: ${config.timeZone || 'from the Family calendar'}; weather: ${config.homeAssistant ? config.homeAssistant.weatherEntity : 'not configured'})`);
 
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => server.close(() => process.exit(0)));

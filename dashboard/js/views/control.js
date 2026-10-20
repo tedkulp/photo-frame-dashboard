@@ -92,9 +92,9 @@
     var c = D.climate;
     var verb = c.mode === 'off' ? 'Off' : c.set > c.current ? 'Heating' : c.set < c.current ? 'Cooling' : 'Holding';
     return '<div class="label label--light">Climate · Main floor</div>' +
-      '<div class="th-main"><button class="th-btn" data-temp="-0.5" aria-label="Cooler">' + App.icon('minus', 36) + '</button>' +
-      '<div class="th-set"><span class="num">' + c.set.toFixed(1).replace('.0', '') + '°</span><small>Set to</small></div>' +
-      '<button class="th-btn" data-temp="0.5" aria-label="Warmer">' + App.icon('plus', 36) + '</button></div>' +
+      '<div class="th-main"><button class="th-btn" data-temp="-1" aria-label="Cooler">' + App.icon('minus', 36) + '</button>' +
+      '<div class="th-set"><span class="num">' + c.set + '°</span><small>Set to</small></div>' +
+      '<button class="th-btn" data-temp="1" aria-label="Warmer">' + App.icon('plus', 36) + '</button></div>' +
       '<div class="th-now"><span><b class="num">' + c.current + '°</b> inside</span><span class="th-verb th-verb--' + verb.toLowerCase() + '">' + verb + '</span><span><b class="num">' + c.humidity + '%</b> humidity</span></div>' +
       '<div class="seg seg--dark">' + [['heat', 'Heat'], ['cool', 'Cool'], ['auto', 'Auto'], ['off', 'Off']].map(function (m) {
         return '<button class="' + (c.mode === m[0] ? 'is-on' : '') + '" data-tmode="' + m[0] + '">' + m[1] + '</button>';
@@ -313,7 +313,7 @@
       return;
     }
     if ((t = e.target.closest('[data-temp]'))) {
-      D.climate.set = Math.max(15, Math.min(28, D.climate.set + +t.dataset.temp));
+      D.climate.set = Math.max(60, Math.min(82, D.climate.set + +t.dataset.temp));
       if (D.climate.mode === 'off') D.climate.mode = 'heat';
       return climateChanged();
     }

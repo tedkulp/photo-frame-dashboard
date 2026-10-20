@@ -2,6 +2,8 @@
 import './icons.js';
 import './data.js';
 import './feed.js';
+import './advice.js';
+import './weather.js';
 import './app.js';
 import './system.js';
 import './slideshow.js';

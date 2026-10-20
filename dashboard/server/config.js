@@ -1,31 +1,30 @@
-// Startup configuration: settings (people + calendars), the Google service-account key, port and
-// time zone. Each JSON item is read from an inline env var, else a path env var, else a default
-// file under config/. Anything missing or invalid throws a ConfigError naming the item, so the
-// server never starts serving an empty calendar.
+// Startup configuration: settings (people + calendars, optionally Home Assistant), the Google
+// service-account key, the Home Assistant token, port and time zone. Each item is read from an
+// inline env var, else a path env var, else a default file under config/. Anything missing or
+// invalid throws a ConfigError naming the item, so the server never starts serving an empty
+// calendar. Home Assistant is optional: without settings.homeAssistant there is no weather.
 import { createPrivateKey } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export class ConfigError extends Error {}
 
-function readJsonItem(env, cwd, what, inlineVar, pathVar, defaultFile) {
-  let text, source;
-  if (env[inlineVar]) {
-    text = env[inlineVar];
-    source = inlineVar;
-  } else if (env[pathVar]) {
+function readItem(env, cwd, what, inlineVar, pathVar, defaultFile) {
+  if (env[inlineVar]) return { text: env[inlineVar], source: inlineVar };
+  if (env[pathVar]) {
     const file = resolve(cwd, env[pathVar]);
     if (!existsSync(file)) throw new ConfigError(`${pathVar} points to ${file}, which does not exist`);
-    text = readFileSync(file, 'utf8');
-    source = file;
-  } else {
-    const file = resolve(cwd, defaultFile);
-    if (!existsSync(file)) {
-      throw new ConfigError(`No ${what} found: set ${inlineVar} or ${pathVar}, or create ${defaultFile}`);
-    }
-    text = readFileSync(file, 'utf8');
-    source = file;
+    return { text: readFileSync(file, 'utf8'), source: file };
   }
+  const file = resolve(cwd, defaultFile);
+  if (!existsSync(file)) {
+    throw new ConfigError(`No ${what} found: set ${inlineVar} or ${pathVar}, or create ${defaultFile}`);
+  }
+  return { text: readFileSync(file, 'utf8'), source: file };
+}
+
+function readJsonItem(env, cwd, what, inlineVar, pathVar, defaultFile) {
+  const { text, source } = readItem(env, cwd, what, inlineVar, pathVar, defaultFile);
   try {
     return JSON.parse(text);
   } catch (e) {
@@ -64,6 +63,23 @@ function checkSettings(s) {
   };
 }
 
+// settings.homeAssistant → { url, weatherEntity } (url without a trailing slash), or null if absent.
+function checkHomeAssistant(h) {
+  if (h === undefined) return null;
+  if (!h || typeof h !== 'object' || Array.isArray(h)) throw new ConfigError('settings.homeAssistant must be a JSON object');
+  let url;
+  try {
+    url = new URL(h.url);
+  } catch {
+    throw new ConfigError(`settings.homeAssistant.url "${h.url}" is not a URL like http://homeassistant.local:8123`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ConfigError(`settings.homeAssistant.url "${h.url}" must start with http:// or https://`);
+  if (!isText(h.weatherEntity) || !/^weather\.[a-z0-9_]+$/.test(h.weatherEntity)) {
+    throw new ConfigError(`settings.homeAssistant.weatherEntity "${h.weatherEntity}" must be a weather entity id like weather.pirateweather`);
+  }
+  return { url: h.url.replace(/\/+$/, ''), weatherEntity: h.weatherEntity };
+}
+
 function checkServiceAccount(k) {
   if (!k || typeof k !== 'object') throw new ConfigError('service-account key must be a JSON object');
   if (!isText(k.client_email)) throw new ConfigError('service-account key has no client_email');
@@ -79,13 +95,21 @@ function checkServiceAccount(k) {
 export function loadConfig({ env = process.env, cwd = process.cwd() } = {}) {
   const serviceAccount = checkServiceAccount(readJsonItem(env, cwd, 'service-account key',
     'GOOGLE_SERVICE_ACCOUNT_JSON', 'GOOGLE_SERVICE_ACCOUNT_FILE', 'config/service-account.json'));
-  const settings = checkSettings(readJsonItem(env, cwd, 'settings',
-    'DASHBOARD_SETTINGS_JSON', 'DASHBOARD_SETTINGS_FILE', 'config/settings.json'));
+  const rawSettings = readJsonItem(env, cwd, 'settings',
+    'DASHBOARD_SETTINGS_JSON', 'DASHBOARD_SETTINGS_FILE', 'config/settings.json');
+  const settings = checkSettings(rawSettings);
+  let homeAssistant = checkHomeAssistant(rawSettings.homeAssistant);
+  if (homeAssistant) {
+    const token = readItem(env, cwd, 'Home Assistant token',
+      'HOME_ASSISTANT_TOKEN', 'HOME_ASSISTANT_TOKEN_FILE', 'config/home-assistant-token').text.trim();
+    if (!token) throw new ConfigError('The Home Assistant token is empty');
+    homeAssistant = Object.assign(homeAssistant, { token });
+  }
 
   let port = 8080;
   if (env.PORT) {
     port = Number(env.PORT);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new ConfigError(`PORT "${env.PORT}" is not a valid port`);
   }
-  return { settings, serviceAccount, port, timeZone: env.TZ || null };
+  return { settings, serviceAccount, homeAssistant, port, timeZone: env.TZ || null };
 }

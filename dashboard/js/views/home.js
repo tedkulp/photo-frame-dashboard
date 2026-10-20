@@ -10,20 +10,21 @@
   }
 
   function weather() {
-    var w = App.weatherNow();
-    var hours = App.hourly(7);
-    var tmin = Math.min.apply(null, hours.map(function (h) { return h.t; }));
-    var tmax = Math.max.apply(null, hours.map(function (h) { return h.t; }));
+    var w = App.weatherNow(), note = App.weatherNote();
+    if (!w) return '<div class="h-wx-top"><span class="h-wx-icon h-wx-none">' + App.icon('cloud', 60) + '</span><span class="h-wx-say">' + note + '</span></div>';
+    var hours = w.hours;
+    var tmin = Math.min.apply(null, hours.map(function (h) { return h.temp; }));
+    var tmax = Math.max.apply(null, hours.map(function (h) { return h.temp; }));
     return '<div class="h-wx-top">' +
       '<span class="h-wx-icon">' + App.icon(w.cond, 60) + '</span>' +
       '<span class="h-wx-temp num">' + w.temp + '°</span>' +
-      '<span class="h-wx-meta"><b>' + w.label + '</b><span>H ' + w.hi + '°  L ' + w.lo + '°</span></span>' +
+      '<span class="h-wx-meta"><b>' + w.label + '</b><span>H ' + w.hi + '°  L ' + w.lo + '°</span>' + (note ? '<small>' + note + '</small>' : '') + '</span>' +
       '</div>' +
       '<div class="h-wx-say"><b>' + w.summary + '.</b> ' + w.advice + '.</div>' +
       '<div class="h-wx-hours">' + hours.map(function (h) {
-        var lift = tmax === tmin ? 0 : Math.round((h.t - tmin) / (tmax - tmin) * 8);
-        return '<div class="h-hr' + (h.p >= 50 ? ' is-wet' : '') + '"><span class="h-hr-l">' + h.label + '</span>' +
-          '<span class="h-hr-i" style="transform:translateY(' + -lift + 'px)">' + App.icon(h.c, 22) + '</span><b>' + h.t + '°</b></div>';
+        var lift = tmax === tmin ? 0 : Math.round((h.temp - tmin) / (tmax - tmin) * 8);
+        return '<div class="h-hr' + (h.wet ? ' is-wet' : '') + '"><span class="h-hr-l">' + h.label + '</span>' +
+          '<span class="h-hr-i" style="transform:translateY(' + -lift + 'px)">' + App.icon(h.cond, 22) + '</span><b>' + h.temp + '°</b></div>';
       }).join('') + '</div>';
   }
 
@@ -180,12 +181,16 @@
     resume: function () { V.slides.start(); },
     hide: function () { if (V.slides) V.slides.stop(); }
   });
-  // Every minute: just the clock and next-up countdown (cheap, even while hidden). Weather on the hour.
+  // Every minute: just the clock and next-up countdown (cheap, even while hidden). Weather on the
+  // hour, or every minute while it has a note (loading, missing, stale).
+  function paintWeather() { if (V.el && V.el.firstChild) V.el.querySelector('.h-weather').innerHTML = weather(); }
   App.on('minute', function (n) {
     if (!V.el || !V.el.firstChild) return;
     V.el.querySelector('.h-clock').innerHTML = clock();
     V.el.querySelector('.h-hero-slot').innerHTML = hero();
-    if (n.getMinutes() === 0) { V.el.querySelector('.h-weather').innerHTML = weather(); V.el.querySelector('.h-lanes').innerHTML = lanes(); }
+    if (n.getMinutes() === 0 || App.weatherNote()) paintWeather();
+    if (n.getMinutes() === 0) V.el.querySelector('.h-lanes').innerHTML = lanes();
   });
+  App.on('weatherstate', paintWeather);
   App.on('data', function () { if (App.current === 'home') paint(); });
 })();

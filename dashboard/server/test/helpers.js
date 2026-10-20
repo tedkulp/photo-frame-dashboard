@@ -115,3 +115,46 @@ export async function fakeGoogle(calendars) {
     close: () => new Promise((r) => server.close(r)),
   };
 }
+
+// Fake Home Assistant. `entities` maps entity id -> { state, attributes, hourly: [...], daily: [...] }
+// or { status, body } to make every call for that entity fail. Only `token` is accepted. Records
+// every request in `requests`.
+export async function fakeHomeAssistant(entities, { token = 'ha-token' } = {}) {
+  const requests = [];
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://x');
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    requests.push({ method: req.method, path: url.pathname, search: url.search, headers: req.headers, body });
+    const send = (status, obj) => {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(obj));
+    };
+    if (req.headers.authorization !== 'Bearer ' + token) return send(401, { message: 'Invalid access token' });
+
+    const st = url.pathname.match(/^\/api\/states\/([^/]+)$/);
+    if (st && req.method === 'GET') {
+      const id = decodeURIComponent(st[1]);
+      const e = entities[id];
+      if (!e) return send(404, { message: 'Entity not found.' });
+      if (e.status) return send(e.status, e.body || { message: 'boom' });
+      return send(200, { entity_id: id, state: e.state, attributes: e.attributes, last_updated: '2026-10-19T11:55:00+00:00' });
+    }
+    if (url.pathname === '/api/services/weather/get_forecasts' && req.method === 'POST') {
+      if (url.search !== '?return_response') return send(400, { message: 'Service call requires responses but caller did not ask for responses' });
+      const { entity_id: id, type } = JSON.parse(body);
+      const e = entities[id];
+      if (!e) return send(400, { message: 'Referenced entities ' + id + ' are missing or not currently available' });
+      if (e.status) return send(e.status, e.body || { message: 'boom' });
+      return send(200, { changed_states: [], service_response: { [id]: { forecast: e[type] || [] } } });
+    }
+    send(404, { message: 'Not Found' });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return {
+    url: 'http://127.0.0.1:' + server.address().port,
+    token,
+    requests,
+    close: () => new Promise((r) => server.close(r)),
+  };
+}

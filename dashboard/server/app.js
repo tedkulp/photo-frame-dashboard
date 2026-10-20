@@ -1,10 +1,12 @@
-// HTTP server: the built dashboard (dist), GET /api/calendar, POST /api/events and
-// DELETE /api/events/:id from one origin. LAN-only, no auth.
+// HTTP server: the built dashboard (dist), GET /api/calendar, POST /api/events,
+// DELETE /api/events/:id and GET /api/weather from one origin. LAN-only, no auth.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { createGoogle } from './google.js';
 import { createCalendar, InputError } from './calendar.js';
+import { createHomeAssistant } from './homeassistant.js';
+import { createWeather } from './weather.js';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -44,8 +46,8 @@ async function readJson(req) {
   }
 }
 
-// Runs a calendar call: InputError → its status, anything else (Google) → 502.
-async function calendarCall(res, what, status, fn) {
+// Runs an API call: InputError → its status, anything else (Google, Home Assistant) → 502.
+async function apiCall(res, what, status, fn) {
   try {
     const out = await fn();
     if (out === undefined) {
@@ -60,7 +62,7 @@ async function calendarCall(res, what, status, fn) {
   }
 }
 
-function createHandler({ calendar, distDir }) {
+function createHandler({ calendar, weather, distDir }) {
   const root = resolve(distDir);
 
   async function serveStatic(req, res, pathname) {
@@ -93,11 +95,11 @@ function createHandler({ calendar, distDir }) {
     try {
       if (pathname === '/api/calendar') {
         if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
-        return await calendarCall(res, 'calendar', 200, () => calendar.load());
+        return await apiCall(res, 'calendar', 200, () => calendar.load());
       }
       if (pathname === '/api/events') {
         if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
-        return await calendarCall(res, 'add event', 201, async () => calendar.create(await readJson(req)));
+        return await apiCall(res, 'add event', 201, async () => calendar.create(await readJson(req)));
       }
       if (pathname.startsWith('/api/events/')) {
         if (req.method !== 'DELETE') return sendJson(res, 405, { error: 'Method not allowed' });
@@ -107,7 +109,12 @@ function createHandler({ calendar, distDir }) {
         } catch {
           return sendJson(res, 404, { error: 'No such event' });
         }
-        return await calendarCall(res, 'delete event', 204, () => calendar.remove(id));
+        return await apiCall(res, 'delete event', 204, () => calendar.remove(id));
+      }
+      if (pathname === '/api/weather') {
+        if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
+        if (!weather) return sendJson(res, 200, { configured: false });
+        return await apiCall(res, 'weather', 200, () => weather.load());
       }
       if (pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Not found' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });
@@ -124,7 +131,9 @@ function createHandler({ calendar, distDir }) {
 export async function startServer({ config, distDir, tokenUrl, apiBase, now = Date.now }) {
   const google = createGoogle({ serviceAccount: config.serviceAccount, tokenUrl, apiBase, now });
   const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now });
-  const server = createServer(createHandler({ calendar, distDir }));
+  const ha = config.homeAssistant;
+  const weather = ha ? createWeather({ ha: createHomeAssistant(ha), entity: ha.weatherEntity, now }) : null;
+  const server = createServer(createHandler({ calendar, weather, distDir }));
   await new Promise((ok, fail) => {
     server.once('error', fail);
     server.listen(config.port, () => { server.off('error', fail); ok(); });
