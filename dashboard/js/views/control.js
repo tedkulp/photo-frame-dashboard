@@ -116,7 +116,7 @@
   // ------------------------------------------------------------ rooms
   function roomHead(r) {
     var on = r.tiles.filter(function (t) { return t.kind === 'light' && t.on; }).length;
-    var offable = r.tiles.some(function (t) { return t.available && t.on && /^(light|switch|fan)$/.test(t.kind); });
+    var offable = r.tiles.some(H.turnsOff);
     return '<span class="label">' + (on ? on + ' on' : 'Lights off') + '</span>' +
       '<button class="room-off' + (offable ? '' : ' is-off') + '" data-room-off>All off</button>';
   }
@@ -131,6 +131,7 @@
     var box = V.el.querySelector('.hc-rooms');
     var key = h ? JSON.stringify(h.rooms.map(function (r) { return [r.name, r.tiles.map(function (t) { return t.id; })]; })) : '';
     if (key !== V.roomsKey) {
+      if (V.drag) return; // rebuilt on the poll after the finger lifts
       V.roomsKey = key;
       V.heads = {};
       V.tiles = {};
@@ -218,17 +219,18 @@
 
   // ------------------------------------------------------------ cameras
   function camUrl(c) { return '/api/home/cameras/' + encodeURIComponent(c.id) + '.jpg?t=' + V.camAt; }
-  function camAge() { return Math.max(0, Math.round((Date.now() - V.camAt) / 1000)) + 's ago'; }
+  function camAge() { return V.camAt ? Math.max(0, Math.round((Date.now() - V.camAt) / 1000)) + 's ago' : ''; }
   function cams(h) {
     var list = h ? h.cameras.slice(0, 2) : [];
     if (!list.length) return '';
     return '<div class="label">Cameras · snapshots every 20s</div><div class="cams">' + list.map(function (c) {
       if (!c.available) return '<div class="cam is-off"><span class="cam-name">' + esc(c.name) + '</span><span class="cam-age">Offline</span></div>';
-      return '<button class="cam" data-cam="' + esc(c.id) + '"><img src="' + camUrl(c) + '" alt=""><span class="cam-name">' + esc(c.name) + '</span><span class="cam-age">' + camAge() + '</span></button>';
+      return '<button class="cam" data-cam="' + esc(c.id) + '"><img' + (V.camAt ? ' src="' + camUrl(c) + '"' : '') + ' alt=""><span class="cam-name">' + esc(c.name) + '</span><span class="cam-age">' + camAge() + '</span></button>';
     }).join('') + '</div>';
   }
   // The structure only (which cameras, available or not): new snapshots swap the img src instead.
   function camsKey(h) { return h ? JSON.stringify(h.cameras.slice(0, 2)) : ''; }
+  // Snapshots load only while Home controls is visible (live), so camAt is 0 until it first opens.
   function refreshCams() {
     V.camAt = Date.now();
     var h = data();
@@ -241,6 +243,7 @@
   function paintAges() { App.$$('.cam-age', V.el).forEach(function (a) { if (a.textContent !== 'Offline') a.textContent = camAge(); }); }
 
   App.cameraSheet = function (c) {
+    if (!V.live) V.camAt = Date.now(); // opened from elsewhere (a banner): a fresh snapshot
     App.sheet('<div class="cam-big"><img src="' + camUrl(c) + '" alt=""><div class="cam-big-bar"><span class="tk-live"><i></i>' + esc(c.name) + '</span><span class="label label--light">Snapshot · ' + camAge() + '</span></div></div>', { cls: 'sheet--cam' });
   };
 
@@ -300,7 +303,7 @@
         var lk = s.querySelector('[data-lockall]');
         if (lk) lk.onclick = function () {
           close();
-          unlocked.forEach(function (t) { App.homeAct(t, 'lock'); });
+          if (!App.homeBlocked()) unlocked.forEach(function (t) { App.homeAct(t, 'lock'); });
         };
       }
     });

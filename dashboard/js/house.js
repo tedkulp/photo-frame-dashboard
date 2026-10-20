@@ -56,8 +56,9 @@
       case 'on': return both({ on: true });
       case 'off': return { show: { on: false, level: null }, match: { on: false } };
       case 'level': return both({ on: true, level: value });
-      case 'lock': return { show: { locked: true, state: 'locked' }, match: { locked: true } };
-      case 'unlock': return { show: { locked: false, state: 'unlocked' }, match: { locked: false } };
+      // By HA's state, so a lock still `unlocking` (or jammed) isn't taken as done.
+      case 'lock': return { show: { locked: true, state: 'locked' }, match: { state: 'locked' } };
+      case 'unlock': return { show: { locked: false, state: 'unlocked' }, match: { state: 'unlocked' } };
       case 'mode': return both({ mode: value });
       case 'target': return both({ target: value });
       case 'range': return both({ low: value.low, high: value.high });
@@ -123,6 +124,10 @@
   };
 
   // ------------------------------------------------------------ what the views show
+  // Whether a room's "All off" turns this tile off (the server's: available lights, switches and
+  // fans; only the ones on are shown going off).
+  House.turnsOff = function (t) { return !!(t.available && t.on) && /^(light|switch|fan)$/.test(t.kind); };
+
   // Summary numbers for Home controls and the Today card.
   House.stats = function (data) {
     var lights = [], locks = [], rooms = 0;

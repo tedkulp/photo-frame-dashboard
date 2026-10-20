@@ -2,9 +2,9 @@
 
 The dashboard takes its family (names, colours) and its calendar from this server's
 `GET /api/calendar`, adds events through it, and takes the weather from your Home Assistant
-through `GET /api/weather`. The server also keeps the live state of the Home Assistant entities
-you label for the frame at `GET /api/home` (the dashboard's Home controls page doesn't use it
-yet); shopping and photos are still mock data. `dashboard/server/` is a small Node server for an
+through `GET /api/weather`. Home controls and the Today page's Home card show and change the
+Home Assistant entities you label for the frame, through `GET /api/home`; shopping and photos are
+still mock data. `dashboard/server/` is a small Node server for an
 always-on machine at home (in Docker) that serves the built dashboard and a calendar API from one
 address on your LAN:
 

@@ -75,8 +75,8 @@ test('expect: each action has what to show now and what confirms it', () => {
   assert.deepEqual(House.expect('on'), { show: { on: true }, match: { on: true } });
   assert.deepEqual(House.expect('off'), { show: { on: false, level: null }, match: { on: false } });
   assert.deepEqual(House.expect('level', 55), { show: { on: true, level: 55 }, match: { on: true, level: 55 } });
-  assert.deepEqual(House.expect('unlock'), { show: { locked: false, state: 'unlocked' }, match: { locked: false } });
-  assert.deepEqual(House.expect('lock'), { show: { locked: true, state: 'locked' }, match: { locked: true } });
+  assert.deepEqual(House.expect('unlock'), { show: { locked: false, state: 'unlocked' }, match: { state: 'unlocked' } });
+  assert.deepEqual(House.expect('lock'), { show: { locked: true, state: 'locked' }, match: { state: 'locked' } });
   assert.deepEqual(House.expect('mode', 'cool'), { show: { mode: 'cool' }, match: { mode: 'cool' } });
   assert.deepEqual(House.expect('target', 72), { show: { target: 72 }, match: { target: 72 } });
   assert.deepEqual(House.expect('range', { low: 66, high: 74 }), { show: { low: 66, high: 74 }, match: { low: 66, high: 74 } });
@@ -190,4 +190,19 @@ test('note: loading, unreachable server, not set up, HA disconnected, stale, fin
   assert.equal(House.note(st({ stale: true, age: 7 }), h, T), 'Home Assistant unreachable · updated 7 min ago');
   assert.equal(House.note(st(), House.parse(body({ connected: false, updated: null })), T), 'Home Assistant unreachable');
   assert.equal(House.note(st(), h, T), '');
+});
+
+test('an unlock is not confirmed while the lock is still unlocking', () => {
+  const pending = pend('lock.front', 'unlock', null, T);
+  const at = (state) => House.parse(body({ rooms: [{ name: 'Entry', tiles: [Object.assign({}, door, { locked: false, state })] }] }));
+  assert.deepEqual(House.settle(at('unlocking'), pending, T + 1000).confirmed, []);
+  assert.deepEqual(House.settle(at('unlocked'), pending, T + 2000).confirmed, ['lock.front']);
+});
+
+test('turnsOff: what a room\'s All off turns off (available lights, switches and fans that are on)', () => {
+  const on = (kind, available) => ({ id: 'x.y', kind, name: 'Y', available: available !== false, on: true });
+  assert.deepEqual(['light', 'switch', 'fan', 'toggle'].map((k) => House.turnsOff(on(k))), [true, true, true, false]);
+  assert.equal(House.turnsOff(on('light', false)), false);
+  assert.equal(House.turnsOff(Object.assign(on('light'), { on: false })), false);
+  assert.equal(House.turnsOff(door), false);
 });

@@ -256,13 +256,14 @@
   // What Home controls and the Today card show: the data with pending taps over it (null before
   // anything has loaded; { configured: false } without Home Assistant).
   App.home = function () { return window.House.view(D.home, pendingHome); };
-  // Why the house can't be shown or changed right now ('' when it can). While set, taps toast it.
+  // Why the house can't be shown or changed right now ('' when it can). While set, taps toast it
+  // (App.homeBlocked: toasts it and says true).
   App.homeNote = function () { return window.House.note(homeState(), D.home, Date.now()); };
-  function homeBlocked() {
+  var homeBlocked = App.homeBlocked = function () {
     var why = App.homeNote();
     if (why) App.toast(why, { tone: 'error', icon: 'bolt' });
     return !!why;
-  }
+  };
   function homeFailed(key, entry) {
     return function (e) {
       if (pendingHome[key] === entry) delete pendingHome[key]; // else a later tap owns it now
@@ -298,7 +299,7 @@
     if (homeBlocked()) return;
     var off = window.House.expect('off'), entries = [];
     room.tiles.forEach(function (t) {
-      if (!t.available || !t.on || !/^(light|switch|fan)$/.test(t.kind)) return;
+      if (!window.House.turnsOff(t)) return;
       var entry = { id: t.id, name: t.name, show: off.show, match: off.match, at: Date.now() };
       pendingHome[t.id] = entry;
       entries.push(entry);
