@@ -54,6 +54,23 @@
 .ch-none { font-size: 22px; color: var(--mute); padding: 12px 6px; }
 .ch-alldone { font-size: 40px; text-align: center; padding: 6px 0 4px; color: var(--c); }
 
+/* edit mode */
+.ch--edit { background: var(--paper); }
+.ch-days { font-size: var(--fs-min); font-weight: 700; color: var(--mute); }
+.ch-pen { color: var(--mute); }
+.emoji-input {
+  width: 72px; height: 44px; margin-left: 8px; padding: 0 8px; text-align: center;
+  border: 2px solid var(--line); border-radius: 12px; background: var(--card); font-size: 24px;
+  letter-spacing: 0; text-transform: none;
+}
+.emoji-grid { display: grid; grid-template-columns: repeat(14, 1fr); gap: 6px; }
+.emoji-btn { height: 52px; border-radius: 12px; font-size: 28px; text-align: center; background: var(--paper-2); }
+.emoji-btn.is-on { background: var(--card); box-shadow: inset 0 0 0 3px var(--ink); }
+.emoji-btn:active { transform: scale(.92); }
+.edit-sheet .add-row { gap: 28px; }
+.edit-sheet .add-row .chips { flex-wrap: nowrap; gap: 8px; }
+.day-btn { width: 54px; padding: 0; justify-content: center; }
+
 .ch-week { padding: 10px 12px 14px; border-top: 1px solid var(--line); flex: none; }
 .ch-week .label { font-size: 12px; margin-bottom: 6px; }
 .ch-week-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }

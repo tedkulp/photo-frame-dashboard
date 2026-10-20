@@ -206,6 +206,26 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .sheet-p { font-size: 20px; color: var(--ink-2); margin: -8px 0 24px; }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 26px; }
 
+/* ---------------------------------------------------------------- edit mode (App.editMode / App.editSheet) */
+.edit-btn { flex: none; }
+.edit-btn.is-off { opacity: .35; }
+.edit-add {
+  flex: none; min-height: 64px; padding: 0 14px; border-radius: 14px;
+  display: flex; align-items: center; gap: 10px;
+  border: 2px dashed var(--line); color: var(--ink-2);
+  font-size: 18px; font-weight: 800; font-stretch: 75%; letter-spacing: .06em; text-transform: uppercase;
+}
+.edit-add:active { transform: scale(.97); }
+.btn--alert { background: var(--alert); border-color: var(--alert); color: #fff; }
+.btn:disabled { opacity: .45; }
+.edit-sheet .is-hidden { display: none; }
+.edit-sheet .big-input { height: 68px; font-size: 40px; margin-bottom: 4px; }
+.edit-sheet.sheet-pad { padding: 26px 36px 24px; }
+.edit-sheet.add .label { margin: 14px 0 8px; }
+.edit-sheet .sheet-actions { margin-top: 20px; }
+.edit-del { margin-right: 4px; color: var(--alert); border-color: transparent; }
+.edit-q { margin-right: auto; align-self: center; font-size: 22px; font-weight: 700; overflow-wrap: anywhere; }
+
 /* ---------------------------------------------------------------- banners */
 .banners { position: absolute; top: 16px; left: 24px; right: 24px; z-index: 40; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 .banner {

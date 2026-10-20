@@ -90,3 +90,47 @@ test('no week grid for someone not in the week, or without data', () => {
   assert.equal(Chores.week(Chores.parse(body()), 'otto'), null);
   assert.equal(Chores.week(null, 'maya'), null);
 });
+
+// ------------------------------------------------------------ edit mode
+test('edit mode lists every chore in the routine, not just today\'s', () => {
+  const d = Chores.parse(body()); // Wednesday: Piano (Mon, Thu) is not on today
+  assert.deepEqual(Chores.inRoutine(d, 'evening').map((c) => c.id), ['1', '3']);
+  assert.deepEqual(Chores.inRoutine(d, 'morning').map((c) => c.id), ['2']);
+  assert.deepEqual(Chores.inRoutine(null, 'morning'), []);
+});
+
+test('day badges read Sunday first, or "Every day"', () => {
+  assert.equal(Chores.daysLabel([3, 0]), 'Sun Wed');
+  assert.equal(Chores.daysLabel([1, 4]), 'Mon Thu');
+  assert.equal(Chores.daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Every day');
+});
+
+// ------------------------------------------------------------ the edit sheet's form
+const form = (over) => Object.assign({ title: '  Garbage to curb ', emoji: ' 🗑️', owner: 'any', routine: 'evening', days: [3, 0] }, over);
+
+test('the sheet\'s form becomes the request body: trimmed, days in order', () => {
+  assert.deepEqual(Chores.toInput(form()), { title: 'Garbage to curb', emoji: '🗑️', owner: 'any', routine: 'evening', days: [0, 3] });
+});
+
+test('the form needs a title, an emoji and at least one day', () => {
+  assert.throws(() => Chores.toInput(form({ title: '   ' })), /name/);
+  assert.throws(() => Chores.toInput(form({ emoji: '' })), /emoji/);
+  assert.throws(() => Chores.toInput(form({ days: [] })), /day/);
+});
+
+// ------------------------------------------------------------ showing a save before the refetch
+test('a saved chore from the server replaces the old one, or is added', () => {
+  const d = Chores.parse(body());
+  const moved = Chores.applySaved(d, { id: 1, title: 'Garbage to curb', emoji: '🗑️', owner: 'any', routine: 'evening', days: [1] });
+  assert.deepEqual(moved.chores.map((c) => [c.id, c.days.join()]), [['1', '1'], ['2', '0,1,2,3,4,5,6'], ['3', '1,4']]);
+  const added = Chores.applySaved(d, { id: 7, title: 'Feed cat', emoji: '🐈', owner: 'maya', routine: 'morning', days: [3] });
+  assert.deepEqual(added.chores.map((c) => c.id), ['1', '2', '3', '7']);
+  assert.deepEqual(Chores.today(added, 'morning').map((c) => c.id), ['2', '7']);
+  assert.equal(d.chores.length, 3); // the loaded data is left alone
+});
+
+test('a deleted chore is gone from today and from edit mode', () => {
+  const d = Chores.applyRemoved(Chores.parse(body()), '2');
+  assert.deepEqual(d.chores.map((c) => c.id), ['1', '3']);
+  assert.deepEqual(Chores.today(d, 'morning'), []);
+});

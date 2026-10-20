@@ -219,6 +219,141 @@
     return App.choresFeed.send(done ? 'PUT' : 'DELETE', '/api/chores/' + encodeURIComponent(id) + '/done')
       .then(function () { settle(true); }, function (e) { settle(false); throw e; });
   };
+  // Add (no id) or change a chore: input is Chores.toInput's body. Resolves with the saved chore
+  // once the server has it (shown straight away, before the refetch); rejects with the reason.
+  App.saveChore = function (id, input) {
+    var req = id ? App.choresFeed.send('PATCH', '/api/chores/' + encodeURIComponent(id), input) : App.choresFeed.send('POST', '/api/chores', input);
+    return req.then(function (c) {
+      if (D.chores) { D.chores = window.Chores.applySaved(D.chores, c); App.emit('chores'); }
+      return c;
+    });
+  };
+  // Delete a chore from today on (earlier days keep it).
+  App.deleteChore = function (id) {
+    return App.choresFeed.send('DELETE', '/api/chores/' + encodeURIComponent(id)).then(function () {
+      if (D.chores) { D.chores = window.Chores.applyRemoved(D.chores, id); App.emit('chores'); }
+    });
+  };
+
+  // ------------------------------------------------------------ edit mode (reusable)
+  // How a screen gets an Edit mode (Chores does this in views/tasks.js; shopping can follow):
+  //   var edit = App.editMode('tasks', render);   // one per view; render runs when it turns on/off
+  //   header:  edit.button(why)                   // Edit / Done; dimmed while `why` (e.g. offline)
+  //   lists:   edit.on ? rows that open the sheet : normal rows   (give edit-mode rows their own
+  //            data-* attribute so normal taps, like ticking, can't fire in edit mode)
+  //            edit.addRow('data-x="…"')          // "+ Add" row ending a list
+  //   clicks:  if (edit.click(e, why)) return;    // handles the Edit / Done button
+  //   sheet:   App.editSheet({ label, body, read, save, remove, name, blocked, onMount })
+  // Edit mode ends by itself when the screen is left (App.go).
+  var editors = [];
+  App.editMode = function (viewName, onChange) {
+    var ed = { on: false, view: viewName };
+    ed.set = function (on) { if (ed.on !== on) { ed.on = on; onChange(); } };
+    ed.button = function (why) {
+      return '<button class="btn edit-btn' + (ed.on ? ' btn--solid' : '') + (why && !ed.on ? ' is-off' : '') + '" data-edit-toggle>' +
+        (ed.on ? App.icon('check', 22) + 'Done' : App.icon('pencil', 22) + 'Edit') + '</button>';
+    };
+    ed.addRow = function (attrs, label) {
+      return '<button class="edit-add" ' + attrs + '>' + App.icon('plus', 24) + '<span>' + (label || 'Add') + '</span></button>';
+    };
+    ed.click = function (e, why) {
+      if (!e.target.closest('[data-edit-toggle]')) return false;
+      if (!ed.on && why) App.toast(why, { tone: 'error', icon: 'pencil' });
+      else ed.set(!ed.on);
+      return true;
+    };
+    editors.push(ed);
+    return ed;
+  };
+  function endEditModes(current) {
+    editors.forEach(function (ed) {
+      if (ed.on && ed.view !== current) { ed.on = false; App.views[ed.view]._dirty = true; }
+    });
+  }
+
+  // The add / edit sheet scaffolding (styled like the calendar's add sheet): a label, the screen's
+  // own fields (`body`), and Delete / Cancel / Save. opts:
+  //   label        'New chore' / 'Edit chore'
+  //   body         the fields' HTML; onMount(sheetEl) wires them up
+  //   read(el)     → the request body, or throws an Error whose message is shown (nothing is sent)
+  //   save(input)  → Promise; resolved closes the sheet, rejected keeps it open with what was typed
+  //                  and shows the error's message
+  //   remove()     → Promise (edit only): Delete asks once "Delete <name()>?" in the sheet first
+  //   blocked()    → '' or why saving is off right now (re-checked when a feed's state changes)
+  var editBox = null;
+  App.editSheet = function (opts) {
+    var busy = false;
+    App.sheet(
+      '<div class="sheet-pad add edit-sheet">' +
+      '<div class="label">' + opts.label + '</div>' + opts.body +
+      '<div class="sheet-actions edit-actions">' +
+      (opts.remove ? '<button class="btn btn--ghost edit-del" data-del>' + App.icon('trash', 22) + 'Delete</button>' : '') +
+      '<span class="add-why"></span><button class="btn btn--ghost" data-close>Cancel</button><button class="btn btn--solid" data-save>Save</button></div>' +
+      '<div class="sheet-actions edit-confirm is-hidden"><span class="edit-q"></span>' +
+      '<button class="btn btn--ghost" data-keep>Keep</button><button class="btn btn--alert" data-del-yes>Delete</button></div>' +
+      '</div>', {
+        cls: 'sheet--wide',
+        onClose: function () { editBox = null; },
+        onMount: function (s, close) {
+          editBox = { el: s, opts: opts, busy: function () { return busy; } };
+          if (opts.onMount) opts.onMount(s);
+          // Enter on the frame's on-screen keyboard just puts it away.
+          App.$$('input', s).forEach(function (i) {
+            i.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); i.blur(); } });
+          });
+          paintEdit();
+          s.addEventListener('click', function (ev) {
+            var t = ev.target.closest('button');
+            if (!t || busy) return;
+            if (t.hasAttribute('data-save')) {
+              var input;
+              try { input = opts.read(s); } catch (err) { return say(err.message); }
+              run(t, 'Saving…', function () { return opts.save(input); });
+            }
+            if (t.hasAttribute('data-del')) {
+              s.querySelector('.edit-q').textContent = 'Delete ' + opts.name() + '?';
+              confirming(true);
+            }
+            if (t.hasAttribute('data-keep')) confirming(false);
+            if (t.hasAttribute('data-del-yes')) run(t, 'Deleting…', opts.remove);
+          });
+          function confirming(on) {
+            s.querySelector('.edit-actions').classList.toggle('is-hidden', on);
+            s.querySelector('.edit-confirm').classList.toggle('is-hidden', !on);
+          }
+          function say(msg) { s.querySelector('.add-why').textContent = msg; }
+          function run(btn, doing, fn) {
+            if (opts.blocked && opts.blocked()) return;
+            var text = btn.innerHTML;
+            busy = true;
+            btn.disabled = true;
+            btn.textContent = doing;
+            fn().then(function () {
+              busy = false;
+              close();
+            }, function (err) {
+              busy = false;
+              btn.innerHTML = text;
+              confirming(false);
+              paintEdit();
+              say(err.message);
+            });
+          }
+        }
+      });
+  };
+  // An open edit sheet's Save / Delete follow its blocked().
+  function paintEdit() {
+    if (!editBox || editBox.busy()) return;
+    var why = editBox.opts.blocked ? editBox.opts.blocked() : '';
+    App.$$('[data-save], [data-del], [data-del-yes]', editBox.el).forEach(function (b) { b.disabled = !!why; });
+    var line = editBox.el.querySelector('.add-why');
+    if (why) line.textContent = why;
+    else if (editBox.why) line.textContent = '';
+    editBox.why = why;
+  }
+  App.on('choresstate', paintEdit);
+  App.on('feedstate', paintEdit);
   // ------------------------------------------------------------ router
   App.register = function (name, view) { App.views[name] = view; };
   // Views are built once and kept laid out (hidden with content-visibility), so switching tabs
@@ -237,6 +372,7 @@
     App.$$('.view').forEach(function (v) { v.classList.toggle('is-active', v.dataset.view === name); });
     App.$$('.rail-item').forEach(function (b) { b.classList.toggle('is-active', b.dataset.go === name); });
     App.current = name;
+    endEditModes(name);
     var view = App.views[name];
     if (!view._built || view._dirty || opts.rerender || (view.minutely && view._min !== minuteKey())) build(name, opts);
     else if (view.resume) view.resume($('#view-' + name));

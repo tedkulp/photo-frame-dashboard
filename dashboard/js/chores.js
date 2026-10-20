@@ -17,6 +17,9 @@
     return !!c && (typeof c.id === 'number' || typeof c.id === 'string') && typeof c.title === 'string' && typeof c.emoji === 'string' &&
       typeof c.owner === 'string' && typeof c.routine === 'string' && isDays(c.days);
   }
+  function toChore(c) {
+    return { id: String(c.id), title: c.title, emoji: c.emoji, owner: c.owner, routine: c.routine, days: c.days.slice() };
+  }
 
   // The server's { date, chores, done, week, updatedAt } → { date, weekday, chores, done: { id: true },
   // week: { personId: [Mon..Sun 'hit' | 'miss' | null] } }, ids as strings (the server's are
@@ -36,9 +39,7 @@
     return {
       date: body.date,
       weekday: new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay(),
-      chores: body.chores.filter(isChore).map(function (c) {
-        return { id: String(c.id), title: c.title, emoji: c.emoji, owner: c.owner, routine: c.routine, days: c.days.slice() };
-      }),
+      chores: body.chores.filter(isChore).map(toChore),
       done: done,
       week: week
     };
@@ -67,5 +68,54 @@
     var row = data && data.week.hasOwnProperty(personId) ? data.week[personId] : null;
     if (!row) return null;
     return { today: (data.weekday + 6) % 7, days: row.map(function (v) { return v || 'future'; }) };
+  };
+
+  // ------------------------------------------------------------ editing
+  // Every chore in a routine, whatever its days (edit mode shows them all).
+  Chores.inRoutine = function (data, routineId) {
+    if (!data) return [];
+    return data.chores.filter(function (c) { return c.routine === routineId; });
+  };
+
+  // The edit sheet's emoji grid (any other can be typed in).
+  Chores.EMOJI = ['🛏️', '🪥', '🚿', '👕', '🧦', '🧺', '🎒', '📚', '✏️', '🎹',
+    '🍽️', '🥣', '🧽', '🧼', '🧹', '🗑️', '♻️', '🚮', '🪣', '🧻',
+    '🐕', '🐈', '🐟', '🐾', '🌱', '🪴', '💧', '🍎', '🥪', '🥛',
+    '🧸', '🧩', '🚲', '🚗', '📬', '🛒', '💊', '🧴', '💤', '✅'];
+  Chores.DAY_NAMES =['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  // A chore's weekday badge: "Sun Wed", or "Every day".
+  Chores.daysLabel = function (days) {
+    if (days.length === 7) return 'Every day';
+    return days.slice().sort().map(function (d) { return Chores.DAY_NAMES[d]; }).join(' ');
+  };
+
+  // The edit sheet's { title, emoji, owner, routine, days } → the body for POST / PATCH
+  // /api/chores. Throws with a message for the sheet when something is missing; the server checks
+  // the rest (lengths, owner) and its message is shown the same way.
+  Chores.toInput = function (f) {
+    var title = String(f.title || '').trim(), emoji = String(f.emoji || '').trim();
+    if (!title) throw new Error('Give the chore a name');
+    if (!emoji) throw new Error('Pick an emoji');
+    if (!f.days || !f.days.length) throw new Error('Pick at least one day');
+    return { title: title, emoji: emoji, owner: f.owner, routine: f.routine, days: f.days.slice().sort() };
+  };
+
+  // Copies of the data with a save or a delete already applied, so the change shows before the
+  // refetch that follows every write. `chore` is the server's answer to POST / PATCH.
+  function withChores(data, chores) {
+    var out = {};
+    Object.keys(data).forEach(function (k) { out[k] = data[k]; });
+    out.chores = chores;
+    return out;
+  }
+  Chores.applySaved = function (data, chore) {
+    if (!isChore(chore)) throw new Error('Unexpected chore in the answer');
+    var c = toChore(chore), found = false;
+    var list = data.chores.map(function (x) { if (x.id !== c.id) return x; found = true; return c; });
+    if (!found) list.push(c);
+    return withChores(data, list);
+  };
+  Chores.applyRemoved = function (data, id) {
+    return withChores(data, data.chores.filter(function (x) { return x.id !== String(id); }));
   };
 })(typeof window !== 'undefined' ? window : globalThis);
