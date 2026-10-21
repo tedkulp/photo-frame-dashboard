@@ -71,6 +71,41 @@
       '</div>' + big + '</button>';
   }
 
+  // Today's all-day events, one chip each, in feed order. On the frame it is one line: fitAllDay
+  // hides the chips that don't fit whole and fills in the "+N more" chip.
+  function allDayList() { return App.hasCalendar() ? App.allDayOn(App.now()) : []; }
+  function allDay(list) {
+    var now = App.now();
+    return list.map(function (e) {
+      var until = window.AllDay.until(e, now);
+      return '<button class="h-ad" data-ev="' + App.esc(e.id) + '">' +
+        (e.people.length ? App.dots(e.people, 14) : '') +
+        '<b>' + App.esc(e.title) + '</b>' +
+        (until ? '<span class="h-ad-until">until ' + App.fmt.dayShort(until) + '</span>' : '') + '</button>';
+    }).join('') + '<button class="h-ad h-ad-more" data-go="calendar"></button>';
+  }
+  function paintAllDay() {
+    var list = allDayList(), main = V.el.querySelector('.h-main');
+    main.classList.toggle('has-allday', list.length > 0);
+    main.querySelector('.h-allday').innerHTML = list.length ? allDay(list) : '';
+    fitAllDay();
+  }
+  function fitAllDay() {
+    var box = V.el && V.el.querySelector('.h-allday'), more = box && box.querySelector('.h-ad-more');
+    if (!more) return;
+    var chips = App.$$('.h-ad:not(.h-ad-more)', box);
+    chips.forEach(function (c) { c.style.display = ''; });
+    if (App.isPhone()) { more.style.display = 'none'; return; }
+    more.style.display = '';
+    more.textContent = '+' + chips.length + ' more'; // the widest it can read
+    var gap = parseFloat(getComputedStyle(box).columnGap) || 0;
+    var n = window.AllDay.fit(chips.map(function (c) { return c.offsetWidth; }), box.clientWidth, gap, more.offsetWidth);
+    if (n === null) return; // hidden: measured again on resume
+    chips.forEach(function (c, i) { if (i >= n) c.style.display = 'none'; });
+    if (n < chips.length) more.textContent = '+' + (chips.length - n) + ' more';
+    else more.style.display = 'none';
+  }
+
   function lanes() {
     var now = App.now();
     return D.people.map(function (p) {
@@ -146,6 +181,7 @@
     el.querySelector('.h-weather').innerHTML = weather();
     el.querySelector('.h-presence').innerHTML = people();
     el.querySelector('.h-hero-slot').innerHTML = hero();
+    paintAllDay();
     el.querySelector('.h-lanes').style.gridTemplateColumns = App.cols(D.people.length);
     el.querySelector('.h-lanes').innerHTML = lanes();
     el.querySelector('.h-chores').innerHTML = chores();
@@ -160,6 +196,7 @@
 
   // The photo tile is hidden in the phone layout (no Photos there), so it doesn't load photos.
   function syncSlides() { if (App.isPhone()) V.slides.stop(); else V.slides.start(); }
+  function resume() { fitAllDay(); syncSlides(); }
 
   App.register('home', {
     show: function (el) {
@@ -169,7 +206,7 @@
           '<div class="h-clock" data-go="calendar"></div>' +
           '<div class="h-weather" data-go="weather"></div>' +
           '<div class="h-presence"></div>' +
-          '<div class="h-main"><div class="h-hero-slot"></div><div class="h-lanes" ></div></div>' +
+          '<div class="h-main"><div class="h-hero-slot"></div><div class="h-allday"></div><div class="h-lanes" ></div></div>' +
           '<div class="h-side">' +
           '  <button class="h-photo" data-go="photos"><div class="h-photo-stage"></div><div class="h-photo-cap"></div></button>' +
           '  <button class="h-chores card" data-go="tasks"></button>' +
@@ -181,12 +218,14 @@
           var g = e.target.closest('[data-go]');
           if (g) App.go(g.dataset.go);
         });
+        // the chips' widths change once the web fonts arrive
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAllDay);
         V.slides = new App.Slideshow(el.querySelector('.h-photo-stage'), { layout: 'cover', captions: false, interval: 12000, onChange: photoCaption });
       }
       paint();
       syncSlides();
     },
-    resume: syncSlides,
+    resume: resume,
     hide: function () { if (V.slides) V.slides.stop(); }
   });
   // Every minute: just the clock and next-up countdown (cheap, even while hidden). Weather on the
@@ -197,9 +236,10 @@
     V.el.querySelector('.h-clock').innerHTML = clock();
     V.el.querySelector('.h-hero-slot').innerHTML = hero();
     if (n.getMinutes() === 0 || App.weatherNote()) paintWeather();
-    if (n.getMinutes() === 0) V.el.querySelector('.h-lanes').innerHTML = lanes();
+    if (n.getMinutes() === 0) { paintAllDay(); V.el.querySelector('.h-lanes').innerHTML = lanes(); }
   });
   App.on('weatherstate', paintWeather);
+  App.on('stage', function () { if (V.el && V.el.firstChild) fitAllDay(); });
   App.on('choresstate', function () { if (V.el && V.el.firstChild) V.el.querySelector('.h-chores').innerHTML = chores(); });
   App.on('data', function () { if (App.current === 'home') paint(); });
   // Home Assistant changes repaint just the Home card (every 3 s while Home controls is open).

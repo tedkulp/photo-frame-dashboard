@@ -46,6 +46,23 @@
 /* ---- main column */
 .h-main { grid-column: 1 / 8; display: grid; grid-template-rows: 232px 1fr; gap: 16px; min-height: 0; }
 .h-hero-slot { display: grid; }
+
+/* all-day events: a row between the hero and the lanes, only on days that have them. One line on
+   the frame (home.js hides the chips that don't fit whole; wrapping keeps it tidy until then). */
+.h-main.has-allday { grid-template-rows: 232px 44px 1fr; }
+.h-allday { display: none; }
+.h-main.has-allday .h-allday { display: flex; flex-wrap: wrap; gap: 10px; height: 44px; overflow: hidden; min-width: 0; }
+.h-ad {
+  flex: none; max-width: 45%; height: 44px; padding: 0 16px;
+  display: inline-flex; align-items: center; gap: 8px;
+  border-radius: 999px; background: var(--card); border: 2px solid var(--line);
+  font-size: 17px; white-space: nowrap;
+}
+.h-ad b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.h-ad .dots { flex: none; }
+.h-ad .dots i { box-shadow: 0 0 0 2px var(--card), 0 0 0 3px rgba(17, 17, 17, .25); }
+.h-ad-until { flex: none; font-size: var(--fs-min); font-weight: 800; font-stretch: 75%; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
+.h-ad-more { background: transparent; border-color: transparent; font-size: 16px; font-weight: 800; font-stretch: 75%; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); padding: 0 8px; }
 .h-hero {
   display: flex; align-items: stretch; gap: 20px; width: 100%;
   background: var(--c); color: var(--c-ink);
@@ -136,6 +153,9 @@
 .stage[data-layout="phone"] .h-hero-foot { flex-wrap: wrap; margin-top: 10px; }
 .stage[data-layout="phone"] .h-hero-count { font-size: 72px; }
 .stage[data-layout="phone"] .h-hero-count small { font-size: 16px; }
+.stage[data-layout="phone"] .h-main.has-allday .h-allday { height: auto; overflow: visible; }
+.stage[data-layout="phone"] .h-ad { max-width: 100%; }
+.stage[data-layout="phone"] .h-ad-more { display: none; }
 .stage[data-layout="phone"] .h-lanes { grid-template-columns: minmax(0, 1fr) !important; gap: 16px; }
 .stage[data-layout="phone"] .h-ev { min-height: 52px; }
 .stage[data-layout="phone"] .h-more { min-height: 44px; }
