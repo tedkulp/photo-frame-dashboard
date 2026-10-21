@@ -1,0 +1,84 @@
+/* Weather page — now + details (left), the week (right), the next hours (across). No scrolling. */
+.wx {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 500px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 16px 28px;
+}
+.wx-now { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.wx-week { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; }
+.wx-hours { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; border-top: 3px solid var(--ink); padding-top: 10px; }
+
+/* ---- now */
+.wx-top { display: flex; align-items: center; gap: 16px; }
+.wx-icon { color: var(--ink); flex: none; }
+.wx-temp { font-size: 150px; line-height: .78; letter-spacing: -.04em; }
+.wx-meta { display: flex; flex-direction: column; gap: 2px; font-size: 22px; margin-left: 6px; min-width: 0; }
+.wx-meta b { font-weight: 800; font-stretch: 80%; text-transform: uppercase; letter-spacing: .06em; font-size: 20px; }
+.wx-meta span { color: var(--mute); font-variant-numeric: tabular-nums; white-space: pre; }
+.wx-meta small { color: var(--mute); font-size: var(--fs-min); font-weight: 700; }
+.wx-say { font-family: var(--serif); font-size: 30px; line-height: 1.1; margin: 18px 0 16px; }
+.wx-say b { font-weight: 400; font-style: italic; }
+
+.wx-tiles { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 12px; }
+.wx-tile { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 12px 16px; min-width: 0; overflow: hidden; }
+.wx-tile b { font-size: 46px; line-height: 1; white-space: nowrap; }
+.wx-tile b span { font-size: 20px; font-weight: 700; letter-spacing: .02em; margin-left: 4px; color: var(--ink-2); }
+.wx-tile small { font-size: 16px; color: var(--mute); min-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- week */
+.wx-days { flex: 1; min-height: 0; display: grid; grid-auto-rows: minmax(0, 1fr); }
+.wx-day {
+  display: grid; grid-template-columns: 70px 36px 48px 40px minmax(0, 1fr) 40px 76px;
+  align-items: center; gap: 8px; border-bottom: 1px solid var(--line); min-height: 0;
+}
+.wx-day:first-child { border-top: 2px solid var(--ink); }
+.wx-day-n { font-size: 20px; font-weight: 800; font-stretch: 80%; text-transform: uppercase; letter-spacing: .05em; }
+.wx-day-i { display: grid; place-items: center; }
+.wx-day-pop, .wx-hr-pop { font-size: 16px; font-weight: 800; color: #1F6FEB; font-variant-numeric: tabular-nums; }
+.wx-day-lo, .wx-day-hi { font-size: 26px; text-align: right; }
+.wx-day-lo { color: var(--mute); }
+.wx-bar { position: relative; height: 8px; border-radius: 4px; background: var(--paper-2); }
+.wx-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--ink); }
+.wx-day-wind, .wx-hr-wind { font-size: 15px; font-weight: 700; color: var(--ink-2); white-space: nowrap; text-align: right; }
+.wx-day.is-wet .wx-day-i, .wx-hr.is-wet .wx-hr-i { color: #1F6FEB; }
+
+/* ---- next hours */
+.wx-strip { display: grid; }
+.wx-hr { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.wx-hr-l { font-size: var(--fs-min); font-weight: 700; color: var(--mute); text-transform: uppercase; }
+.wx-hr-i { height: 32px; display: grid; place-items: center; }
+.wx-hr b { font-size: 24px; }
+.wx-hr-pop { font-size: 14px; min-height: 17px; }
+.wx-hr-wind { font-size: 13px; text-align: center; }
+
+/* ---- nothing to show (loading, not set up, unavailable) */
+.wx--none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.wx--none .wx-icon { color: var(--mute); }
+
+/* ---- phone layout: one scrolling column (see base.css); the hourly strip scrolls sideways */
+.stage[data-layout="phone"] .wx { height: auto; display: flex; flex-direction: column; gap: 18px; }
+.stage[data-layout="phone"] .wx--none { min-height: 60vh; }
+.stage[data-layout="phone"] .wx-hours { order: 1; }
+.stage[data-layout="phone"] .wx-week { order: 2; }
+.stage[data-layout="phone"] .wx-top { gap: 10px; }
+.stage[data-layout="phone"] .wx-icon .i { width: 64px; height: 64px; }
+.stage[data-layout="phone"] .wx-temp { font-size: 84px; }
+.stage[data-layout="phone"] .wx-meta { font-size: 18px; }
+.stage[data-layout="phone"] .wx-meta b { font-size: 16px; }
+.stage[data-layout="phone"] .wx-say { font-size: 22px; margin: 12px 0; }
+.stage[data-layout="phone"] .wx-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; gap: 10px; }
+.stage[data-layout="phone"] .wx-tile { padding: 12px 14px; }
+.stage[data-layout="phone"] .wx-tile b { font-size: 36px; }
+.stage[data-layout="phone"] .wx-strip {
+  grid-template-columns: none !important; grid-auto-flow: column; grid-auto-columns: 56px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding-bottom: 4px;
+}
+.stage[data-layout="phone"] .wx-days { grid-auto-rows: 56px; }
+.stage[data-layout="phone"] .wx-day { grid-template-columns: 48px 30px 36px 30px minmax(0, 1fr) 30px 54px; gap: 6px; }
+.stage[data-layout="phone"] .wx-day-n { font-size: 16px; }
+.stage[data-layout="phone"] .wx-day-i .i { width: 26px; height: 26px; }
+.stage[data-layout="phone"] .wx-day-lo, .stage[data-layout="phone"] .wx-day-hi { font-size: 20px; }
+.stage[data-layout="phone"] .wx-day-pop { font-size: 13px; }
+.stage[data-layout="phone"] .wx-day-wind { font-size: 12px; }

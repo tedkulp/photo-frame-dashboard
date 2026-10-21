@@ -117,6 +117,31 @@ Temperatures are converted to whole °F on the server whatever Home Assistant's 
 Home Assistant's conditions are folded into seven: sunny, clear night, partly cloudy, cloudy (also
 fog, wind), rain (also pouring, hail), snow (also sleet) and storm (lightning).
 
+The response, for the Today card and the Weather page:
+
+```json
+{
+  "configured": true,
+  "now": { "temp": 49, "cond": "sun", "feels": 40, "humidity": 56, "wind": 11, "gust": 23,
+           "bearing": 6, "uv": 0, "sunrise": "2026-10-22T11:17:55+00:00", "sunset": "2026-10-21T22:10:38+00:00" },
+  "hourly": [{ "at": "2026-10-21T11:00:00+00:00", "temp": 48, "cond": "moon", "pop": 0, "wind": 9, "bearing": 20, "humidity": 76 }],
+  "daily": [{ "at": "2026-10-21T04:00:00+00:00", "hi": 64, "lo": 46, "cond": "sun", "pop": 0, "wind": 8, "gust": 14, "bearing": 18, "humidity": 60 }],
+  "updatedAt": "2026-10-21T11:50:02.000Z"
+}
+```
+
+- `cond` is one of `sun`, `moon`, `partly`, `cloud`, `rain`, `snow`, `storm`; `pop` is the chance
+  of precipitation in %; `hourly` has up to 48 hours, `daily` up to 7 days.
+- `wind` and `gust` are whole **mph**, converted from the entity's `wind_speed_unit` (mph, km/h,
+  m/s, kn or ft/s; another unit leaves wind speeds out). `bearing` is whole degrees (0 = from the
+  north). `humidity` is %.
+- `now.feels` (whole °F) and `now.uv` come from the forecast hour covering now, else the entity's
+  own `apparent_temperature` / `uv_index`.
+- `now.sunrise` / `now.sunset` are the **next** sunrise and sunset from Home Assistant's `sun.sun`
+  (so after sunset, tomorrow's).
+- Every field past `temp`, `cond` and `pop` is left out when Home Assistant doesn't give it
+  (another weather integration, no `sun.sun`); that never fails the request.
+
 ```sh
 curl http://localhost:8080/api/weather   # should show "configured": true and a forecast
 ```

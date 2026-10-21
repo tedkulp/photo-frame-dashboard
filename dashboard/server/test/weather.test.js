@@ -52,21 +52,117 @@ test('maps the entity and its forecasts into the dashboard shape', async () => {
     assert.equal(status, 200);
     assert.deepEqual(body, {
       configured: true,
-      now: { temp: 61, cond: 'partly' },
+      now: { temp: 61, cond: 'partly', humidity: 71 },
       hourly: [
         { at: '2026-10-19T12:00:00+00:00', temp: 61, cond: 'partly', pop: 5 },
         { at: '2026-10-19T13:00:00+00:00', temp: 60, cond: 'rain', pop: 62 },
         { at: '2026-10-19T14:00:00+00:00', temp: 58, cond: 'storm', pop: 0 },
       ],
       daily: [
-        { at: '2026-10-19T04:00:00+00:00', hi: 63, lo: 48, cond: 'rain' },
-        { at: '2026-10-20T04:00:00+00:00', hi: 40, lo: 30, cond: 'snow' },
+        { at: '2026-10-19T04:00:00+00:00', hi: 63, lo: 48, cond: 'rain', pop: 80 },
+        { at: '2026-10-20T04:00:00+00:00', hi: 40, lo: 30, cond: 'snow', pop: 0 },
       ],
       updatedAt: new Date(NOW).toISOString(),
     });
     const calls = ha.requests.filter((r) => r.method === 'POST').map((r) => JSON.parse(r.body));
     assert.deepEqual(calls.map((c) => c.type).sort(), ['daily', 'hourly']);
     assert.ok(calls.every((c) => c.entity_id === ENTITY));
+  });
+});
+
+// What PirateWeather gives (2026-10): wind, humidity, feels-like and UV on top of the basics.
+function richEntity(unit) {
+  return entity({
+    attributes: {
+      temperature: 61.4, temperature_unit: '°F', humidity: 71.4,
+      wind_speed: 10, wind_gust_speed: 20, wind_bearing: 225.4, wind_speed_unit: unit || 'mph',
+    },
+    hourly: [
+      { datetime: '2026-10-19T11:00:00+00:00', condition: 'sunny', temperature: 60, apparent_temperature: 50, uv_index: 9 },
+      { datetime: '2026-10-19T12:00:00+00:00', condition: 'partlycloudy', temperature: 61.4, apparent_temperature: 58.6,
+        uv_index: 3.4, humidity: 70.6, wind_speed: 10, wind_gust_speed: 18, wind_bearing: 359.6, precipitation_probability: 5 },
+      { datetime: '2026-10-19T13:00:00+00:00', condition: 'rainy', temperature: 59.6, humidity: 88, wind_speed: 20, wind_bearing: 90 },
+    ],
+    daily: [
+      { datetime: '2026-10-19T04:00:00+00:00', condition: 'rainy', temperature: 63.2, templow: 47.5, precipitation_probability: 80.4,
+        humidity: 75, wind_speed: 12.4, wind_gust_speed: 30, wind_bearing: 180 },
+    ],
+  });
+}
+const SUN = { state: 'above_horizon', attributes: { next_rising: '2026-10-20T11:31:12+00:00', next_setting: '2026-10-19T22:41:05+00:00' } };
+
+test('adds feels-like, humidity, wind, UV and sunrise/sunset when the entities have them', async () => {
+  await withServer({ [ENTITY]: richEntity(), 'sun.sun': SUN }, async ({ url }) => {
+    const { body } = await getWeather(url);
+    assert.deepEqual(body.now, {
+      temp: 61, cond: 'partly', feels: 59, humidity: 71, wind: 10, gust: 20, bearing: 225, uv: 3,
+      sunrise: '2026-10-20T11:31:12+00:00', sunset: '2026-10-19T22:41:05+00:00',
+    });
+    assert.deepEqual(body.hourly[1], { at: '2026-10-19T12:00:00+00:00', temp: 61, cond: 'partly', pop: 5, wind: 10, bearing: 0, humidity: 71 });
+    assert.deepEqual(body.hourly[2], { at: '2026-10-19T13:00:00+00:00', temp: 60, cond: 'rain', pop: 0, wind: 20, bearing: 90, humidity: 88 });
+    assert.deepEqual(body.daily[0], { at: '2026-10-19T04:00:00+00:00', hi: 63, lo: 48, cond: 'rain', pop: 80, wind: 12, gust: 30, bearing: 180, humidity: 75 });
+  });
+});
+
+test('wind is converted to whole mph from km/h and m/s', async () => {
+  await withServer({ [ENTITY]: richEntity('km/h'), 'sun.sun': SUN }, async ({ url }) => {
+    const { body } = await getWeather(url);
+    assert.deepEqual([body.now.wind, body.now.gust, body.hourly[2].wind, body.daily[0].wind, body.daily[0].gust], [6, 12, 12, 8, 19]);
+  });
+  await withServer({ [ENTITY]: richEntity('m/s'), 'sun.sun': SUN }, async ({ url }) => {
+    const { body } = await getWeather(url);
+    assert.deepEqual([body.now.wind, body.now.gust, body.hourly[2].wind, body.daily[0].wind, body.daily[0].gust], [22, 45, 45, 28, 67]);
+  });
+});
+
+test('a wind speed in an unknown unit, or without one, is left out; the rest still loads', async () => {
+  const e = richEntity('furlongs/fortnight');
+  await withServer({ [ENTITY]: e, 'sun.sun': SUN }, async ({ url }) => {
+    const { status, body } = await getWeather(url);
+    assert.equal(status, 200);
+    assert.equal('wind' in body.now, false);
+    assert.equal('gust' in body.now, false);
+    assert.equal(body.now.bearing, 225);
+    assert.equal('wind' in body.hourly[2], false);
+    assert.equal(body.hourly[2].humidity, 88);
+  });
+  const bare = richEntity();
+  delete bare.attributes.wind_speed_unit;
+  await withServer({ [ENTITY]: bare }, async ({ url }) => {
+    const { body } = await getWeather(url);
+    assert.equal('wind' in body.now, false);
+  });
+});
+
+test('missing fields are left out without error; without sun.sun there is no sunrise or sunset', async () => {
+  await withServer({ [ENTITY]: entity({ attributes: { temperature: 61.4, temperature_unit: '°F' } }) }, async ({ url }) => {
+    const { status, body } = await getWeather(url);
+    assert.equal(status, 200);
+    assert.deepEqual(body.now, { temp: 61, cond: 'partly' });
+    assert.deepEqual(body.hourly[0], { at: '2026-10-19T12:00:00+00:00', temp: 61, cond: 'partly', pop: 5 });
+    assert.deepEqual(body.daily[1], { at: '2026-10-20T04:00:00+00:00', hi: 40, lo: 30, cond: 'snow', pop: 0 });
+  });
+  // sun.sun failing, or without its attributes, is the same as missing
+  for (const sun of [{ status: 500 }, { state: 'unknown', attributes: {} }]) {
+    await withServer({ [ENTITY]: richEntity(), 'sun.sun': sun }, async ({ url }) => {
+      const { status, body } = await getWeather(url);
+      assert.equal(status, 200);
+      assert.equal('sunrise' in body.now, false);
+      assert.equal('sunset' in body.now, false);
+      assert.equal(body.now.feels, 59);
+    });
+  }
+});
+
+test('feels-like and UV come from the hour covering now, else the entity', async () => {
+  // No forecast hour covers 12:00: use the entity's own attributes, if any
+  const e = richEntity();
+  e.hourly = e.hourly.slice(2);
+  Object.assign(e.attributes, { apparent_temperature: 55.2, uv_index: 1.6 });
+  await withServer({ [ENTITY]: e }, async ({ url }) => {
+    const { body } = await getWeather(url);
+    assert.equal(body.now.feels, 55);
+    assert.equal(body.now.uv, 2);
   });
 });
 

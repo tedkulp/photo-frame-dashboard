@@ -165,10 +165,14 @@
   // ------------------------------------------------------------ weather feed (home server)
   // Home Assistant's weather from GET /api/weather (weather.js), on the calendar feed's loop.
   function onWeather(d) { D.weather = d; App.emit('weather'); }
-  // What the views show now (see Weather.at), or null when there's nothing to show; then
-  // App.weatherNote() says why.
-  App.weatherNow = function () {
-    return D.weather && D.weather.configured ? window.Weather.at(D.weather, App.now(), 7) : null;
+  // What the views show now (see Weather.at) with `hours` hourly slots (7 by default), or null
+  // when there's nothing to show; then App.weatherNote() says why.
+  App.weatherNow = function (hours) {
+    return D.weather && D.weather.configured ? window.Weather.at(D.weather, App.now(), hours || 7) : null;
+  };
+  // The Weather page's week (Weather.week): up to seven days from today, [] without a forecast.
+  App.weatherWeek = function () {
+    return D.weather && D.weather.configured ? window.Weather.week(D.weather, App.now()) : [];
   };
   // Why there is no weather, or how old it is once stale ('' when it's fresh).
   App.weatherNote = function () {
@@ -629,6 +633,7 @@
     el.style.height = next.height + 'px';
     el.style.transform = (next.x || next.y ? 'translate(' + next.x + 'px,' + next.y + 'px) ' : '') +
       (Math.abs(next.scale - 1) < 0.001 ? '' : 'scale(' + next.scale + ')');
+    App.emit('stage', next);
     if (next.layout === prevLayout || !App.current) return;
     if (!modeAllowed(App.mode)) App.setMode('day');
     App.go(App.current, { rerender: true }); // rebuilt for the new layout; go's guard leaves Photos on a phone

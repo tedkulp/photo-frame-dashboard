@@ -32,7 +32,7 @@ const show = (b, now, count) => Weather.at(Weather.parse(b), now || at(14, 30), 
 test('parses the server body into Dates; not-configured passes through', () => {
   const d = Weather.parse(body());
   assert.equal(d.configured, true);
-  assert.deepEqual(d.reading, { temp: 61, cond: 'partly' });
+  assert.deepEqual([d.reading.temp, d.reading.cond], [61, 'partly']);
   assert.ok(d.hourly[0].at instanceof Date);
   assert.equal(d.hourly.length, 36);
   assert.equal(d.daily[0].hi, 66);
@@ -60,7 +60,7 @@ test('now uses the current reading, then the next hours; H/L from today\'s daily
   assert.equal(w.label, 'Partly cloudy');
   assert.deepEqual([w.hi, w.lo], [66, 47]);
   assert.deepEqual(w.hours.map((h) => h.label), ['Now', '3p', '4p', '5p', '6p', '7p', '8p']);
-  assert.deepEqual(w.hours[0], { label: 'Now', temp: 61, cond: 'partly', wet: false });
+  assert.deepEqual(w.hours[0], { label: 'Now', temp: 61, cond: 'partly', wet: false, pop: 0, wind: null, dir: '' });
   assert.equal(w.hours[1].temp, 50 + 9);
 });
 
@@ -243,4 +243,70 @@ test('an HTTP error is answered (server up, Home Assistant down); a network erro
   feed = make(() => Promise.reject(new TypeError('Failed to fetch')));
   await feed.start();
   assert.deepEqual([feed.state().status, feed.state().answered], ['offline', false]);
+});
+
+// ------------------------------------------------------------ Weather page
+// body() plus what PirateWeather adds: wind, humidity, feels-like, UV, sun, and a week of days.
+function richBody(over) {
+  const b = body(over);
+  Object.assign(b.now, { feels: 58, humidity: 71, wind: 9, gust: 21, bearing: 225, uv: 3,
+    sunrise: iso(at(7, 31)), sunset: iso(at(18, 41)) });
+  b.hourly.forEach((h, i) => Object.assign(h, { wind: i, bearing: (i * 45) % 360, humidity: 60 + i }));
+  b.daily = [];
+  for (let d = -1; d < 8; d++) {
+    b.daily.push({ at: iso(new Date(2026, 9, 19 + d)), hi: 60 + d, lo: 40 + d, cond: d % 2 ? 'rain' : 'sun', pop: d * 10, wind: 5 + d, gust: 15 + d, bearing: 90, humidity: 70 });
+  }
+  return b;
+}
+
+test('compass points from degrees', () => {
+  assert.deepEqual([0, 22, 23, 45, 90, 180, 225, 270, 315, 337, 338, 359].map(Weather.compass),
+    ['N', 'N', 'NE', 'NE', 'E', 'S', 'SW', 'W', 'NW', 'NW', 'N', 'N']);
+  assert.equal(Weather.compass(undefined), '');
+  assert.equal(Weather.compass(null), '');
+});
+
+test('parse keeps the extra fields; sunrise and sunset become Dates', () => {
+  const d = Weather.parse(richBody());
+  assert.deepEqual(Object.assign({}, d.reading, { sunrise: +d.reading.sunrise, sunset: +d.reading.sunset }), {
+    temp: 61, cond: 'partly', feels: 58, humidity: 71, wind: 9, gust: 21, bearing: 225, uv: 3,
+    sunrise: +at(7, 31), sunset: +at(18, 41),
+  });
+  assert.deepEqual([d.hourly[3].wind, d.hourly[3].bearing, d.hourly[3].humidity], [3, 135, 63]);
+  assert.deepEqual([d.daily[1].cond, d.daily[1].pop, d.daily[1].wind, d.daily[1].gust, d.daily[1].bearing], ['sun', 0, 5, 15, 90]);
+  // An older server: the extras are null, not missing numbers that throw
+  const old = Weather.parse(body());
+  assert.equal(old.reading.wind, null);
+  assert.equal(old.reading.sunrise, null);
+  assert.equal(old.hourly[0].wind, null);
+  assert.equal(old.daily[0].pop, 0);
+});
+
+test('the page details use the fresh reading', () => {
+  const w = show(richBody(), at(14, 30), 25);
+  assert.deepEqual([w.feels, w.humidity, w.wind, w.gust, w.dir, w.uv], [58, 71, 9, 21, 'SW', 3]);
+  assert.equal(+w.sunrise, +at(7, 31));
+  assert.equal(+w.sunset, +at(18, 41));
+  assert.equal(w.hours.length, 22); // Now + 3 PM to 11 AM tomorrow, the end of the forecast
+  assert.deepEqual(w.hours[0], { label: 'Now', temp: 61, cond: 'partly', wet: false, pop: 0, wind: 9, dir: 'SW' });
+  assert.deepEqual(w.hours[1], { label: '3p', temp: 59, cond: 'cloud', wet: false, pop: 0, wind: 15, dir: 'NW' });
+});
+
+test('with an old reading, wind and humidity come from this hour; feels-like, gust and UV are unknown', () => {
+  const w = show(richBody({ updatedAt: at(12, 0), pops: { 14: 70 } }), at(14, 30), 25);
+  assert.deepEqual([w.feels, w.humidity, w.wind, w.gust, w.dir, w.uv], [null, 74, 14, null, 'W', null]);
+  assert.deepEqual(w.hours[0], { label: 'Now', temp: 60, cond: 'cloud', wet: true, pop: 70, wind: 14, dir: 'W' });
+});
+
+test('the week is seven days from today', () => {
+  const days = Weather.week(Weather.parse(richBody()), at(14, 30));
+  assert.equal(days.length, 7);
+  assert.equal(+days[0].at, +at(0));
+  assert.deepEqual(days[0], { at: days[0].at, hi: 60, lo: 40, cond: 'sun', pop: 0, wind: 5, gust: 15, dir: 'E', wet: false });
+  assert.deepEqual([days[1].cond, days[1].pop, days[1].wet], ['rain', 10, false]);
+  assert.equal(days[5].wet, true);
+  assert.equal(+days[6].at, +new Date(2026, 9, 25));
+  // Fewer days at the end of the forecast; none without a forecast
+  assert.equal(Weather.week(Weather.parse(richBody()), new Date(2026, 9, 24, 9)).length, 3);
+  assert.deepEqual(Weather.week(Weather.parse(body({ daily: false })), at(14, 30)), []);
 });
