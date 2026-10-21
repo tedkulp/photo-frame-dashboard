@@ -24,7 +24,7 @@
       '<div class="h-wx-hours">' + hours.map(function (h) {
         var lift = tmax === tmin ? 0 : Math.round((h.temp - tmin) / (tmax - tmin) * 8);
         return '<div class="h-hr' + (h.wet ? ' is-wet' : '') + '"><span class="h-hr-l">' + h.label + '</span>' +
-          '<span class="h-hr-i" style="transform:translateY(' + -lift + 'px)">' + App.icon(h.cond, 22) + '</span><b>' + h.temp + '°</b></div>';
+          '<span class="h-hr-i" style="transform:translateY(' + -lift + 'px)">' + App.icon(h.cond, 22) + '</span><b>' + h.temp + '<i>°</i></b></div>';
       }).join('') + '</div>';
   }
 

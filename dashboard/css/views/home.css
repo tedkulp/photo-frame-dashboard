@@ -31,7 +31,9 @@
 .h-hr { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 16px; }
 .h-hr-l { font-size: var(--fs-min); font-weight: 700; color: var(--mute); text-transform: uppercase; }
 .h-hr-i { height: 26px; display: grid; place-items: center; }
-.h-hr b { font-weight: 800; font-stretch: 70%; }
+.h-hr b { font-weight: 800; font-stretch: 70%; position: relative; }
+/* the ° hangs off the right so the digits themselves sit centred under the icon */
+.h-hr b i { position: absolute; left: 100%; top: 0; font-style: normal; }
 .h-hr.is-wet .h-hr-i { color: var(--wet); }
 
 /* ---- people (+ calendar feed note) */
