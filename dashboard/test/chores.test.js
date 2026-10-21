@@ -77,11 +77,11 @@ test('nothing to show without data', () => {
 });
 
 // ------------------------------------------------------------ this week
-test('week grid: hit, miss and null map to hit, miss and future; today is the server weekday', () => {
-  const d = Chores.parse(body());
+test('week grid: hit, miss, due and null map to hit, miss, due and none; today is the server weekday', () => {
+  const d = Chores.parse(body({ week: { maya: ['hit', 'miss', 'hit', null, 'due', null, 'bogus'] } }));
   assert.deepEqual(Chores.week(d, 'maya'), {
     today: 2, // Wednesday, Mon-first
-    days: ['hit', 'miss', 'hit', 'future', 'future', 'future', 'future'],
+    days: ['hit', 'miss', 'hit', 'none', 'due', 'none', 'none'],
   });
   assert.equal(Chores.week(Chores.parse(body({ date: '2026-10-25' })), 'maya').today, 6); // Sunday
 });

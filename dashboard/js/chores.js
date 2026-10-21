@@ -9,7 +9,7 @@
   Chores.STALE = 2 * MIN; // no good fetch for this long: treat the server as unreachable
   Chores.ANYONE = 'any'; // the owner of a chore anyone can do (the server's word for it too)
 
-  var MARKS = { hit: 'hit', miss: 'miss' };
+  var MARKS = { hit: 'hit', miss: 'miss', due: 'due' };
 
   function isDays(d) {
     return Array.isArray(d) && d.length > 0 && d.every(function (n) { return n === (n | 0) && n >= 0 && n <= 6; });
@@ -23,7 +23,7 @@
   }
 
   // The server's { date, chores, done, week, updatedAt } → { date, weekday, chores, done: { id: true },
-  // week: { personId: [Mon..Sun 'hit' | 'miss' | null] } }, ids as strings (the server's are
+  // week: { personId: [Mon..Sun 'hit' | 'miss' | 'due' | null] } }, ids as strings (the server's are
   // numbers; views compare them with data-* attributes). Throws on anything else; drops malformed
   // chores and week rows. The weekday is the server's (its time zone), not the frame's clock.
   Chores.parse = function (body) {
@@ -63,12 +63,12 @@
   };
 
   // A person's "This week" grid: { today: Mon-first index of the server's date, days: Mon..Sun
-  // 'hit' | 'miss' | 'future' } (the server's null, i.e. nothing scheduled or not yet, is 'future'),
+  // 'hit' | 'miss' | 'due' (still to come, with a chore) | 'none' (nothing scheduled, the server's null) },
   // or null when the person isn't in the week.
   Chores.week = function (data, personId) {
     var row = data && data.week.hasOwnProperty(personId) ? data.week[personId] : null;
     if (!row) return null;
-    return { today: (data.weekday + 6) % 7, days: row.map(function (v) { return v || 'future'; }) };
+    return { today: (data.weekday + 6) % 7, days: row.map(function (v) { return v || 'none'; }) };
   };
 
   // ------------------------------------------------------------ editing

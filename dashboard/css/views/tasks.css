@@ -79,7 +79,8 @@
 .ch-week-row .is-hit i { background: var(--c); box-shadow: none; }
 .ch-week-row .is-today i { box-shadow: inset 0 0 0 3px var(--ink); }
 .ch-week-row .is-today { color: var(--ink); }
-.ch-week-row .is-future i { opacity: .4; }
+.ch-week-row .is-due i { box-shadow: inset 0 0 0 2px var(--c); }
+.ch-week-row .is-none i { opacity: .4; }
 
 /* ---- phone layout: one scrolling column (see base.css) */
 .stage[data-layout="phone"] .tasks { height: auto; }
