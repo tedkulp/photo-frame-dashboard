@@ -337,7 +337,8 @@ different build (the container was updated), the page reloads itself, so nobody 
   `sessionStorage` doesn't work it never reloads.
 - Restarting the container on the same build, an unreachable server, or a server with no build id
   changes nothing, and shows no error. The Vite dev server, the Cloudflare deploy and the kiosk's
-  bundled site have no `/api/version`, so they never reload themselves.
+  bundled site have no `/api/version`, so they never reload themselves (they keep asking, backing
+  off to once every 5 minutes).
 
 ## 5. Point the frame at it
 

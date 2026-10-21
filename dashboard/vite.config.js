@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 // Every build gets its own id: the page carries it as __BUILD_ID__ and dist/version.json holds it
 // for the home server's GET /api/version, so an open dashboard can tell a newer build is being
 // served (js/version.js). The dev server has none, so it never reloads itself.
-function buildId() {
+function buildIdPlugin() {
   const id = Date.now().toString(36) + '-' + randomBytes(4).toString('hex');
   return {
     name: 'build-id',
@@ -21,7 +21,7 @@ function buildId() {
 // #ffffffbf) even though Chrome 106 should support them, and a newer target lets the minifier
 // rewrite transparent/rgba() into that form. Verified on-device with CSS.supports().
 export default defineConfig({
-  plugins: [buildId()],
+  plugins: [buildIdPlugin()],
   build: {
     target: 'chrome106',
     cssTarget: 'chrome61',

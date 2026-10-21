@@ -2,7 +2,8 @@
 // (__BUILD_ID__, see vite.config.js) and into dist/version.json, which the home server reports at
 // GET /api/version. App polls that on the calendar feed's loop and asks Version.check once a
 // second; a different id reloads the page when nothing is open or pending. No id on either side
-// (Vite dev server, Cloudflare, the kiosk's bundled site) or no answer: nothing happens.
+// (Vite dev server, Cloudflare, the kiosk's bundled site) or no answer: nothing happens. Also loads
+// in Node for dashboard/test/version.test.js.
 (function (root) {
   'use strict';
   var Version = root.Version = {};
@@ -28,7 +29,7 @@
   // The id is written to storage, and read back, before reloading: storage that doesn't work could
   // never stop a loop, so then it never reloads.
   Version.check = function (o) {
-    if (!o.page || !o.server || o.server === o.page) return false;
+    if (!Version.due(o.page, o.server, null)) return false; // skip the storage read when it can't be due
     var tried;
     try { tried = o.storage.getItem(Version.KEY); } catch (e) { return false; }
     if (!Version.due(o.page, o.server, tried) || o.busy()) return false;

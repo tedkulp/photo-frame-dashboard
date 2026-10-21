@@ -456,7 +456,9 @@
   // ------------------------------------------------------------ reload after an update
   // The home server's build id from GET /api/version (version.js), on the calendar feed's loop.
   // A different one reloads the page as soon as nothing is busy.
-  var serverBuild = null;
+  // serverBuild is the id from the last fetch, null once one fails (no answer, 404, no id):
+  // only what the server says right now counts. heard is the last id that parsed.
+  var serverBuild = null, heard = null;
   // Something a reload would lose: an open sheet, an edit mode, or a chore tick or Home controls
   // change not answered (or not sent) yet.
   App.busy = function () {
@@ -715,12 +717,15 @@
     });
     App.homeFeed.start();
     // No caching (storage: null): only the server's answer right now counts. Failures stay quiet.
-    if (window.Version.page) window.Feed.create({
+    if (window.Version.page) App.versionFeed = window.Feed.create({
       url: '/api/version', refresh: window.Version.REFRESH, parse: window.Version.parse, changeKey: window.Version.changeKey,
       fetch: window.fetch.bind(window), storage: null,
       now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: function (build) { serverBuild = build; }, onError: function (e) { console.error('[version]', e); }
-    }).start();
+      onChange: function (build) { heard = build; },
+      onState: function () { serverBuild = App.versionFeed.state().failed ? null : heard; },
+      onError: function (e) { console.error('[version]', e); }
+    });
+    if (App.versionFeed) App.versionFeed.start();
     window.addEventListener('resize', fit);
     // Switch tabs the instant a finger lands (pointerdown), not on release. Keyboard "clicks"
     // (detail === 0) still work.
