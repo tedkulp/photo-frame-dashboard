@@ -7,6 +7,7 @@ import './advice.js';
 import './weather.js';
 import './chores.js';
 import './house.js';
+import './version.js';
 import './app.js';
 import './system.js';
 import './slideshow.js';

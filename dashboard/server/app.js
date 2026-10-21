@@ -1,6 +1,6 @@
 // HTTP server: the built dashboard (dist), GET /api/calendar, POST /api/events,
-// DELETE /api/events/:id, GET /api/weather, /api/chores and /api/home from one origin. LAN-only,
-// no auth.
+// DELETE /api/events/:id, GET /api/weather, /api/chores, /api/home and GET /api/version from one
+// origin. LAN-only, no auth.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
@@ -62,6 +62,17 @@ async function apiCall(res, what, status, fn) {
     if (e instanceof InputError) return sendJson(res, e.status, { error: e.message });
     console.error('[' + what + ']', e.message);
     return sendJson(res, 502, { error: e.message });
+  }
+}
+
+// The build id `npm run build` stamps into dist/version.json (null without one). Read on every
+// request so a build swapped in under a running server is reported straight away.
+async function buildId(root) {
+  try {
+    const { build } = JSON.parse(await readFile(join(root, 'version.json'), 'utf8'));
+    return typeof build === 'string' && build ? build : null;
+  } catch {
+    return null;
   }
 }
 
@@ -129,6 +140,10 @@ function createHandler({ calendar, weather, chores, home, distDir }) {
           return sendJson(res, 404, { error: 'Home Assistant is not set up' });
         }
         return await routeHome(req, res, pathname, home);
+      }
+      if (pathname === '/api/version') {
+        if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
+        return sendJson(res, 200, { build: await buildId(root) });
       }
       if (pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Not found' });
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Method not allowed' });

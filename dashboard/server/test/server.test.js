@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { startServer } from '../app.js';
 import { decodeEventId } from '../calendar.js';
 import { fakeGoogle, serviceAccount, settings, tempDir } from './helpers.js';
@@ -230,4 +231,37 @@ test('missing files, traversal and non-GET are refused', async () => {
     assert.equal(res.status, 404);
     assert.match(res.headers.get('content-type'), /application\/json/);
   }, { distDir: site.dir });
+});
+
+test('GET /api/version reports the served build id, not cached', async () => {
+  const built = tempDir({ 'index.html': '<!doctype html>', 'version.json': { build: 'build-a' } });
+  try {
+    await withServer({}, async ({ url }) => {
+      const res = await fetch(url + '/api/version');
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('cache-control'), 'no-store');
+      assert.deepEqual(await res.json(), { build: 'build-a' });
+      // A new build in place (npm run build while the server runs) is reported straight away.
+      writeFileSync(built.path('version.json'), JSON.stringify({ build: 'build-b' }));
+      assert.deepEqual(await (await fetch(url + '/api/version')).json(), { build: 'build-b' });
+      assert.equal((await fetch(url + '/api/version', { method: 'POST' })).status, 405);
+    }, { distDir: built.dir });
+  } finally {
+    built.cleanup();
+  }
+});
+
+test('GET /api/version says null without a stamped build', async () => {
+  const bad = tempDir({ 'version.json': 'not json' });
+  try {
+    for (const distDir of ['/nonexistent', site.dir, bad.dir]) {
+      await withServer({}, async ({ url }) => {
+        const res = await fetch(url + '/api/version');
+        assert.equal(res.status, 200);
+        assert.deepEqual(await res.json(), { build: null });
+      }, { distDir });
+    }
+  } finally {
+    bad.cleanup();
+  }
 });

@@ -452,6 +452,28 @@
   }
   App.on('choresstate', paintEdit);
   App.on('feedstate', paintEdit);
+
+  // ------------------------------------------------------------ reload after an update
+  // The home server's build id from GET /api/version (version.js), on the calendar feed's loop.
+  // A different one reloads the page as soon as nothing is busy.
+  var serverBuild = null;
+  // Something a reload would lose: an open sheet, an edit mode, or a chore tick or Home controls
+  // change not answered (or not sent) yet.
+  App.busy = function () {
+    return $('#sheetLayer').classList.contains('is-open') ||
+      editors.some(function (ed) { return ed.on; }) ||
+      Object.keys(pendingTicks).length > 0 || Object.keys(pendingHome).length > 0 || Object.keys(homeTimers).length > 0;
+  };
+  function reloadIfDue() {
+    var storage = null;
+    try { storage = window.sessionStorage; } catch (e) {}
+    window.Version.check({
+      page: window.Version.page, server: serverBuild, storage: storage, busy: App.busy,
+      reload: function () { location.reload(); }
+    });
+  }
+  App.on('second', function () { if (serverBuild) reloadIfDue(); });
+
   // ------------------------------------------------------------ router
   App.register = function (name, view) { App.views[name] = view; };
   // Views are built once and kept laid out (hidden with content-visibility), so switching tabs
@@ -692,6 +714,13 @@
       onChange: onHome, onState: function () { App.emit('homestate'); }, onError: function (e) { console.error('[home]', e); }
     });
     App.homeFeed.start();
+    // No caching (storage: null): only the server's answer right now counts. Failures stay quiet.
+    if (window.Version.page) window.Feed.create({
+      url: '/api/version', refresh: window.Version.REFRESH, parse: window.Version.parse, changeKey: window.Version.changeKey,
+      fetch: window.fetch.bind(window), storage: null,
+      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
+      onChange: function (build) { serverBuild = build; }, onError: function (e) { console.error('[version]', e); }
+    }).start();
     window.addEventListener('resize', fit);
     // Switch tabs the instant a finger lands (pointerdown), not on release. Keyboard "clicks"
     // (detail === 0) still work.

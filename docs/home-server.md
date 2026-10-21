@@ -28,6 +28,9 @@ address on your LAN:
   `502` with a JSON `error`.
 - `GET /api/home` and its actions: Home controls from Home Assistant, see
   [Home controls](#home-controls-from-home-assistant-optional).
+- `GET /api/version` returns `{ build }`: the id `npm run build` stamped into the `dist` being
+  served (`dist/version.json`), or `{ build: null }` without one. Sent `Cache-Control: no-store`.
+  The dashboard uses it to [reload itself after an update](#updates-reload-the-dashboard).
 
 It has no npm runtime dependencies and no login of its own: it is meant for your LAN only, so do
 not expose its port to the internet.
@@ -319,6 +322,22 @@ Calendar:
   it, and **Undo** on the toast deletes it again. If the write fails you get an error toast and the
   sheet stays open with what you typed. Adding is switched off (greyed button, with the reason)
   while the last request failed or no calendar fetch has worked for 15 minutes.
+
+### Updates reload the dashboard
+
+Every `npm run build` gives the dashboard a new build id, carried by the page and reported by
+`GET /api/version`. Each open dashboard asks for it every minute; when the server reports a
+different build (the container was updated), the page reloads itself, so nobody has to do
+**Reload dashboard** on the frame.
+
+- It waits until nothing would be lost: no sheet open, no edit mode on, and no chore tick or Home
+  controls tap still waiting for the server. Then it reloads straight away.
+- It reloads at most once per server build: the build it reloaded for is kept in the page's
+  `sessionStorage`, and if the server still reports a different build afterwards it stays put. If
+  `sessionStorage` doesn't work it never reloads.
+- Restarting the container on the same build, an unreachable server, or a server with no build id
+  changes nothing, and shows no error. The Vite dev server, the Cloudflare deploy and the kiosk's
+  bundled site have no `/api/version`, so they never reload themselves.
 
 ## 5. Point the frame at it
 
