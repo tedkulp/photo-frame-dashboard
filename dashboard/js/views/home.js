@@ -163,7 +163,7 @@
   }
 
   // The photo tile is hidden in the phone layout (no Photos there), so it doesn't load photos.
-  function slides() { if (App.isPhone()) V.slides.stop(); else V.slides.start(); }
+  function syncSlides() { if (App.isPhone()) V.slides.stop(); else V.slides.start(); }
 
   App.register('home', {
     show: function (el) {
@@ -188,9 +188,9 @@
         V.slides = new App.Slideshow(el.querySelector('.h-photo-stage'), { layout: 'cover', captions: false, interval: 12000, onChange: photoCaption });
       }
       paint();
-      slides();
+      syncSlides();
     },
-    resume: slides,
+    resume: syncSlides,
     hide: function () { if (V.slides) V.slides.stop(); }
   });
   // Every minute: just the clock and next-up countdown (cheap, even while hidden). Weather on the

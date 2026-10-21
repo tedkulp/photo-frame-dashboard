@@ -194,17 +194,15 @@
 .stage[data-layout="phone"] .cal-head { height: auto; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .stage[data-layout="phone"] .cal-title { flex: 1; min-width: 0; padding: 0 2px; flex-direction: column; align-items: flex-start; gap: 2px; }
 .stage[data-layout="phone"] .cal-title .serif { font-size: 26px; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.stage[data-layout="phone"] .cal-head .icon-btn { width: 48px; height: 48px; }
 .stage[data-layout="phone"] .cal-head [data-today] { order: 1; margin-right: 0; min-height: 48px; padding: 0 14px; }
 .stage[data-layout="phone"] .cal-head .seg { order: 2; margin-right: auto; }
-.stage[data-layout="phone"] .cal-head .seg button { min-height: 44px; padding: 0 14px; }
 .stage[data-layout="phone"] .cal-head button[data-mode="3day"] { display: none; }
-.stage[data-layout="phone"] .cal-head .fab { order: 3; width: 56px; height: 56px; }
+.stage[data-layout="phone"] .cal-head .fab { order: 3; }
 .stage[data-layout="phone"] .cal-feed { order: 4; flex-basis: 100%; white-space: normal; }
 .stage[data-layout="phone"] .cal-body { flex: none; min-height: 0; }
 .stage[data-layout="phone"] .cal-empty { position: static; padding: 60px 0; font-size: 36px; text-align: center; }
 
-/* Today as one list (calendar.js listView) */
+/* Today as one list (calendar.js listView, only built on a phone, so not prefixed) */
 .cal-list { display: flex; flex-direction: column; gap: 8px; }
 .cl-allday { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
 .cl-allday .ad { width: 100%; }

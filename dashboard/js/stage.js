@@ -20,8 +20,11 @@
     return winW > 0 && winH > winW && winW < Stage.PHONE_MAX_WIDTH ? 'phone' : 'frame';
   };
 
-  Stage.fit = function (winW, winH) {
-    if (Stage.layout(winW, winH) === 'phone') return { layout: 'phone', width: winW, height: winH, scale: 1, x: 0, y: 0 };
+  // prev: the last fit, if any. A phone stays a phone while only its height changes, so the
+  // on-screen keyboard (which can leave it wider than tall) doesn't flip it to the frame stage.
+  Stage.fit = function (winW, winH, prev) {
+    var keep = prev && prev.layout === 'phone' && prev.width === winW && winH > 0;
+    if (keep || Stage.layout(winW, winH) === 'phone') return { layout: 'phone', width: winW, height: winH, scale: 1, x: 0, y: 0 };
     if (!(winW > 0) || !(winH > 0)) return { layout: 'frame', width: Stage.MIN_WIDTH, height: Stage.HEIGHT, scale: 1, x: 0, y: 0 };
     // Rounded down so the scaled stage never runs past the window edge.
     var width = Math.floor(Stage.HEIGHT * winW / winH);

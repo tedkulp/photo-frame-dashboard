@@ -208,36 +208,37 @@
   }
 
   // ------------------------------------------------------------ header
+  // The mode shown: a phone has Today (as a list), Week and Month, so a 3 Day choice shows Today
+  // there (and 3 Day again back on the frame).
+  function mode() { return V.mode === '3day' && App.isPhone() ? 'day' : V.mode; }
   function title() {
     var d = V.date, now = App.now();
-    if (V.mode === 'day') return { k: App.fmt.month(d) + ' ' + d.getFullYear() + (App.sameDay(d, now) ? ' · Today' : ' · ' + App.fmt.rel(d)), t: App.fmt.day(d) + ' <i>' + d.getDate() + '</i>' };
-    if (V.mode === '3day') { var e = App.addDays(d, 2); return { k: App.fmt.month(d) + ' ' + d.getFullYear(), t: App.fmt.dayShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.dayShort(e) + ' ' + e.getDate() }; }
-    if (V.mode === 'week') { var w = App.addDays(d, 6); return { k: 'Next 7 days', t: App.fmt.monthShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
+    if (mode() === 'day') return { k: App.fmt.month(d) + ' ' + d.getFullYear() + (App.sameDay(d, now) ? ' · Today' : ' · ' + App.fmt.rel(d)), t: App.fmt.day(d) + ' <i>' + d.getDate() + '</i>' };
+    if (mode() === '3day') { var e = App.addDays(d, 2); return { k: App.fmt.month(d) + ' ' + d.getFullYear(), t: App.fmt.dayShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.dayShort(e) + ' ' + e.getDate() }; }
+    if (mode() === 'week') { var w = App.addDays(d, 6); return { k: 'Next 7 days', t: App.fmt.monthShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
     return { k: d.getFullYear(), t: App.fmt.month(d) };
   }
   function header() {
     var t = title();
-    var isToday = V.mode === 'month' ? (V.date.getMonth() === App.now().getMonth()) : App.sameDay(V.date, App.now());
+    var isToday = mode() === 'month' ? (V.date.getMonth() === App.now().getMonth()) : App.sameDay(V.date, App.now());
     return '<header class="cal-head">' +
       '<button class="icon-btn" data-nav="-1" aria-label="Previous">' + App.icon('left', 24) + '</button>' +
       '<div class="cal-title"><div class="serif">' + t.t + '</div><div class="label">' + t.k + '</div></div>' +
       '<button class="icon-btn" data-nav="1" aria-label="Next">' + App.icon('right', 24) + '</button>' +
       '<button class="btn btn--ghost' + (isToday ? ' is-hidden' : '') + '" data-today>Today</button>' +
       (App.hasCalendar() ? '<span class="cal-feed feed-note">' + App.feedNote() + '</span>' : '') +
-      '<div class="seg">' + MODES.map(function (m) { return '<button class="' + (V.mode === m[0] ? 'is-on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="seg">' + MODES.map(function (m) { return '<button class="' + (mode() === m[0] ? 'is-on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
       '<button class="fab' + (App.addBlocked() ? ' is-off' : '') + '" data-add aria-label="Add event">' + App.icon('plus', 26) + '</button>' +
       '</header>';
   }
 
   function render() {
-    // A phone has Today (as a list), Week and Month; 3 Day's columns don't fit.
     var phone = App.isPhone();
-    if (phone && V.mode === '3day') V.mode = 'day';
     // No data yet (first boot, server unreachable): say so instead of an empty calendar.
     var body = App.hasCalendar()
-      ? { day: phone ? listView : dayView, '3day': threeDay, week: weekView, month: monthView }[V.mode]()
+      ? { day: phone ? listView : dayView, '3day': threeDay, week: weekView, month: monthView }[mode()]()
       : '<div class="cal-empty serif feed-note">' + App.feedNote() + '</div>';
-    V.el.innerHTML = '<div class="cal cal--' + V.mode + '">' + header() + '<div class="cal-body">' + body + '</div></div>';
+    V.el.innerHTML = '<div class="cal cal--' + mode() + '">' + header() + '<div class="cal-body">' + body + '</div></div>';
     var sc = V.el.querySelector('.grid-scroll');
     if (sc) {
       var now = App.now();
@@ -247,8 +248,8 @@
   }
 
   function nav(dir) {
-    if (V.mode === 'month') V.date = new Date(V.date.getFullYear(), V.date.getMonth() + dir, 1);
-    else V.date = App.addDays(V.date, dir * ({ day: 1, '3day': 3, week: 7 }[V.mode]));
+    if (mode() === 'month') V.date = new Date(V.date.getFullYear(), V.date.getMonth() + dir, 1);
+    else V.date = App.addDays(V.date, dir * ({ day: 1, '3day': 3, week: 7 }[mode()]));
     V.scroll = null;
     render();
   }

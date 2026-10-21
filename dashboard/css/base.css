@@ -381,7 +381,6 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .stage[data-layout="phone"] .sheet-h { font-size: 36px; margin: 4px 0 16px; padding-right: 44px; }
 .stage[data-layout="phone"] .sheet-p { font-size: 17px; }
 .stage[data-layout="phone"] .sheet-actions { flex-wrap: wrap; gap: 8px; margin-top: 20px; }
-.stage[data-layout="phone"] .edit-sheet.sheet-pad { padding: 22px 18px 20px; }
 .stage[data-layout="phone"] .edit-sheet .big-input { height: 56px; font-size: 30px; }
 .stage[data-layout="phone"] .edit-q { flex-basis: 100%; font-size: 19px; }
 

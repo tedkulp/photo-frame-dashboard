@@ -617,7 +617,7 @@
   App.stage = window.Stage.fit(0, 0);
   App.isPhone = function () { return App.stage.layout === 'phone'; };
   function fit() {
-    var f = window.Stage.fit(window.innerWidth, window.innerHeight), el = $('#stage');
+    var f = window.Stage.fit(window.innerWidth, window.innerHeight, App.stage), el = $('#stage');
     var was = App.stage.layout;
     App.stage = f;
     el.setAttribute('data-layout', f.layout);
@@ -628,7 +628,7 @@
     if (f.layout === was || !App.current) return;
     if (App.isPhone()) {
       if (App.mode !== 'day') App.setMode('day');
-      if (App.current === 'photos') { App.go('home'); return; }
+      if (App.current === 'photos') App.go('home');
     }
     markStale();
     App.rerender();

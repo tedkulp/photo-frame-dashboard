@@ -63,6 +63,15 @@ test('a portrait phone gets the phone layout at native CSS pixels, unscaled', ()
   assert.equal(Stage.fit(699, 1000).layout, 'phone');
 });
 
+test('a phone keeps the phone layout when only its height shrinks (the on-screen keyboard)', () => {
+  const phone = Stage.fit(360, 640);
+  assert.deepEqual(Stage.fit(360, 300, phone), { layout: 'phone', width: 360, height: 300, scale: 1, x: 0, y: 0 });
+  // turned sideways the width changes too: the scaled stage
+  assert.equal(Stage.fit(640, 360, phone).layout, 'frame');
+  // a frame-layout window shrinking stays frame
+  assert.equal(Stage.fit(360, 300, Stage.fit(1280, 800)).layout, 'frame');
+});
+
 test('the phone breakpoint: narrower than 700 and taller than wide', () => {
   assert.equal(Stage.layout(390, 844), 'phone');
   assert.equal(Stage.layout(700, 1000), 'frame'); // a portrait tablet keeps the stage
