@@ -51,7 +51,7 @@
     return '<div class="label">Next hours</div>' +
       '<div class="wx-strip" style="--hours:' + list.length + '">' + list.map(function (h) {
         return '<div class="wx-hr' + (h.wet ? ' is-wet' : '') + '"><span class="wx-hr-l">' + h.label + '</span>' +
-          '<span class="wx-hr-i">' + App.icon(h.cond, 28) + '</span><b class="num">' + h.temp + '°</b>' +
+          '<span class="wx-hr-i">' + App.icon(h.cond, 28) + '</span><b class="num">' + h.temp + '<i>°</i></b>' +
           '<span class="wx-hr-pop">' + (h.pop ? h.pop + '%' : '') + '</span>' +
           '<span class="wx-hr-wind">' + windText(h.wind, h.dir) + '</span></div>';
       }).join('') + '</div>';
