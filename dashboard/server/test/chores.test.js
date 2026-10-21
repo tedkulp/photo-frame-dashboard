@@ -10,6 +10,8 @@ const FAMILY = 'family@group.calendar.google.com';
 // Tue 2026-10-20, 12:00 in Toronto.
 const TUE = Date.parse('2026-10-20T16:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
+// A week row with nothing scheduled: every person in settings gets one.
+const EMPTY = [null, null, null, null, null, null, null];
 
 async function withServer(fn, opts) {
   opts = opts || {};
@@ -63,7 +65,7 @@ test('starts with no chores', async () => {
     assert.equal(body.date, '2026-10-20');
     assert.deepEqual(body.chores, []);
     assert.deepEqual(body.done, []);
-    assert.deepEqual(body.week, {});
+    assert.deepEqual(body.week, { alex: EMPTY, sam: EMPTY });
     assert.equal(body.updatedAt, new Date(TUE).toISOString());
   });
 });
@@ -174,7 +176,7 @@ test("changing owner or days today leaves yesterday's hit/miss as it was", async
       alex: ['hit', null, null, null, null, null, null],
       sam: [null, 'miss', null, null, null, null, null],
     });
-    // Wednesday only: Sam has nothing today but still a chore this week.
+    // Wednesday only: Sam has nothing today, still a row of empty days.
     await call('PATCH', '/api/chores/' + c.id, { days: [3] });
     week = (await call('GET', '/api/chores')).body.week;
     assert.deepEqual(week, {
@@ -190,14 +192,14 @@ test('deleting today leaves earlier days as they were', async () => {
     const { body: c } = await call('POST', '/api/chores', daily());
     clock.now = TUE;
     await call('DELETE', '/api/chores/' + c.id);
-    assert.deepEqual((await call('GET', '/api/chores')).body.week, { alex: ['miss', null, null, null, null, null, null] });
+    assert.deepEqual((await call('GET', '/api/chores')).body.week, { alex: ['miss', null, null, null, null, null, null], sam: EMPTY });
   });
 });
 
 test('a chore created today is absent from earlier days', async () => {
   await withServer(async ({ call }) => {
     await call('POST', '/api/chores', daily());
-    assert.deepEqual((await call('GET', '/api/chores')).body.week, { alex: [null, 'miss', null, null, null, null, null] });
+    assert.deepEqual((await call('GET', '/api/chores')).body.week, { alex: [null, 'miss', null, null, null, null, null], sam: EMPTY });
   });
 });
 
@@ -214,7 +216,7 @@ test('two changes on the same day make one change, effective today', async () =>
     assert.deepEqual(second.body.days, [2, 4]);
     // Changing back today undoes today's change entirely.
     await call('PATCH', '/api/chores/' + c.id, { owner: 'alex', days: [0, 1, 2, 3, 4, 5, 6] });
-    assert.deepEqual((await call('GET', '/api/chores')).body.week, { alex: ['hit', 'miss', null, null, null, null, null] });
+    assert.deepEqual((await call('GET', '/api/chores')).body.week, { alex: ['hit', 'miss', null, null, null, null, null], sam: EMPTY });
   });
 });
 
@@ -225,7 +227,7 @@ test('Anyone chores count toward nobody', async () => {
     await call('POST', '/api/chores', daily({ title: 'Feed cat', owner: 'any' }));
     await call('PUT', `/api/chores/${mine.id}/done`);
     const { body } = await call('GET', '/api/chores');
-    assert.deepEqual(body.week, { alex: [null, 'hit', null, null, null, null, null] });
+    assert.deepEqual(body.week, { alex: [null, 'hit', null, null, null, null, null], sam: EMPTY });
     assert.equal(body.chores.length, 2);
   });
 });

@@ -127,21 +127,18 @@ export function createChores({ db, settings, today, now = Date.now }) {
     const scheduledToday = new Set(all.filter((c) => shown(c, date) && scheduledOn(c, date)).map((c) => c.id));
     const done = q.doneOn.all(date).map((r) => r.chore_id).filter((id) => scheduledToday.has(id));
 
-    // This Monday to Sunday: a hit day needs every chore the person owned and had scheduled that
-    // day done; nothing scheduled, or a day still to come, is null.
+    // This Monday to Sunday, for every person (not Anyone): a hit day needs every chore the person
+    // owned and had scheduled that day done; nothing scheduled, or a day still to come, is null.
     const monday = addDays(date, -((weekday(date) + 6) % 7));
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(monday, i));
     const doneSet = new Set(q.doneBetween.all(monday, days[6]).map((r) => r.chore_id + '|' + r.date));
     const week = {};
     for (const person of people) {
-      let any = false;
-      const row = days.map((d) => {
+      week[person] = days.map((d) => {
         const mine = all.filter((c) => scheduledOn(c, d) && versionAt(c, d).owner === person);
-        if (mine.length) any = true;
         if (d > date || !mine.length) return null;
         return mine.every((c) => doneSet.has(c.id + '|' + d)) ? 'hit' : 'miss';
       });
-      if (any) week[person] = row;
     }
     return { date, chores, done, week, updatedAt: new Date(now()).toISOString() };
   }

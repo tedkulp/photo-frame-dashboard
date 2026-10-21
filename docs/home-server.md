@@ -351,7 +351,7 @@ created if missing and is git-ignored; it is private, like `config/`.
   out of `settings.people` are hidden too, and come back if you add them again.
 
 ```sh
-curl http://localhost:8080/api/chores       # { "date": ..., "chores": [], "done": [], "week": {} }
+curl http://localhost:8080/api/chores       # { "date": ..., "chores": [], "done": [], "week": { <each person>: [7 × null] } }
 ```
 
 ## What the dashboard does with it
