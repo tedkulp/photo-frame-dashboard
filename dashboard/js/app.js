@@ -461,7 +461,7 @@
   }
   App.go = function (name, opts) {
     opts = opts || {};
-    if (!App.views[name] || (name === 'photos' && App.isPhone())) name = 'home'; // no Photos on a phone
+    if (!App.views[name] || !viewAllowed(name)) name = 'home';
     if (App.current && App.current !== name && App.views[App.current].hide) App.views[App.current].hide();
     App.$$('.view').forEach(function (v) { v.classList.toggle('is-active', v.dataset.view === name); });
     App.$$('.rail-item').forEach(function (b) { b.classList.toggle('is-active', b.dataset.go === name); });
@@ -580,10 +580,9 @@
   };
 
   // ------------------------------------------------------------ modes: day / ambient / night
-  // The phone layout is always 'day': no ambient, night or night dashboard there.
   App.setMode = function (m) {
     var stage = $('#stage');
-    if (App.isPhone() && m !== 'day') return;
+    if (!modeAllowed(m)) return;
     App.mode = m;
     stage.dataset.mode = m;
     App.emit('mode', m);
@@ -593,7 +592,7 @@
   App.idle = { home: 60, ambient: 120 };
   var idleSec = 0;
   function onIdleTick() {
-    if (App.isPhone()) return; // a phone never goes back to Today or into ambient/night on its own
+    if (!idleAllowed()) return;
     idleSec++;
     var blocked = $('#takeover').classList.contains('is-open');
     if (App.mode === 'nightdash' && idleSec >= 20) { App.setMode('night'); return; }
@@ -616,22 +615,24 @@
   // and no Photos/ambient/night. Switching layout (rotating a tablet, resizing) rebuilds the views.
   App.stage = window.Stage.fit(0, 0);
   App.isPhone = function () { return App.stage.layout === 'phone'; };
+  // The phone policy, in one place: App.go, App.setMode and the idle tick ask these, and fit()
+  // re-applies them when the layout flips mid-session.
+  function viewAllowed(name) { return !(name === 'photos' && App.isPhone()); } // no Photos on a phone
+  function modeAllowed(m) { return m === 'day' || !App.isPhone(); }               // a phone is always 'day'
+  function idleAllowed() { return !App.isPhone(); } // a phone never goes back to Today or into ambient/night on its own
   function fit() {
-    var f = window.Stage.fit(window.innerWidth, window.innerHeight, App.stage), el = $('#stage');
-    var was = App.stage.layout;
-    App.stage = f;
-    el.setAttribute('data-layout', f.layout);
-    el.style.width = f.width + 'px';
-    el.style.height = f.height + 'px';
-    el.style.transform = (f.x || f.y ? 'translate(' + f.x + 'px,' + f.y + 'px) ' : '') +
-      (Math.abs(f.scale - 1) < 0.001 ? '' : 'scale(' + f.scale + ')');
-    if (f.layout === was || !App.current) return;
-    if (App.isPhone()) {
-      if (App.mode !== 'day') App.setMode('day');
-      if (App.current === 'photos') App.go('home');
-    }
-    markStale();
-    App.rerender();
+    var next = window.Stage.fit(window.innerWidth, window.innerHeight, App.stage), el = $('#stage');
+    var prevLayout = App.stage.layout;
+    App.stage = next;
+    el.setAttribute('data-layout', next.layout);
+    el.style.width = next.width + 'px';
+    el.style.height = next.height + 'px';
+    el.style.transform = (next.x || next.y ? 'translate(' + next.x + 'px,' + next.y + 'px) ' : '') +
+      (Math.abs(next.scale - 1) < 0.001 ? '' : 'scale(' + next.scale + ')');
+    if (next.layout === prevLayout || !App.current) return;
+    if (!modeAllowed(App.mode)) App.setMode('day');
+    App.go(App.current, { rerender: true }); // rebuilt for the new layout; go's guard leaves Photos on a phone
+    markStale(); // every other view, rebuilt in the background
   }
 
   // ------------------------------------------------------------ clock tick

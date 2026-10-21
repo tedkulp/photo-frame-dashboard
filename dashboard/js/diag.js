@@ -31,7 +31,8 @@
       // Unscaled (1:1) but still centred in the window.
       var st2 = App.$('#stage');
       var unscale = function () {
-        st2.style.transform = 'translate(' + (innerWidth - App.stage.width) / 2 + 'px,' + (innerHeight - App.stage.height) / 2 + 'px)';
+        var at = window.Stage.centre(innerWidth, innerHeight, App.stage.width, App.stage.height, 1);
+        st2.style.transform = 'translate(' + at.x + 'px,' + at.y + 'px)';
       };
       unscale(); window.addEventListener('resize', unscale);
     }

@@ -208,37 +208,40 @@
   }
 
   // ------------------------------------------------------------ header
-  // The mode shown: a phone has Today (as a list), Week and Month, so a 3 Day choice shows Today
-  // there (and 3 Day again back on the frame).
-  function mode() { return V.mode === '3day' && App.isPhone() ? 'day' : V.mode; }
-  function title() {
+  // What V.mode shows on this layout: { mode, body }. The phone rule lives here only: a phone has
+  // Today (as one list, not lanes), Week and Month, so a 3 Day choice shows Today there (and 3 Day
+  // again back on the frame).
+  var BODIES = { day: dayView, '3day': threeDay, week: weekView, month: monthView };
+  function shown() {
+    var phone = App.isPhone(), m = V.mode === '3day' && phone ? 'day' : V.mode;
+    return { mode: m, body: m === 'day' && phone ? listView : BODIES[m] };
+  }
+  function title(mode) {
     var d = V.date, now = App.now();
-    if (mode() === 'day') return { k: App.fmt.month(d) + ' ' + d.getFullYear() + (App.sameDay(d, now) ? ' · Today' : ' · ' + App.fmt.rel(d)), t: App.fmt.day(d) + ' <i>' + d.getDate() + '</i>' };
-    if (mode() === '3day') { var e = App.addDays(d, 2); return { k: App.fmt.month(d) + ' ' + d.getFullYear(), t: App.fmt.dayShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.dayShort(e) + ' ' + e.getDate() }; }
-    if (mode() === 'week') { var w = App.addDays(d, 6); return { k: 'Next 7 days', t: App.fmt.monthShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
+    if (mode === 'day') return { k: App.fmt.month(d) + ' ' + d.getFullYear() + (App.sameDay(d, now) ? ' · Today' : ' · ' + App.fmt.rel(d)), t: App.fmt.day(d) + ' <i>' + d.getDate() + '</i>' };
+    if (mode === '3day') { var e = App.addDays(d, 2); return { k: App.fmt.month(d) + ' ' + d.getFullYear(), t: App.fmt.dayShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.dayShort(e) + ' ' + e.getDate() }; }
+    if (mode === 'week') { var w = App.addDays(d, 6); return { k: 'Next 7 days', t: App.fmt.monthShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
     return { k: d.getFullYear(), t: App.fmt.month(d) };
   }
-  function header() {
-    var t = title();
-    var isToday = mode() === 'month' ? (V.date.getMonth() === App.now().getMonth()) : App.sameDay(V.date, App.now());
+  function header(mode) {
+    var t = title(mode);
+    var isToday = mode === 'month' ? (V.date.getMonth() === App.now().getMonth()) : App.sameDay(V.date, App.now());
     return '<header class="cal-head">' +
       '<button class="icon-btn" data-nav="-1" aria-label="Previous">' + App.icon('left', 24) + '</button>' +
       '<div class="cal-title"><div class="serif">' + t.t + '</div><div class="label">' + t.k + '</div></div>' +
       '<button class="icon-btn" data-nav="1" aria-label="Next">' + App.icon('right', 24) + '</button>' +
       '<button class="btn btn--ghost' + (isToday ? ' is-hidden' : '') + '" data-today>Today</button>' +
       (App.hasCalendar() ? '<span class="cal-feed feed-note">' + App.feedNote() + '</span>' : '') +
-      '<div class="seg">' + MODES.map(function (m) { return '<button class="' + (mode() === m[0] ? 'is-on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="seg">' + MODES.map(function (m) { return '<button class="' + (mode === m[0] ? 'is-on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
       '<button class="fab' + (App.addBlocked() ? ' is-off' : '') + '" data-add aria-label="Add event">' + App.icon('plus', 26) + '</button>' +
       '</header>';
   }
 
   function render() {
-    var phone = App.isPhone();
+    var view = shown();
     // No data yet (first boot, server unreachable): say so instead of an empty calendar.
-    var body = App.hasCalendar()
-      ? { day: phone ? listView : dayView, '3day': threeDay, week: weekView, month: monthView }[mode()]()
-      : '<div class="cal-empty serif feed-note">' + App.feedNote() + '</div>';
-    V.el.innerHTML = '<div class="cal cal--' + mode() + '">' + header() + '<div class="cal-body">' + body + '</div></div>';
+    var body = App.hasCalendar() ? view.body() : '<div class="cal-empty serif feed-note">' + App.feedNote() + '</div>';
+    V.el.innerHTML = '<div class="cal cal--' + view.mode + '">' + header(view.mode) + '<div class="cal-body">' + body + '</div></div>';
     var sc = V.el.querySelector('.grid-scroll');
     if (sc) {
       var now = App.now();
@@ -248,8 +251,9 @@
   }
 
   function nav(dir) {
-    if (mode() === 'month') V.date = new Date(V.date.getFullYear(), V.date.getMonth() + dir, 1);
-    else V.date = App.addDays(V.date, dir * ({ day: 1, '3day': 3, week: 7 }[mode()]));
+    var mode = shown().mode;
+    if (mode === 'month') V.date = new Date(V.date.getFullYear(), V.date.getMonth() + dir, 1);
+    else V.date = App.addDays(V.date, dir * ({ day: 1, '3day': 3, week: 7 }[mode]));
     V.scroll = null;
     render();
   }

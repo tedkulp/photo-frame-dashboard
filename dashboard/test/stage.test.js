@@ -81,3 +81,8 @@ test('the phone breakpoint: narrower than 700 and taller than wide', () => {
   assert.equal(Stage.layout(1920, 1080), 'frame');
   assert.equal(Stage.layout(0, 0), 'frame');
 });
+
+test('centre places a scaled stage in the middle of the window', () => {
+  assert.deepEqual(Stage.centre(1600, 1000, 1280, 800, 1), { x: 160, y: 100 });
+  assert.deepEqual(Stage.centre(1280, 1000, 1280, 800, 0.5), { x: 320, y: 300 });
+});

@@ -23,17 +23,20 @@
   // prev: the last fit, if any. A phone stays a phone while only its height changes, so the
   // on-screen keyboard (which can leave it wider than tall) doesn't flip it to the frame stage.
   Stage.fit = function (winW, winH, prev) {
-    var keep = prev && prev.layout === 'phone' && prev.width === winW && winH > 0;
-    if (keep || Stage.layout(winW, winH) === 'phone') return { layout: 'phone', width: winW, height: winH, scale: 1, x: 0, y: 0 };
+    var stayPhone = prev && prev.layout === 'phone' && prev.width === winW && winH > 0;
+    if (stayPhone || Stage.layout(winW, winH) === 'phone') return { layout: 'phone', width: winW, height: winH, scale: 1, x: 0, y: 0 };
     if (!(winW > 0) || !(winH > 0)) return { layout: 'frame', width: Stage.MIN_WIDTH, height: Stage.HEIGHT, scale: 1, x: 0, y: 0 };
     // Rounded down so the scaled stage never runs past the window edge.
     var width = Math.floor(Stage.HEIGHT * winW / winH);
     width = Math.max(Stage.MIN_WIDTH, Math.min(Stage.MAX_WIDTH, width));
     var scale = Math.min(winW / width, winH / Stage.HEIGHT);
-    return {
-      layout: 'frame', width: width, height: Stage.HEIGHT, scale: scale,
-      x: (winW - width * scale) / 2, y: (winH - Stage.HEIGHT * scale) / 2
-    };
+    var at = Stage.centre(winW, winH, width, Stage.HEIGHT, scale);
+    return { layout: 'frame', width: width, height: Stage.HEIGHT, scale: scale, x: at.x, y: at.y };
+  };
+
+  // Where a width×height stage scaled by `scale` sits, centred in the window, in window pixels.
+  Stage.centre = function (winW, winH, width, height, scale) {
+    return { x: (winW - width * scale) / 2, y: (winH - height * scale) / 2 };
   };
 
   // Window coordinates → stage coordinates, from the stage's on-screen rect and logical width.
