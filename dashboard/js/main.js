@@ -1,5 +1,6 @@
 // Entry point. Order matters: each module attaches to the shared window.App.
 import './icons.js';
+import './stage.js';
 import './data.js';
 import './feed.js';
 import './advice.js';

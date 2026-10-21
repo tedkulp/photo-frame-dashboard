@@ -30,7 +30,8 @@
 .room-off { padding: 8px 14px; border-radius: 999px; border: 2px solid var(--ink); font-size: 14px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .room-off:active { transform: scale(.95); }
 .room-off.is-off { border-color: var(--mute); color: var(--mute); }
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+/* 4 across on a 1280-wide stage, 5 on 1422 (16:9) */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 10px; }
 .tiles--sheet { grid-template-columns: repeat(4, 1fr); max-height: 470px; overflow-y: auto; }
 .tile {
   position: relative; overflow: hidden;

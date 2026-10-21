@@ -27,7 +27,14 @@
     if (has('img')) css += 'img { visibility: hidden !important; }';
     if (has('has')) dropRules(function (t) { return t.indexOf(':has(') > -1 || t.indexOf('[style*=') > -1; });
     if (css) { var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st); }
-    if (has('scale')) { var st2 = App.$('#stage'); st2.style.transform = 'none'; window.addEventListener('resize', function () { st2.style.transform = 'none'; }); }
+    if (has('scale')) {
+      // Unscaled (1:1) but still centred in the window.
+      var st2 = App.$('#stage');
+      var unscale = function () {
+        st2.style.transform = 'translate(' + (innerWidth - App.stage.width) / 2 + 'px,' + (innerHeight - App.stage.height) / 2 + 'px)';
+      };
+      unscale(); window.addEventListener('resize', unscale);
+    }
   }
 
   function ua() {
@@ -86,7 +93,7 @@
       if (window.__diagPause) return;
       var fr = S.frames.slice(-90), avg = fr.reduce(function (a, b) { return a + b; }, 0) / (fr.length || 1);
       var stage = App.$('#stage');
-      var scale = stage.getBoundingClientRect().width / 1280;
+      var scale = stage.getBoundingClientRect().width / App.stage.width; // 1 under ?diag&exp=scale
       var imgs = Array.prototype.filter.call(document.images, function (i) { return i.naturalWidth; });
       var mpx = imgs.reduce(function (s, i) { return s + i.naturalWidth * i.naturalHeight; }, 0) / 1e6;
       var mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB' : 'n/a';
