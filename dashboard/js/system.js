@@ -10,7 +10,8 @@
   // For real alerts (e.g. a Home Assistant doorbell): App.takeover(html, cls) fills #takeover with
   // the caller's HTML (cls adds a class for its own styles), closes any sheet, switches to day mode
   // and returns the element so the caller can wire its buttons; idle pauses while it's open.
-  // App.closeTakeover() closes it. Shared button styles: .tk-actions, .tk-btn (--solid, .is-on).
+  // App.closeTakeover() closes it. Shared button styles: .tk-actions, .tk-btn (--solid, .is-on);
+  // App.hold(el, ms, { done, cancel }) makes a hold-to-confirm button (.is-holding while held).
   function takeover(html, cls) {
     var el = $('#takeover');
     el.className = 'takeover ' + (cls || '');

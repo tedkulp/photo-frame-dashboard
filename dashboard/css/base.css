@@ -69,7 +69,6 @@ ul { margin: 0; padding: 0; list-style: none; }
 .rail-item:active { background: var(--paper-2); }
 .rail-item.is-active:active { background: var(--ink-2); }
 .rail-clock { margin-top: auto; padding: 10px 0; text-align: center; line-height: 1; position: relative; overflow: hidden; }
-.rail-clock.is-holding { background: var(--paper-2); }
 .rail-clock b { display: block; font-size: 24px; font-weight: 800; font-stretch: 62%; font-variant-numeric: tabular-nums; }
 .rail-clock span { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--mute); }
 
@@ -347,6 +346,7 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .stage[data-layout="phone"] .edit-sheet .big-input { height: 56px; font-size: 30px; }
 .stage[data-layout="phone"] .edit-q { flex-basis: 100%; font-size: 19px; }
 
-/* takeovers: the shared buttons */
+/* takeovers: the LIVE badge and the shared buttons */
+.stage[data-layout="phone"] .tk-live { left: 16px; top: 64px; }
 .stage[data-layout="phone"] .tk-actions { flex-wrap: wrap; gap: 10px; }
 .stage[data-layout="phone"] .tk-btn { min-height: 64px; min-width: 0; padding: 0 20px; font-size: 19px; border-radius: 18px; }
