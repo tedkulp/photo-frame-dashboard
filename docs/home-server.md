@@ -261,7 +261,8 @@ existing library; see [ADR 0004](adr/0004-photos-from-immich.md).) Add to the se
   add theirs, share the album with their Immich users.
 - Make an API key (Immich → Account settings → API keys → New API key) with the permissions
   **`album.read`** (the album and who shares it), **`asset.read`** (its photos, with their EXIF)
-  and **`asset.view`** (the preview images), and give it to the server as `IMMICH_API_KEY`, a
+  and **`asset.view`** (the preview images), plus **`user.read`** if someone who isn't one of the
+  album's users (an Immich admin, say) adds photos to it and should be credited. Give it to the server as `IMMICH_API_KEY`, a
   file named by `IMMICH_API_KEY_FILE`, or `config/immich-api-key`. The key's user must own the
   album or have it shared with them.
 - With `immich` set, a missing or empty key, a bad URL or an `albumId` that isn't an Immich id
@@ -275,7 +276,8 @@ Each image in the album becomes one photo; videos are left out. For each:
   day". Photos taken the same day are grouped, so two portraits from one day can show side by side.
 - **Place** is the city from Immich's reverse geocoding, else the state or country, else nothing.
 - **From** is the person whose `people[].immich` email matches the Immich user who uploaded it
-  (ignoring case). Anyone else's photos show with no name.
+  (ignoring case), shown as "From Alex" in the slideshow's caption. Uploaders are matched among the
+  album's users, then (with `user.read`) all Immich users; anyone else's photos show with no name.
 - **Favourite** is Immich's favourite heart; favourites come round twice as often. Tapping
   **Favourite** on the frame changes it on that frame only, until the album next changes; it never
   writes to Immich.
@@ -289,7 +291,8 @@ API (JSON is `cache-control: no-store`):
   `error`, and the frame keeps the photos it had.
 - `GET /api/photos/:id.jpg`: the photo's preview-size image (Immich's own, about 1440 px), streamed
   from Immich with the key on the server. Only photos in the album are served (any other id is
-  `404`); the browser may keep an image for an hour. Nothing is stored on the server, and the key
+  `404`; while Immich can't list the album, the last listing it gave decides); the browser may keep
+  an image for an hour. Nothing is stored on the server, and the key
   never reaches the frame.
 
 ```sh

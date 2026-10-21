@@ -166,3 +166,37 @@ test('a wrong API key is reported, not hidden', async () => {
     assert.ok(!r.text.includes('wrong-key'));
   });
 });
+
+test("an uploader who isn't an album user is found in Immich's user list, if the key may read it", async () => {
+  const assets = [asset({ ownerId: 'aaaaaaaa-0000-4000-8000-000000000009' })];
+  const admin = { id: assets[0].ownerId, email: 'SAM@example.com', name: 'Sam' };
+  await withServer({ album, assets, users: [admin] }, async ({ url }) => {
+    assert.equal((await get(url + '/api/photos')).body.photos[0].from, 'sam');
+  });
+  await withServer({ album, assets }, async ({ url, im }) => {
+    const r = await get(url + '/api/photos');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.photos[0].from, undefined);
+    assert.equal(im.requests.filter((q) => q.path === '/api/users').length, 1);
+  });
+});
+
+test('the user list is not asked for when every uploader is known', async () => {
+  await withServer({ album, assets: [asset()] }, async ({ url, im }) => {
+    await get(url + '/api/photos');
+    assert.equal(im.requests.filter((q) => q.path === '/api/users').length, 0);
+  });
+});
+
+test('while the album search fails, images of the last listing still load', async () => {
+  let t = Date.parse('2026-10-21T12:00:00Z');
+  const assets = [asset()];
+  await withServer({ album, assets, now: () => t }, async ({ url, im }) => {
+    await get(url + '/api/photos');
+    t += 10 * 60 * 1000;
+    im.failSearch = 500;
+    assert.equal((await get(url + '/api/photos')).status, 502);
+    assert.equal((await get(url + '/api/photos/' + assets[0].id + '.jpg')).status, 200);
+    assert.equal((await get(url + '/api/photos/c0000000-0000-4000-8000-000000000000.jpg')).status, 404);
+  });
+});

@@ -20,7 +20,8 @@
     return {
       date: App.fmt.month(d) + ' ' + d.getDate() + ', ' + d.getFullYear(),
       monthYear: App.fmt.month(d) + ' ' + d.getFullYear(),
-      kicker: kicker, onThisDay: onThisDay, place: p.place || '', from: App.realPerson(p.from)
+      // Only album photos credit who they're from; the mock ones never showed a name.
+      kicker: kicker, onThisDay: onThisDay, place: p.place || '', from: p.id ? App.realPerson(p.from) : null
     };
   };
 
@@ -78,12 +79,12 @@
   };
   // The photos changed (the album arrived or changed, or the mock ones came back): every show starts
   // a fresh cycle, and one showing a photo that is gone (or nothing yet) moves on now.
+  function showsGone(s) { return !s.current || s.current.photos.some(function (p) { return D.photos.indexOf(p) < 0; }); }
   App.on('photos', function () {
     shows.forEach(function (s) {
       s.queue = [];
       s.history = [];
-      var gone = !s.current || s.current.photos.some(function (p) { return D.photos.indexOf(p) < 0; });
-      if (s.running && gone) s.next();
+      if (s.running && showsGone(s)) s.next();
     });
   });
   var S = App.Slideshow.prototype;
@@ -168,6 +169,6 @@
     clearInterval(this.timer);
     this.timer = setInterval(function () { self.next(); }, this.o.interval);
   };
-  S.start = function () { this.running = true; if (!this.current) this.next(); else this.restart(); };
+  S.start = function () { this.running = true; if (showsGone(this)) this.next(); else this.restart(); };
   S.stop = function () { this.running = false; clearInterval(this.timer); this.timer = null; };
 })();

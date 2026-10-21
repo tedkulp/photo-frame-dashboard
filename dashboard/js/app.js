@@ -70,15 +70,14 @@
     size = size || 24;
     return '<svg class="i ' + (cls || '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (window.ICONS[name] || '') + '</svg>';
   };
-  App.person = function (id) {
-    if (id === 'family' || id === window.Chores.ANYONE) return D.family;
-    for (var i = 0; i < D.people.length; i++) if (D.people[i].id === id) return D.people[i];
-    return D.family;
-  };
   // The person with this id, or null (no "Family" stand-in): who a photo is from.
   App.realPerson = function (id) {
     for (var i = 0; i < D.people.length; i++) if (D.people[i].id === id) return D.people[i];
     return null;
+  };
+  App.person = function (id) {
+    if (id === 'family' || id === window.Chores.ANYONE) return D.family;
+    return App.realPerson(id) || D.family;
   };
   App.peopleIds = function () { return D.people.map(function (p) { return p.id; }); };
   // Equal grid columns, one per lane, however many people there are.

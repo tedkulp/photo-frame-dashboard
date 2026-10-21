@@ -277,11 +277,12 @@ export async function fakeHomeAssistant(entities, { token = 'ha-token', home = {
 // Fake Immich. `album` is the album's GET body ({ id, albumName, albumUsers: [{ user: { id, email },
 // role }] }); `assets` its assets (AssetResponseDto with exifInfo), returned by POST
 // /api/search/metadata for that album id, `pageSize` at a time (Immich's nextPage paging). Asset
-// thumbnails answer with 'jpeg:<id>' bytes. Only `apiKey` (x-api-key) is accepted. Set `fail` to an
-// HTTP status to make every call fail. Records every request in `requests`.
-export async function fakeImmich({ album, assets = [], apiKey = 'immich-key', pageSize = 1000 } = {}) {
+// thumbnails answer with 'jpeg:<id>' bytes. GET /api/users answers `users`, or 403 (no user.read)
+// without them. Only `apiKey` (x-api-key) is accepted. Set `fail` to an HTTP status to make every
+// call fail, or `failSearch` to fail only the album search. Records every request in `requests`.
+export async function fakeImmich({ album, assets = [], users, apiKey = 'immich-key', pageSize = 1000 } = {}) {
   const requests = [];
-  const state = { fail: null };
+  const state = { fail: null, failSearch: null };
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     let body = '';
@@ -299,7 +300,11 @@ export async function fakeImmich({ album, assets = [], apiKey = 'immich-key', pa
       if (!album || decodeURIComponent(al[1]) !== album.id) return send(400, { message: 'Not found or no album.read access', statusCode: 400 });
       return send(200, album);
     }
+    if (url.pathname === '/api/users' && req.method === 'GET') {
+      return users ? send(200, users) : send(403, { message: 'Missing required permission: user.read', statusCode: 403 });
+    }
     if (url.pathname === '/api/search/metadata' && req.method === 'POST') {
+      if (state.failSearch) return send(state.failSearch, { message: 'search failed', statusCode: state.failSearch });
       const q = JSON.parse(body);
       const items = album && Array.isArray(q.albumIds) && q.albumIds.includes(album.id) ? assets : [];
       const size = Math.min(q.size || 250, pageSize), page = q.page || 1;
@@ -322,6 +327,7 @@ export async function fakeImmich({ album, assets = [], apiKey = 'immich-key', pa
     apiKey,
     requests,
     set fail(status) { state.fail = status; },
+    set failSearch(status) { state.failSearch = status; },
     close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
   };
 }

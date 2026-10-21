@@ -19,24 +19,29 @@ async function readError(res) {
 }
 
 export function createImmich({ url, apiKey, pageSize = PAGE_SIZE }) {
-  async function request(path, init) {
-    let res;
+  // The timeout covers reading the whole JSON answer, but only the headers of a stream, so a large
+  // image arriving slowly isn't cut off (the server stops reading it if the frame goes away).
+  async function request(path, init, stream) {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
     try {
-      res = await fetch(url + '/api' + path, Object.assign({}, init, {
+      const res = await fetch(url + '/api' + path, Object.assign({}, init, {
         headers: Object.assign({ 'x-api-key': apiKey, accept: 'application/json' }, init && init.headers),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: abort.signal,
       }));
+      if (!res.ok) throw new ImmichError(`Immich ${path.split('?')[0]}: ${res.status} ${await readError(res)}`);
+      return stream ? res : await res.json();
     } catch (e) {
-      throw new ImmichError(`Immich: ${e.message}`);
+      if (e instanceof ImmichError) throw e;
+      throw new ImmichError(`Immich: ${abort.signal.aborted ? 'timed out' : e.message}`);
+    } finally {
+      clearTimeout(timer);
     }
-    if (!res.ok) throw new ImmichError(`Immich ${path.split('?')[0]}: ${res.status} ${await readError(res)}`);
-    return res;
   }
-  const json = async (path, init) => (await request(path, init)).json();
 
   // The album (name, albumUsers with each user's id and email), without its asset list.
   function album(id) {
-    return json('/albums/' + encodeURIComponent(id) + '?withoutAssets=true');
+    return request('/albums/' + encodeURIComponent(id) + '?withoutAssets=true');
   }
 
   // Every asset in the album, with EXIF, one search page at a time.
@@ -44,7 +49,7 @@ export function createImmich({ url, apiKey, pageSize = PAGE_SIZE }) {
     const out = [];
     let page = 1;
     for (let n = 0; n < PAGES_MAX && page; n++) {
-      const body = await json('/search/metadata', {
+      const body = await request('/search/metadata', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ albumIds: [albumId], withExif: true, size: pageSize, page }),
@@ -57,10 +62,15 @@ export function createImmich({ url, apiKey, pageSize = PAGE_SIZE }) {
     return out;
   }
 
-  // The asset's preview-size image as a fetch Response (body not read yet, for streaming).
-  function preview(id) {
-    return request('/assets/' + encodeURIComponent(id) + '/thumbnail?size=preview', { headers: { accept: 'image/*' } });
+  // Every user's { id, email, name }: needs the key's user.read permission.
+  function users() {
+    return request('/users');
   }
 
-  return { album, assets, preview };
+  // The asset's preview-size image as a fetch Response (body not read yet, for streaming).
+  function preview(id) {
+    return request('/assets/' + encodeURIComponent(id) + '/thumbnail?size=preview', { headers: { accept: 'image/*' } }, true);
+  }
+
+  return { album, assets, users, preview };
 }

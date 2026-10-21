@@ -212,8 +212,9 @@ async function sendPhoto(res, photos, id) {
   }
   if (!upstream) return sendJson(res, 404, { error: 'No such photo' });
   const headers = { 'content-type': upstream.headers.get('content-type') || 'image/jpeg', 'cache-control': 'private, max-age=3600' };
+  // fetch has already undone any content-encoding, so Immich's length only holds without one.
   const length = upstream.headers.get('content-length');
-  if (length) headers['content-length'] = length;
+  if (length && !upstream.headers.get('content-encoding')) headers['content-length'] = length;
   res.writeHead(200, headers);
   const body = Readable.fromWeb(upstream.body);
   body.on('error', (e) => { console.error('[photo]', e.message); res.destroy(); });

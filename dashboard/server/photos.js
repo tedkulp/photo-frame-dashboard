@@ -51,9 +51,10 @@ export function mapAsset(asset, owners) {
   return photo;
 }
 
-// Immich user id → person id, through the users' emails: the album's users (owner first) and any
-// owner Immich included on an asset, matched to people[].immich ignoring case.
-export function ownerMap(album, assets, people) {
+// Immich user id → person id, through the users' emails: the album's users (owner first), any
+// owner Immich included on an asset and `users` (Immich's user list, when it could be read),
+// matched to people[].immich ignoring case.
+export function ownerMap(album, assets, people, users) {
   const byEmail = new Map(people.filter((p) => p.immich).map((p) => [p.immich.toLowerCase(), p.id]));
   const out = new Map();
   const add = (user) => {
@@ -63,16 +64,24 @@ export function ownerMap(album, assets, people) {
   if (album && album.owner) add(album.owner); // Immich before 3.0
   for (const u of (album && album.albumUsers) || []) add(u && u.user);
   for (const a of assets) add(a && a.owner);
+  for (const u of users || []) add(u);
   return out;
 }
 
 export function createPhotos({ immich, albumId, people, now = Date.now, cacheMs = CACHE_MS }) {
   let cached = null; // { at, photos, ids, updatedAt }
+  let lastGood = null; // the last listing read, kept for the image allowlist while Immich fails
   let loading = null;
 
   async function fetchListing() {
     const [album, assets] = await Promise.all([immich.album(albumId), immich.assets(albumId)]);
-    const owners = ownerMap(album, assets, people);
+    let owners = ownerMap(album, assets, people);
+    // An uploader who isn't one of the album's users (an Immich admin adding to it, say) is looked up
+    // in Immich's user list, if the key may read it; otherwise they get no credit.
+    if (assets.some((a) => a && a.type === 'IMAGE' && !owners.has(a.ownerId)) && people.some((p) => p.immich)) {
+      const users = await immich.users().catch(() => null);
+      if (Array.isArray(users)) owners = ownerMap(album, assets, people, users);
+    }
     const photos = assets.map((a) => mapAsset(a, owners)).filter(Boolean);
     const t = now();
     return { at: t, photos, ids: new Set(photos.map((p) => p.id)), updatedAt: new Date(t).toISOString() };
@@ -83,7 +92,7 @@ export function createPhotos({ immich, albumId, people, now = Date.now, cacheMs 
   function listing() {
     if (cached && now() - cached.at < cacheMs) return Promise.resolve(cached);
     if (!loading) {
-      loading = fetchListing().then((l) => { cached = l; return l; }).finally(() => { loading = null; });
+      loading = fetchListing().then((l) => { cached = lastGood = l; return l; }).finally(() => { loading = null; });
     }
     return loading;
   }
@@ -93,9 +102,11 @@ export function createPhotos({ immich, albumId, people, now = Date.now, cacheMs 
     return { configured: true, photos: l.photos, updatedAt: l.updatedAt };
   }
 
-  // The preview image of an asset in the album as a fetch Response, or null for any other id.
+  // The preview image of an asset in the album as a fetch Response, or null for any other id. While
+  // the listing can't be read, the last one read decides, so the frame's photos keep loading if only
+  // the album search is failing.
   async function image(id) {
-    const l = await listing();
+    const l = await listing().catch((e) => { if (lastGood) return lastGood; throw e; });
     return l.ids.has(id) ? immich.preview(id) : null;
   }
 
