@@ -123,7 +123,7 @@ The response, for the Today card and the Weather page:
 {
   "configured": true,
   "now": { "temp": 49, "cond": "sun", "feels": 40, "humidity": 56, "wind": 11, "gust": 23,
-           "bearing": 6, "uv": 0, "sunrise": "2026-10-22T11:17:55+00:00", "sunset": "2026-10-21T22:10:38+00:00" },
+           "bearing": 6, "uv": 0, "sunrise": "2026-10-22T11:30:00+00:00", "sunset": "2026-10-21T22:30:00+00:00" },
   "hourly": [{ "at": "2026-10-21T11:00:00+00:00", "temp": 48, "cond": "moon", "pop": 0, "wind": 9, "bearing": 20, "humidity": 76 }],
   "daily": [{ "at": "2026-10-21T04:00:00+00:00", "hi": 64, "lo": 46, "cond": "sun", "pop": 0, "wind": 8, "gust": 14, "bearing": 18, "humidity": 60 }],
   "updatedAt": "2026-10-21T11:50:02.000Z"
