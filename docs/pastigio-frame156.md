@@ -403,3 +403,63 @@ not listening. **mDNS `.local` names do not resolve** on this Android 8.1 build
 Assistant dashboard over plain `http://` loaded in the kiosk on WebView 106.
 
 Motion/PIR, loader mode, firmware restore and a WebView upgrade were not tested on this unit.
+
+## Fifth unit: firmware v2026051219, tested on Linux (2026-10-20)
+
+Another `FRAME156` on the same firmware as the
+[fourth unit](#fourth-unit-firmware-v2026051219-tested-on-macos-2026-10-18). Host: CachyOS Linux
+(kernel 7.2), ADB 1.0.41 (`37.0.0-android-tools`), USB direct to the PC.
+
+| Observation | Value |
+| --- | --- |
+| Model / firmware | `FRAME156`, `FrameO.DP105F.v2026051219` |
+| Fingerprint | `rockchip/rk3326_32bit/rk3326_32bit:8.1.0/OC/192521:user/release-keys` |
+| USB (ADB) | `2218:0006`, vendor string `rockchip`, product `FRAME156` (same as the fourth unit) |
+| Frameo | Updated itself to `v1.32.16_-_OTA_test` under `/data/app` while ADB was being set up (see below) |
+| Launcher3, SystemUI | Already disabled when received |
+| WebView | `com.android.webview` 106.0.5249.126 |
+| Root / SELinux | Shipped `su -c id` gives uid 0 without a prompt; `Permissive`; security patch 2020-11-05 |
+| Display | 1920x1080, density 170 |
+| Partitions | p1-p15 identical to the [table above](#partition-table-emmc-mmcblk2-512-byte-sectors); `userdata` is 55,458,752 sectors, as on the fourth unit |
+
+### ADB authorization
+
+With ADB Access on, the host showed `unauthorized`. `adb kill-server` and `adb start-server` alone
+did not change it. The owner then turned ADB Access off and on with the cable in; no prompt was
+recorded. At the same time Frameo was installing an app update and the frame rebooted itself
+(uptime 39 s shortly after). After another server restart the state was `device` straight away.
+Because the toggle and the self-reboot happened together, which of them mattered is not known.
+No key injection or loader was needed.
+
+The firmware string and `/cache/recovery` were unchanged after that reboot (empty `last_install`),
+so the update was the Frameo app only, not a system OTA.
+
+### Backup of everything before userdata (verified)
+
+Wi-Fi was turned off (`svc wifi disable`) before the backup. A 1 MiB probe from sector 0 matched
+its device-side SHA-256. Sectors 0-5,612,544 were then captured with the
+[fourth unit's method](#backup-of-everything-before-userdata-verified) (`bs=262144 count=10962`,
+`base64 -d` on Linux) in about 10 minutes (568 MB gzipped). The gzip readback was exactly
+2,873,622,528 bytes and its SHA-256 matched a separate device-side read of the same range. No 1 MiB
+block was entirely `0xCC`. Per-partition SHA-256 reads on the device matched the backup slices for
+p1-p15 except `oem`, which differed in exactly one byte at partition offset `0x1702b` (`0x00` in
+the backup, `0x02` live), the same journal byte as on every earlier unit. `userdata`,
+`mmcblk2boot0/1` and `rpmb` were not captured. Restore was not tested.
+
+### Kiosk, Frameo and reboot
+
+`com.muxintu.app.mxota` was disabled with `pm disable-user --user 0` before Wi-Fi came back on.
+The kiosk was built with JDK 17, build-tools 34.0.0 and platform android-34 (Arch packages
+`jdk17-openjdk` and `android-sdk-cmdline-tools-latest`; `sudo sdkmanager` left the SDK binaries
+owner-only, fixed with `chmod -R a+rX /opt/android-sdk`). It was installed, given a LAN IP URL with
+`scripts/set-kiosk-url.sh`, and made Home with the
+[kiosk README](../dashboard/kiosk/README.md#start-at-boot) order. The two-finger hold ->
+**Android settings** was checked on the panel before anything else was disabled.
+
+After a 30 s wait and `adb reboot`, the frame booted into the kiosk and ADB was back in about 24 s
+**without replugging USB**. Frameo was still enabled then and was running in the background, not
+in front. `net.frameo.frame` was then disabled, and after another 30 s wait and reboot (ADB back in
+about 30 s) the kiosk was in front and neither Frameo nor the OTA app was running.
+
+Network ADB (port 5555) was not listening and no `adb.tcp.port` property was set. Motion/PIR,
+loader mode, firmware restore and a WebView upgrade were not tested on this unit.
