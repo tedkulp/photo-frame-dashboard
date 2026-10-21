@@ -6,6 +6,9 @@ closer fingers as one touch.
 
 - **Open launcher** opens another installed Home app, such as Rootless Launcher.
   If none is available, it opens Android Settings.
+- **Open browser** opens another installed browser, such as Firefox, at its start page. Back
+  from the browser's start page returns to the dashboard (seen on a FRAME156 with Firefox 143).
+  If none is installed, it shows "No browser installed".
 - **Android settings** opens the device's Settings app.
 - **Wi-Fi settings** opens Android's Wi-Fi list directly.
 - **Reload dashboard** reloads the current URL.

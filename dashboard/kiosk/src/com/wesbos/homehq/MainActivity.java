@@ -37,6 +37,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -46,7 +47,7 @@ import java.util.Map;
 /**
  * Full-screen kiosk WebView for the Home HQ wall tablet.
  * - Immersive mode hides the status + navigation bars (true 1280x800).
- * - Controls: hold two fingers still on the screen for 1.5s for launcher/settings/Wi-Fi/reload.
+ * - Controls: hold two fingers still on the screen for 1.5s for launcher/browser/settings/Wi-Fi/reload.
  * - Offline: a failed page load shows a native screen instead of WebView's error page (which
  *   prints the full URL, including any token in it). With no Wi-Fi it offers Wi-Fi settings.
  * - Remote debugging is OFF unless launched with the debug extra (every app on this device
@@ -137,11 +138,13 @@ public class MainActivity extends Activity {
       cancelPageTouches();
       new AlertDialog.Builder(MainActivity.this)
           .setTitle("Home HQ")
-          .setItems(new String[] {"Open launcher", "Android settings", "Wi-Fi settings", "Reload dashboard"},
+          .setItems(new String[] {"Open launcher", "Open browser", "Android settings", "Wi-Fi settings",
+                  "Reload dashboard"},
               (dialog, which) -> {
                 if (which == 0) openLauncher();
-                else if (which == 1) startActivity(new Intent(Settings.ACTION_SETTINGS));
-                else if (which == 2) openWifiSettings();
+                else if (which == 1) openBrowser();
+                else if (which == 2) startActivity(new Intent(Settings.ACTION_SETTINGS));
+                else if (which == 3) openWifiSettings();
                 else web.reload();
               })
           .setNegativeButton("Back to dashboard", null).show();
@@ -505,6 +508,20 @@ public class MainActivity extends Activity {
       return;
     }
     startActivity(new Intent(Settings.ACTION_SETTINGS));
+  }
+
+  /** Starts the first other app that opens web links (the kiosk takes them too), at its own start page. */
+  private void openBrowser() {
+    Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"));
+    for (ResolveInfo info : getPackageManager().queryIntentActivities(web, 0)) {
+      String pkg = info.activityInfo.packageName;
+      if (pkg.equals(getPackageName())) continue;
+      Intent start = getPackageManager().getLaunchIntentForPackage(pkg);
+      if (start == null) continue;
+      startActivity(start);
+      return;
+    }
+    Toast.makeText(this, "No browser installed", Toast.LENGTH_LONG).show();
   }
 
   @Override
