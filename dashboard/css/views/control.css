@@ -94,6 +94,7 @@
 /* cameras + media */
 .cams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .cam { position: relative; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 11; background: #333; color: #fff; }
+.cams.is-rows .cam { aspect-ratio: 16 / 9; } /* 3–4 cameras: a 2×2 grid that leaves room for the media card */
 .cam img { width: 100%; height: 100%; object-fit: cover; }
 .cam::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: linear-gradient(0deg, rgba(0, 0, 0, .6), rgba(0, 0, 0, 0) 55%); }
 .cam-name { position: absolute; left: 10px; bottom: 8px; z-index: 1; font-size: var(--fs-min); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
