@@ -34,7 +34,7 @@ width is kept between 1280 (narrower or portrait windows letterbox) and 1600. Th
 is `width=device-width`, so the page sees the screen's real size. Anything converting screen
 coordinates to stage coordinates must use the stage's current width (`App.stage.width`), not 1280.
 
-This was checked in desktop Chromium at 1920 × 1080 and 1280 × 800 (every view, and resizing
+This was checked in headless Chromium 149 on Linux at 1920 × 1080 and 1280 × 800 (every view, and resizing
 between the two without a reload), not yet on a FRAME156 itself.
 
 ## How the kiosk loads your site
