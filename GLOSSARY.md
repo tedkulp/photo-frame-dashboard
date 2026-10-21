@@ -62,6 +62,10 @@ _Avoid_: In, present
 A family member Home Assistant knows is somewhere other than home. When Home Assistant doesn't know, the person is neither home nor away.
 _Avoid_: Out, absent, not home
 
+**Phone layout**:
+How the dashboard arranges itself on a phone held upright: one scrolling column per page and a tab bar at the bottom, with no Photos, ambient or night mode. Everywhere else it shows the frame's landscape layout, scaled to fit.
+_Avoid_: Mobile view, responsive mode
+
 ### Chores
 
 **Chore**:

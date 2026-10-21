@@ -330,3 +330,73 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 }
 .diag b { color: #fff; }
 .diag u { text-decoration: none; color: #aaa; }
+
+/* ---------------------------------------------------------------- phone layout (stage.js) */
+/* A portrait phone: the stage is the window at native CSS pixels (fit() sets its size, no scale).
+   A compact top bar holds the clock, the rail becomes a bottom tab bar without Photos, and each
+   view scrolls vertically in one column. Same tokens, type and cards; only the arrangement moves.
+   Each view's own phone rules sit at the end of its css/views file. */
+.stage[data-layout="phone"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr) auto; }
+.stage[data-layout="phone"] > .views { grid-row: 2; }
+.stage[data-layout="phone"] > .rail {
+  grid-row: 3; flex-direction: row; padding: 0;
+  border-right: 0; border-top: 2px solid var(--ink);
+}
+.stage[data-layout="phone"] .rail-item { flex: 1; min-width: 0; height: 60px; gap: 3px; font-size: 10px; letter-spacing: .04em; }
+.stage[data-layout="phone"] .rail-item .i { width: 24px; height: 24px; }
+.stage[data-layout="phone"] .rail-item[data-go="photos"] { display: none; }
+.stage[data-layout="phone"] .rail-clock {
+  position: absolute; left: 0; right: 0; top: 0; height: 48px; margin: 0; padding: 11px 16px 0;
+  display: flex; align-items: baseline; justify-content: center; gap: 6px;
+  background: var(--paper); border-bottom: 2px solid var(--ink);
+}
+.stage[data-layout="phone"] .rail-clock b { display: inline; font-size: 26px; }
+.stage[data-layout="phone"] .view { padding: 16px 16px 28px; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.stage[data-layout="phone"] .view--bleed { padding: 0; }
+
+/* controls: wrap instead of running off the side, keep tap targets at 44 px or more */
+.stage[data-layout="phone"] .seg { max-width: 100%; flex-wrap: wrap; }
+.stage[data-layout="phone"] .seg button { min-height: 44px; padding: 0 14px; font-size: 15px; }
+.stage[data-layout="phone"] .btn { min-height: 48px; padding: 0 18px; font-size: 16px; }
+.stage[data-layout="phone"] .icon-btn { width: 48px; height: 48px; }
+.stage[data-layout="phone"] .fab { width: 56px; height: 56px; }
+.stage[data-layout="phone"] .chip { min-height: 44px; padding: 0 14px; font-size: 16px; }
+
+/* toasts sit above the tab bar, banners below the top bar */
+.stage[data-layout="phone"] .toasts { left: 8px; right: 8px; bottom: 74px; }
+.stage[data-layout="phone"] .toast { min-height: 56px; max-width: 100%; padding-left: 16px; font-size: 17px; }
+.stage[data-layout="phone"] .toast-msg { padding: 12px 8px 12px 0; }
+.stage[data-layout="phone"] .toast-undo { min-height: 44px; padding: 0 14px; font-size: 15px; }
+.stage[data-layout="phone"] .banners { top: 8px; left: 8px; right: 8px; }
+.stage[data-layout="phone"] .banner { flex-wrap: wrap; gap: 10px; padding: 10px 12px 10px 16px; }
+.stage[data-layout="phone"] .banner-text { min-width: 0; flex-basis: 60%; }
+.stage[data-layout="phone"] .banner-text b { font-size: 20px; }
+.stage[data-layout="phone"] .banner-btn { min-height: 48px; padding: 0 16px; }
+
+/* sheets: the phone's width less a margin, scrolling inside */
+.stage[data-layout="phone"] .sheet,
+.stage[data-layout="phone"] .sheet--wide { width: calc(100% - 16px); max-height: calc(100% - 16px); border-radius: 22px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.stage[data-layout="phone"] .sheet-x { right: 8px; top: 8px; width: 48px; height: 48px; }
+.stage[data-layout="phone"] .sheet-pad { padding: 22px 18px 20px; }
+.stage[data-layout="phone"] .sheet-h { font-size: 36px; margin: 4px 0 16px; padding-right: 44px; }
+.stage[data-layout="phone"] .sheet-p { font-size: 17px; }
+.stage[data-layout="phone"] .sheet-actions { flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.stage[data-layout="phone"] .edit-sheet .big-input { height: 56px; font-size: 30px; }
+.stage[data-layout="phone"] .edit-q { flex-basis: 100%; font-size: 19px; }
+
+/* takeovers (doorbell, leak) */
+.stage[data-layout="phone"] .tk-live { left: 16px; top: 64px; }
+.stage[data-layout="phone"] .tk-door { left: 16px; right: 16px; bottom: 84px; }
+.stage[data-layout="phone"] .tk-title { font-size: 48px; margin: 10px 0 20px; }
+.stage[data-layout="phone"] .tk-actions { flex-wrap: wrap; gap: 10px; }
+.stage[data-layout="phone"] .tk-btn { min-height: 64px; min-width: 0; padding: 0 20px; font-size: 19px; border-radius: 18px; }
+.stage[data-layout="phone"] .tk-alarm { left: 16px; right: 16px; top: 64px; bottom: 84px; }
+.stage[data-layout="phone"] .tk-alarm-icon { width: 110px; height: 110px; }
+.stage[data-layout="phone"] .tk-alarm-icon .i { width: 52px; height: 52px; }
+.stage[data-layout="phone"] .tk-huge { font-size: 84px; }
+.stage[data-layout="phone"] .tk-sub { font-size: 20px; margin-bottom: 20px; }
+
+/* demo drawer: full width, no Ambient/Night/idle buttons (no idle switch on a phone) */
+.stage[data-layout="phone"] .demo-panel { width: 100%; padding: 20px 16px; }
+.stage[data-layout="phone"] .demo-grid button[data-mode],
+.stage[data-layout="phone"] .demo-grid button[data-fastidle] { display: none; }

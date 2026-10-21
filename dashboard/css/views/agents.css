@@ -66,3 +66,13 @@
 .ag-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: rgba(255, 255, 255, .8); }
 .ag-legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
 .ag-legend span[style*="#111111"] i { background: #F2EEE6; }
+
+/* ---- phone layout: one scrolling column (see base.css) */
+.stage[data-layout="phone"] .agents { height: auto; }
+.stage[data-layout="phone"] .ag-top { flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.stage[data-layout="phone"] .ag-top h1 { font-size: 44px; }
+.stage[data-layout="phone"] .ag-grid { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; gap: 12px; }
+.stage[data-layout="phone"] .ag-card { overflow: visible; }
+.stage[data-layout="phone"] .ag-id { flex-wrap: wrap; gap: 4px 10px; }
+.stage[data-layout="phone"] .ag-meter-foot { flex-wrap: wrap; white-space: normal; }
+.stage[data-layout="phone"] .ag-chart { flex: none; height: 140px; }

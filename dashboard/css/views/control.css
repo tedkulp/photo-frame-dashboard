@@ -119,3 +119,25 @@
 .cam-big .tk-live { left: 20px; top: 20px; }
 .cam-big-bar .label { position: absolute; left: 24px; bottom: 20px; }
 .is-pulse { box-shadow: 0 0 0 6px var(--warm); }
+
+/* ---- phone layout: one scrolling column (see base.css) */
+.stage[data-layout="phone"] .hc { height: auto; display: flex; flex-direction: column; gap: 14px; }
+.stage[data-layout="phone"] .hc-left, .stage[data-layout="phone"] .hc-right { gap: 14px; }
+.stage[data-layout="phone"] .hc-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.stage[data-layout="phone"] .sum { min-height: 100px; }
+.stage[data-layout="phone"] .sum b { font-size: 36px; }
+.stage[data-layout="phone"] .hc-scenes { flex-wrap: wrap; gap: 8px; }
+.stage[data-layout="phone"] .scene { flex: 1 1 40%; min-height: 52px; font-size: 15px; }
+.stage[data-layout="phone"] .hc-rooms { flex: none; overflow: visible; padding-bottom: 0; }
+.stage[data-layout="phone"] .room-h h3 { font-size: 26px; }
+.stage[data-layout="phone"] .room-off { min-height: 44px; }
+.stage[data-layout="phone"] .tiles { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.stage[data-layout="phone"] .tiles--sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: none; overflow: visible; }
+.stage[data-layout="phone"] .tile { min-height: 108px; padding: 12px 14px; }
+.stage[data-layout="phone"] .th-btn { width: 64px; height: 64px; }
+.stage[data-layout="phone"] .th-set .num { font-size: 80px; }
+.stage[data-layout="phone"] .th-main--small .th-btn { width: 56px; height: 56px; }
+.stage[data-layout="phone"] .th-main--small .th-set .num { font-size: 52px; }
+.stage[data-layout="phone"] .th-now { flex-wrap: wrap; gap: 6px; }
+.stage[data-layout="phone"] .hc-media { margin-top: 0; }
+.stage[data-layout="phone"] .sheet--cam { width: calc(100% - 16px); }
