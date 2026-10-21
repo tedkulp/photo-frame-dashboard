@@ -302,7 +302,7 @@ test('the week is seven days from today', () => {
   const days = Weather.week(Weather.parse(richBody()), at(14, 30));
   assert.equal(days.length, 7);
   assert.equal(+days[0].at, +at(0));
-  assert.deepEqual(days[0], { at: days[0].at, hi: 60, lo: 40, cond: 'sun', pop: 0, wind: 5, gust: 15, dir: 'E', wet: false });
+  assert.deepEqual(days[0], { at: days[0].at, hi: 60, lo: 40, cond: 'sun', pop: 0, wind: 5, dir: 'E', wet: false });
   assert.deepEqual([days[1].cond, days[1].pop, days[1].wet], ['rain', 10, false]);
   assert.equal(days[5].wet, true);
   assert.equal(+days[6].at, +new Date(2026, 9, 25));

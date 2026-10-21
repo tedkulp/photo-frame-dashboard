@@ -116,12 +116,12 @@
     };
   };
 
-  // The Weather page's week: up to seven days from today, each
-  // { at, hi, lo, cond, pop, wind, gust, dir, wet }.
+  // The Weather page's week: up to seven days from today, each { at, hi, lo, cond, pop, wind, dir, wet }
+  // (wet: the day's chance of precipitation reaches the wet-hour threshold).
   Weather.week = function (data, now) {
     var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return data.daily.filter(function (d) { return d.at >= start; }).slice(0, 7).map(function (d) {
-      return { at: d.at, hi: d.hi, lo: d.lo, cond: d.cond, pop: d.pop, wind: d.wind, gust: d.gust, dir: Weather.compass(d.bearing), wet: d.pop >= root.Advice.WET };
+      return { at: d.at, hi: d.hi, lo: d.lo, cond: d.cond, pop: d.pop, wind: d.wind, dir: Weather.compass(d.bearing), wet: d.pop >= root.Advice.WET };
     });
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -4,11 +4,13 @@
 (function () {
   'use strict';
   var V = {};
-  var HOUR_W = 64; // frame: one hourly column per this many px of width, 12–24 of them
+  var HOUR_W = 64; // frame: one hourly column per this many px of the view's width, 12–24 of them
 
   function hourCount() {
     if (App.isPhone()) return 24;
-    return Math.max(12, Math.min(24, Math.floor((App.stage.width - 76 - 48) / HOUR_W)));
+    var cs = getComputedStyle(V.el);
+    var inner = V.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return Math.max(12, Math.min(24, Math.floor(inner / HOUR_W)));
   }
 
   function uvWord(uv) {
@@ -47,7 +49,7 @@
   function hours(w) {
     var list = w.hours;
     return '<div class="label">Next hours</div>' +
-      '<div class="wx-strip" style="grid-template-columns:repeat(' + list.length + ', minmax(0, 1fr))">' + list.map(function (h) {
+      '<div class="wx-strip" style="--hours:' + list.length + '">' + list.map(function (h) {
         return '<div class="wx-hr' + (h.wet ? ' is-wet' : '') + '"><span class="wx-hr-l">' + h.label + '</span>' +
           '<span class="wx-hr-i">' + App.icon(h.cond, 28) + '</span><b class="num">' + h.temp + '°</b>' +
           '<span class="wx-hr-pop">' + (h.pop ? h.pop + '%' : '') + '</span>' +
@@ -61,7 +63,7 @@
     var max = Math.max.apply(null, days.map(function (d) { return d.hi; }));
     var span = Math.max(1, max - min);
     return '<div class="label">This week</div><div class="wx-days">' + days.map(function (d) {
-      var left = (d.lo - min) / span * 100, width = Math.max(4, (d.hi - d.lo) / span * 100);
+      var width = Math.max(4, (d.hi - d.lo) / span * 100), left = Math.min((d.lo - min) / span * 100, 100 - width);
       return '<div class="wx-day' + (d.wet ? ' is-wet' : '') + '">' +
         '<b class="wx-day-n">' + (App.sameDay(d.at, App.now()) ? 'Today' : App.fmt.dayShort(d.at)) + '</b>' +
         '<span class="wx-day-i">' + App.icon(d.cond, 30) + '</span>' +
@@ -75,8 +77,7 @@
   }
 
   function paint() {
-    var el = V.el, w = App.weatherNow(hourCount()), note = App.weatherNote();
-    V.width = App.stage.width;
+    var el = V.el, w = App.weatherNow(V.hours = hourCount()), note = App.weatherNote();
     if (!w) {
       el.innerHTML = '<div class="wx wx--none"><span class="wx-icon">' + App.icon('cloud', 96) + '</span><p class="wx-say">' + note + '</p></div>';
       return;
@@ -96,5 +97,5 @@
   App.on('minute', function (n) { if (n.getMinutes() === 0 || App.weatherNote()) repaint(); });
   App.on('weatherstate', repaint);
   // How many hours fit follows the stage's width.
-  App.on('stage', function () { if (V.el && V.width !== App.stage.width) repaint(); });
+  App.on('stage', function () { if (V.el && V.hours !== hourCount()) repaint(); });
 })();

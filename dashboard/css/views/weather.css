@@ -36,16 +36,16 @@
 .wx-day:first-child { border-top: 2px solid var(--ink); }
 .wx-day-n { font-size: 20px; font-weight: 800; font-stretch: 80%; text-transform: uppercase; letter-spacing: .05em; }
 .wx-day-i { display: grid; place-items: center; }
-.wx-day-pop, .wx-hr-pop { font-size: 16px; font-weight: 800; color: #1F6FEB; font-variant-numeric: tabular-nums; }
+.wx-day-pop, .wx-hr-pop { font-size: 16px; font-weight: 800; color: var(--wet); font-variant-numeric: tabular-nums; }
 .wx-day-lo, .wx-day-hi { font-size: 26px; text-align: right; }
 .wx-day-lo { color: var(--mute); }
 .wx-bar { position: relative; height: 8px; border-radius: 4px; background: var(--paper-2); }
 .wx-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--ink); }
 .wx-day-wind, .wx-hr-wind { font-size: 15px; font-weight: 700; color: var(--ink-2); white-space: nowrap; text-align: right; }
-.wx-day.is-wet .wx-day-i, .wx-hr.is-wet .wx-hr-i { color: #1F6FEB; }
+.wx-day.is-wet .wx-day-i, .wx-hr.is-wet .wx-hr-i { color: var(--wet); }
 
 /* ---- next hours */
-.wx-strip { display: grid; }
+.wx-strip { display: grid; grid-template-columns: repeat(var(--hours), minmax(0, 1fr)); }
 .wx-hr { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
 .wx-hr-l { font-size: var(--fs-min); font-weight: 700; color: var(--mute); text-transform: uppercase; }
 .wx-hr-i { height: 32px; display: grid; place-items: center; }
@@ -72,7 +72,7 @@
 .stage[data-layout="phone"] .wx-tile { padding: 12px 14px; }
 .stage[data-layout="phone"] .wx-tile b { font-size: 36px; }
 .stage[data-layout="phone"] .wx-strip {
-  grid-template-columns: none !important; grid-auto-flow: column; grid-auto-columns: 56px;
+  grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 56px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding-bottom: 4px;
 }
 .stage[data-layout="phone"] .wx-days { grid-auto-rows: 56px; }

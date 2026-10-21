@@ -47,12 +47,13 @@ function toMph(unit) {
 // HA allows a bearing as degrees or a compass point; either way → whole degrees, 0–359.
 const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 function bearing(v) {
-  if (typeof v === 'string' && POINTS.indexOf(v.toUpperCase()) > -1) v = POINTS.indexOf(v.toUpperCase()) * 22.5;
+  const point = typeof v === 'string' ? POINTS.indexOf(v.toUpperCase()) : -1;
+  if (point > -1) v = point * 22.5;
   return isNum(v) ? ((Math.round(v) % 360) + 360) % 360 : undefined;
 }
 
-// Copies the fields that came out as numbers (or strings) onto `into`; missing ones stay out.
-function set(into, fields) {
+// Copies the fields that have a value onto `into`; undefined ones stay out of the response.
+function withDefined(into, fields) {
   for (const k in fields) if (fields[k] !== undefined) into[k] = fields[k];
   return into;
 }
@@ -73,7 +74,7 @@ export function createWeather({ ha, entity, now = Date.now }) {
     const fNum = (v) => (isNum(v) ? f(v) : undefined);
     const mph = toMph(a.wind_speed_unit);
     const speed = (v) => (mph && isNum(v) ? mph(v) : undefined);
-    const pop = (v) => (isNum(v) ? Math.round(v) : 0);
+    const pop = (v) => whole(v) || 0;
 
     // The forecast hour covering now gives feels-like and UV (the entity itself rarely has them).
     const cur = hourly.find((h) => {
@@ -85,7 +86,7 @@ export function createWeather({ ha, entity, now = Date.now }) {
 
     return {
       configured: true,
-      now: set({ temp: f(a.temperature), cond: condition(state.state) }, {
+      now: withDefined({ temp: f(a.temperature), cond: condition(state.state) }, {
         feels: fNum(isNum(cur.apparent_temperature) ? cur.apparent_temperature : a.apparent_temperature),
         humidity: whole(a.humidity),
         wind: speed(a.wind_speed),
@@ -95,13 +96,13 @@ export function createWeather({ ha, entity, now = Date.now }) {
         sunrise: time(s.next_rising),
         sunset: time(s.next_setting),
       }),
-      hourly: hourly.filter((h) => h.datetime && isNum(h.temperature)).slice(0, HOURS).map((h) => set({
+      hourly: hourly.filter((h) => h.datetime && isNum(h.temperature)).slice(0, HOURS).map((h) => withDefined({
         at: h.datetime,
         temp: f(h.temperature),
         cond: condition(h.condition),
         pop: pop(h.precipitation_probability),
       }, { wind: speed(h.wind_speed), bearing: bearing(h.wind_bearing), humidity: whole(h.humidity) })),
-      daily: daily.filter((d) => d.datetime && isNum(d.temperature) && isNum(d.templow)).slice(0, DAYS).map((d) => set({
+      daily: daily.filter((d) => d.datetime && isNum(d.temperature) && isNum(d.templow)).slice(0, DAYS).map((d) => withDefined({
         at: d.datetime,
         hi: f(d.temperature),
         lo: f(d.templow),
