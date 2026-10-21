@@ -177,6 +177,24 @@ test('sceneIcon maps HA mdi icons to the nearest frame icon, with a fallback', (
   assert.equal(House.sceneIcon(null), 'star');
 });
 
+// ------------------------------------------------------------ cameras
+const cam = (n, available) => ({ id: 'camera.c' + n, name: 'Cam ' + n, available: available !== false });
+
+test('cameras: up to the first four in the server\'s order, offline ones included', () => {
+  assert.equal(House.CAMERAS_MAX, 4);
+  [0, 1, 2, 3, 4].forEach((n) => {
+    const list = Array.from({ length: n }, (_, i) => cam(i + 1, i !== 1));
+    assert.deepEqual(House.cameras(House.parse(body({ cameras: list }))), list);
+  });
+  const six = [1, 2, 3, 4, 5, 6].map((n) => cam(n));
+  assert.deepEqual(House.cameras(House.parse(body({ cameras: six }))).map((c) => c.id), ['camera.c1', 'camera.c2', 'camera.c3', 'camera.c4']);
+});
+
+test('cameras of no data or an unconfigured home is none', () => {
+  assert.deepEqual(House.cameras(null), []);
+  assert.deepEqual(House.cameras({ configured: false }), []);
+});
+
 // ------------------------------------------------------------ notes
 const st = (over) => Object.assign({ status: 'ok', age: 0, stale: false, failed: false, answered: false }, over);
 
