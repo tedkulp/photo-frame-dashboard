@@ -30,6 +30,6 @@ const { server } = await startServer({
   tokenUrl: process.env.GOOGLE_TOKEN_URL || undefined,
   apiBase: process.env.GOOGLE_CALENDAR_API_URL || undefined,
 });
-console.log(`Dashboard on http://0.0.0.0:${server.address().port}/ (data: ${config.dataDir}; calendar time zone: ${config.timeZone || 'from the Family calendar'}; weather: ${config.homeAssistant ? config.homeAssistant.weatherEntity : 'not configured'}; home controls: ${config.homeAssistant ? 'label "' + config.homeAssistant.label + '"' : 'not configured'})`);
+console.log(`Dashboard on http://0.0.0.0:${server.address().port}/ (data: ${config.dataDir}; calendar time zone: ${config.timeZone || 'from the Family calendar'}; weather: ${config.homeAssistant ? config.homeAssistant.weatherEntity : 'not configured'}; home controls: ${config.homeAssistant ? 'label "' + config.homeAssistant.label + '"' : 'not configured'}; photos: ${config.immich ? 'Immich album ' + config.immich.albumId : 'not configured'})`);
 
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => server.close(() => { store.close(); process.exit(0); }));

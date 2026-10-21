@@ -75,6 +75,11 @@
     for (var i = 0; i < D.people.length; i++) if (D.people[i].id === id) return D.people[i];
     return D.family;
   };
+  // The person with this id, or null (no "Family" stand-in): who a photo is from.
+  App.realPerson = function (id) {
+    for (var i = 0; i < D.people.length; i++) if (D.people[i].id === id) return D.people[i];
+    return null;
+  };
   App.peopleIds = function () { return D.people.map(function (p) { return p.id; }); };
   // Equal grid columns, one per lane, however many people there are.
   App.cols = function (n) { return 'repeat(' + Math.max(1, n) + ', minmax(0, 1fr))'; };
@@ -127,14 +132,12 @@
   };
 
   // ------------------------------------------------------------ calendar feed (home server)
-  // People + events from GET /api/calendar (feed.js). The first real people list also hands the
-  // still-mock photos to them by position.
-  var owners = D.mockIds;
+  // People + events from GET /api/calendar (feed.js). The real people list also hands the mock
+  // photos to them by position, while those are the ones showing (see usePhotos).
   function onFeed(d) {
-    var ids = d.people.map(function (p) { return p.id; }); // D.people is still the old list here
-    if (ids.join() !== owners.join()) { window.Feed.remap(D, owners, ids); owners = ids; }
     D.people = d.people;
     D.events = d.events;
+    usePhotos();
     App.emit('feed');
   }
   App.hasCalendar = function () { return !!App.feed && App.feed.state().status === 'ok'; };
@@ -183,6 +186,25 @@
     if (!App.weatherNow()) return 'Weather unavailable';
     return s.stale ? 'Weather from ' + App.fmt.mins(Math.floor(s.age / 60) * 60) + ' ago' : '';
   };
+
+  // ------------------------------------------------------------ photos feed (home server)
+  // The Immich album from GET /api/photos (photos.js), on the calendar feed's loop. Once the server
+  // has an album its photos replace the mock ones everywhere; without one (or before the first
+  // answer) the mock photos show, handed to the real people by position.
+  var album = null, owners = D.mockIds;
+  function usePhotos() {
+    var ids = App.peopleIds(), was = D.photos;
+    if (album) D.photos = album;
+    else {
+      if (ids.length && ids.join() !== owners.join()) { D.mockPhotos = window.Feed.remap(D.mockPhotos, owners, ids); owners = ids; }
+      D.photos = D.mockPhotos;
+    }
+    if (D.photos !== was) App.emit('photos');
+  }
+  function onPhotos(d) {
+    album = d.configured ? d.photos : null;
+    usePhotos();
+  }
 
   // ------------------------------------------------------------ chores feed (home server)
   // Chores from GET /api/chores (chores.js), on the calendar feed's loop every 30 s.
@@ -698,6 +720,14 @@
       onChange: onWeather, onState: function () { App.emit('weatherstate'); }, onError: function (e) { console.error('[weather]', e); }
     });
     App.weatherFeed.start();
+    App.photosFeed = window.Feed.create({
+      url: '/api/photos', cacheKey: 'homehq.photos', refresh: window.Photos.REFRESH, stale: window.Photos.STALE,
+      parse: window.Photos.parse, changeKey: window.Photos.changeKey,
+      fetch: window.fetch.bind(window), storage: storage,
+      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
+      onChange: onPhotos, onError: function (e) { console.error('[photos]', e); }
+    });
+    App.photosFeed.start();
     App.choresFeed = window.Feed.create({
       url: '/api/chores', cacheKey: 'homehq.chores', refresh: window.Chores.REFRESH, stale: window.Chores.STALE,
       parse: window.Chores.parse, changeKey: window.Chores.changeKey,

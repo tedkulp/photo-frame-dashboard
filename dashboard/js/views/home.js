@@ -155,7 +155,7 @@
 
   function photoCaption(s) {
     var m = App.photoMeta(s.photos[0]);
-    V.el.querySelector('.h-photo-cap').innerHTML = '<b>' + (m.onThisDay ? 'On this day · ' : '') + m.kicker + '</b><span>' + App.esc(m.place) + '</span>';
+    V.el.querySelector('.h-photo-cap').innerHTML = window.Photos.tileCaption(m);
   }
 
   // The photo tile is hidden in the phone layout (no Photos there), so it doesn't load photos.

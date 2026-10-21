@@ -3,8 +3,8 @@
 The dashboard takes its family (names, colours) and its calendar from this server's
 `GET /api/calendar`, adds events through it, and takes the weather from your Home Assistant
 through `GET /api/weather`. Home controls and the Today page's Home card show and change the
-Home Assistant entities you label for the frame, through `GET /api/home`; shopping and photos are
-still mock data. `dashboard/server/` is a small Node server for an
+Home Assistant entities you label for the frame, through `GET /api/home`, and the photos from one
+Immich album through `GET /api/photos`; shopping is still mock data. `dashboard/server/` is a small Node server for an
 always-on machine at home (in Docker) that serves the built dashboard and a calendar API from one
 address on your LAN:
 
@@ -28,6 +28,8 @@ address on your LAN:
   `502` with a JSON `error`.
 - `GET /api/home` and its actions: Home controls from Home Assistant, see
   [Home controls](#home-controls-from-home-assistant-optional).
+- `GET /api/photos` and `GET /api/photos/:id.jpg`: the photos from one Immich album, see
+  [Photos](#photos-from-immich-optional).
 - `GET /api/version` returns `{ build }`: the id `npm run build` stamped into the `dist` being
   served (`dist/version.json`), or `{ build: null }` without one. Sent `Cache-Control: no-store`.
   The dashboard uses it to [reload itself after an update](#updates-reload-the-dashboard).
@@ -83,6 +85,9 @@ Copy [`dashboard/settings.example.json`](../dashboard/settings.example.json) and
   Assistant `person.*` entity, e.g. `"homeAssistant": "person.alex"`, so their avatar shows
   whether they are home (see [presence](#home-controls-from-home-assistant-optional)). Anything
   that isn't a `person.*` id stops startup with a message naming the person.
+- `people[].immich` (optional, needs `immich` below) is the email of that person's Immich user,
+  e.g. `"immich": "alex@example.com"`, so the photos they uploaded to the album are credited to
+  them (see [Photos](#photos-from-immich-optional)).
 
 The server looks for each item in this order: the inline variable, then the path variable, then
 the default file (relative to the folder it runs in; `/app` in Docker).
@@ -92,6 +97,7 @@ the default file (relative to the folder it runs in; `/app` in Docker).
 | People + calendars | `DASHBOARD_SETTINGS_JSON` | `DASHBOARD_SETTINGS_FILE` | `config/settings.json` |
 | Service-account key | `GOOGLE_SERVICE_ACCOUNT_JSON` | `GOOGLE_SERVICE_ACCOUNT_FILE` | `config/service-account.json` |
 | Home Assistant token (only with `homeAssistant`) | `HOME_ASSISTANT_TOKEN` | `HOME_ASSISTANT_TOKEN_FILE` | `config/home-assistant-token` |
+| Immich API key (only with `immich`) | `IMMICH_API_KEY` | `IMMICH_API_KEY_FILE` | `config/immich-api-key` |
 | Port | `PORT` | | `8080` |
 | Time zone | `TZ` | | the Family calendar's time zone |
 | Data dir (chores) | | `DASHBOARD_DATA_DIR` | `data/` |
@@ -240,6 +246,56 @@ the frame.
 curl http://localhost:8080/api/home   # "connected": true and your labelled entities by room
 ```
 
+### Photos from Immich (optional)
+
+The Photos page, the idle photo frame and the Today page's photo tile show one album from your
+[Immich](https://immich.app) server. (Not Google Photos: since 31 March 2025 its API can't read an
+existing library; see [ADR 0004](adr/0004-photos-from-immich.md).) Add to the settings:
+
+```json
+"immich": { "url": "http://immich.local:2283", "albumId": "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d" }
+```
+
+- `albumId` is the last part of the album's address in Immich's web app
+  (`…/albums/<albumId>`). Put the photos you want on the frame in that album; to let the family
+  add theirs, share the album with their Immich users.
+- Make an API key (Immich → Account settings → API keys → New API key) with the permissions
+  **`album.read`** (the album and who shares it), **`asset.read`** (its photos, with their EXIF)
+  and **`asset.view`** (the preview images), and give it to the server as `IMMICH_API_KEY`, a
+  file named by `IMMICH_API_KEY_FILE`, or `config/immich-api-key`. The key's user must own the
+  album or have it shared with them.
+- With `immich` set, a missing or empty key, a bad URL or an `albumId` that isn't an Immich id
+  stops the server at startup. Without it the server runs as before and the dashboard keeps its
+  sample photos.
+
+Each image in the album becomes one photo; videos are left out. For each:
+
+- **Portrait or landscape** from its width and height once EXIF orientation is applied.
+- **Date** is the local date it was taken (the camera's clock), used for "3 years ago" and "On this
+  day". Photos taken the same day are grouped, so two portraits from one day can show side by side.
+- **Place** is the city from Immich's reverse geocoding, else the state or country, else nothing.
+- **From** is the person whose `people[].immich` email matches the Immich user who uploaded it
+  (ignoring case). Anyone else's photos show with no name.
+- **Favourite** is Immich's favourite heart; favourites come round twice as often. Tapping
+  **Favourite** on the frame changes it on that frame only, until the album next changes; it never
+  writes to Immich.
+
+API (JSON is `cache-control: no-store`):
+
+- `GET /api/photos` → `{ configured: true, photos: [{ id, o, date, place, from?, tag, fav }], updatedAt }`:
+  `o` is `"p"` or `"l"`, `date` and `tag` are `YYYY-MM-DD`, `place` may be `""`, `from` is a
+  person id and left out when nobody matches. Without `immich`, `{ configured: false }`. The album
+  is read from Immich at most once every 5 minutes; if Immich fails it answers `502` with a JSON
+  `error`, and the frame keeps the photos it had.
+- `GET /api/photos/:id.jpg`: the photo's preview-size image (Immich's own, about 1440 px), streamed
+  from Immich with the key on the server. Only photos in the album are served (any other id is
+  `404`); the browser may keep an image for an hour. Nothing is stored on the server, and the key
+  never reaches the frame.
+
+```sh
+curl http://localhost:8080/api/photos   # "configured": true and your album's photos
+```
+
 ## 4. Run it with Docker
 
 From `dashboard/`, copy [`compose.example.yaml`](../dashboard/compose.example.yaml) to
@@ -315,8 +371,11 @@ Calendar:
   of showing events.
 - All-day events go on their date in the frame's time zone; timed events show in the frame's local
   time, so set the frame's time zone to match the family's.
-- The mock chores, stars and photo credits are handed to your people by position (first mock
-  person → first person in `settings.people`, and so on). Home/away comes only from Home
+- Without an Immich album, the sample photos and their credits are handed to your people by
+  position (first mock person → first person in `settings.people`, and so on). With one, the
+  album's photos replace them everywhere, and are fetched every 5 minutes and cached like the
+  calendar: new photos join the slideshow without a reload, and a boot with Immich or the server
+  down shows the last photos (or the sample ones, the very first time). Home/away comes only from Home
   Assistant, for people linked with `people[].homeAssistant`.
 - **Add event** on the Calendar view writes to Google: the event shows once the server confirms
   it, and **Undo** on the toast deletes it again. If the write fails you get an error toast and the

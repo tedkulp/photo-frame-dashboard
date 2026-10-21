@@ -47,14 +47,16 @@
     };
   };
 
-  // ------------------------------------------------------------ still-mock data
-  // Photos are still mock; hand them to real people by position (mock person 1 → real person 1).
-  // Photos from positions beyond the real list are dropped.
-  Feed.remap = function (D, from, to) {
+  // ------------------------------------------------------------ mock photos
+  // Without an Immich album the photos are mock; hand them to real people by position (mock person
+  // 1 → real person 1). Returns the photos still owned; those from positions beyond the real list
+  // are dropped.
+  Feed.remap = function (photos, from, to) {
     var map = {};
     from.forEach(function (id, i) { if (i < to.length) map[id] = to[i]; });
-    D.photos = D.photos.filter(function (p) { return p.from in map; });
-    D.photos.forEach(function (p) { p.from = map[p.from]; });
+    photos = photos.filter(function (p) { return p.from in map; });
+    photos.forEach(function (p) { p.from = map[p.from]; });
+    return photos;
   };
 
   // ------------------------------------------------------------ refresh loop

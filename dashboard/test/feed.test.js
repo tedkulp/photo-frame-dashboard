@@ -57,7 +57,7 @@ test('drops events with unparseable dates instead of failing the whole response'
 });
 
 // ------------------------------------------------------------ mock data reassignment
-// Only photos are still mock; chores come from the home server.
+// Mock photos (shown without an Immich album); chores come from the home server.
 function mock() {
   return {
     photos: [{ seed: 'p1', from: 'alex' }, { seed: 'p2', from: 'otto' }, { seed: 'p3', from: 'maya' }],
@@ -67,14 +67,14 @@ function mock() {
 
 test('reassigns mock photos to real people by position and drops the rest', () => {
   const D = mock();
-  Feed.remap(D, ['alex', 'jordan', 'maya', 'otto'], ['a', 'b', 'c']);
-  assert.deepEqual(D.photos.map((p) => p.from), ['a', 'c']);
+  const photos = Feed.remap(D.photos, ['alex', 'jordan', 'maya', 'otto'], ['a', 'b', 'c']);
+  assert.deepEqual(photos.map((p) => p.from), ['a', 'c']);
 });
 
 test('real people beyond the mock list get nothing, and real chores are left alone', () => {
   const D = mock();
-  Feed.remap(D, ['alex', 'jordan', 'maya', 'otto'], ['a', 'b', 'c', 'd', 'e']);
-  assert.deepEqual(D.photos.map((p) => p.from), ['a', 'd', 'c']);
+  const photos = Feed.remap(D.photos, ['alex', 'jordan', 'maya', 'otto'], ['a', 'b', 'c', 'd', 'e']);
+  assert.deepEqual(photos.map((p) => p.from), ['a', 'd', 'c']);
   assert.deepEqual(D.chores, mock().chores);
 });
 

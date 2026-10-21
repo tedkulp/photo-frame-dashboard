@@ -273,3 +273,55 @@ export async function fakeHomeAssistant(entities, { token = 'ha-token', home = {
     close: () => new Promise((r) => { for (const s of sockets) s.destroy(); server.close(r); }),
   };
 }
+
+// Fake Immich. `album` is the album's GET body ({ id, albumName, albumUsers: [{ user: { id, email },
+// role }] }); `assets` its assets (AssetResponseDto with exifInfo), returned by POST
+// /api/search/metadata for that album id, `pageSize` at a time (Immich's nextPage paging). Asset
+// thumbnails answer with 'jpeg:<id>' bytes. Only `apiKey` (x-api-key) is accepted. Set `fail` to an
+// HTTP status to make every call fail. Records every request in `requests`.
+export async function fakeImmich({ album, assets = [], apiKey = 'immich-key', pageSize = 1000 } = {}) {
+  const requests = [];
+  const state = { fail: null };
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://x');
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    requests.push({ method: req.method, path: url.pathname, search: url.search, headers: req.headers, body });
+    const send = (status, obj) => {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(obj));
+    };
+    if (state.fail) return send(state.fail, { message: 'Immich is down', statusCode: state.fail });
+    if (req.headers['x-api-key'] !== apiKey) return send(401, { message: 'Invalid API key', statusCode: 401 });
+
+    const al = url.pathname.match(/^\/api\/albums\/([^/]+)$/);
+    if (al && req.method === 'GET') {
+      if (!album || decodeURIComponent(al[1]) !== album.id) return send(400, { message: 'Not found or no album.read access', statusCode: 400 });
+      return send(200, album);
+    }
+    if (url.pathname === '/api/search/metadata' && req.method === 'POST') {
+      const q = JSON.parse(body);
+      const items = album && Array.isArray(q.albumIds) && q.albumIds.includes(album.id) ? assets : [];
+      const size = Math.min(q.size || 250, pageSize), page = q.page || 1;
+      const slice = items.slice((page - 1) * size, page * size);
+      const next = page * size < items.length ? String(page + 1) : null;
+      return send(200, { albums: { total: 0, count: 0, items: [], facets: [] }, assets: { total: slice.length, count: slice.length, items: slice, facets: [], nextPage: next } });
+    }
+    const th = url.pathname.match(/^\/api\/assets\/([^/]+)\/thumbnail$/);
+    if (th && req.method === 'GET') {
+      const id = decodeURIComponent(th[1]);
+      if (!assets.some((a) => a.id === id)) return send(400, { message: 'Not found or no asset.view access', statusCode: 400 });
+      res.writeHead(200, { 'content-type': 'image/jpeg', 'x-immich-secret': apiKey });
+      return res.end(Buffer.from('jpeg:' + id + ':' + url.searchParams.get('size')));
+    }
+    send(404, { message: 'Cannot ' + req.method + ' ' + url.pathname, statusCode: 404 });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return {
+    url: 'http://127.0.0.1:' + server.address().port,
+    apiKey,
+    requests,
+    set fail(status) { state.fail = status; },
+    close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
+  };
+}

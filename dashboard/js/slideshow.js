@@ -1,12 +1,13 @@
 // Photo slideshow used by the Photos view, ambient mode and the home tile.
 (function () {
   'use strict';
-  var D = window.DATA;
+  var D = window.DATA, Photos = window.Photos;
 
+  // D.photos is the Immich album once the server has one (app.js), else the mock photos.
   function src(p, big) {
     var w = p.o === 'p' ? 800 : 1600, h = p.o === 'p' ? 1200 : 1000;
     if (!big) { w = Math.round(w / 2); h = Math.round(h / 2); }
-    return App.img(p.seed, w, h);
+    return Photos.src(p, w, h, App.img);
   }
   App.photoSrc = src;
 
@@ -19,7 +20,7 @@
     return {
       date: App.fmt.month(d) + ' ' + d.getDate() + ', ' + d.getFullYear(),
       monthYear: App.fmt.month(d) + ' ' + d.getFullYear(),
-      kicker: kicker, onThisDay: onThisDay, place: p.place, from: App.person(p.from)
+      kicker: kicker, onThisDay: onThisDay, place: p.place || '', from: App.realPerson(p.from)
     };
   };
 
@@ -31,7 +32,7 @@
   function caption(ps, size) {
     var m = App.photoMeta(ps[0]);
     return '<div class="cap cap--' + (size || 'l') + '">' +
-      '<div class="cap-kicker">' + (m.onThisDay ? '<b>On this day</b> · ' : '') + m.kicker + ' · ' + App.esc(m.place) + '</div>' +
+      '<div class="cap-kicker">' + Photos.kickerLine(m) + '</div>' +
       '<div class="cap-date serif">' + (ps.length > 1 ? m.monthYear : m.date) + '</div>' +
       '</div>';
   }
@@ -59,11 +60,13 @@
       var p = ps[0], m = App.photoMeta(p), rot = (Math.random() * 5 - 2.5).toFixed(1);
       return '<div class="slide slide--polaroid"><img class="blurfill" src="' + src(p) + '" alt="">' +
         '<figure class="polaroid polaroid--' + p.o + '" style="transform:rotate(' + rot + 'deg)"><div class="polaroid-img"><img src="' + src(p, true) + '" alt=""></div>' +
-        '<figcaption class="serif"><i>' + App.esc(m.place) + ', ' + m.monthYear + '</i></figcaption></figure></div>';
+        '<figcaption class="serif"><i>' + Photos.polaroidLine(m) + '</i></figcaption></figure></div>';
     }
   };
 
+  var shows = [];
   App.Slideshow = function (el, opts) {
+    shows.push(this);
     this.el = el;
     this.o = Object.assign({ layout: 'auto', interval: 15000, captions: true }, opts || {});
     this.queue = [];
@@ -71,7 +74,18 @@
     this.count = 0;
     this.timer = null;
     this.current = null;
+    this.running = false;
   };
+  // The photos changed (the album arrived or changed, or the mock ones came back): every show starts
+  // a fresh cycle, and one showing a photo that is gone (or nothing yet) moves on now.
+  App.on('photos', function () {
+    shows.forEach(function (s) {
+      s.queue = [];
+      s.history = [];
+      var gone = !s.current || s.current.photos.some(function (p) { return D.photos.indexOf(p) < 0; });
+      if (s.running && gone) s.next();
+    });
+  });
   var S = App.Slideshow.prototype;
 
   S.refill = function () {
@@ -154,6 +168,6 @@
     clearInterval(this.timer);
     this.timer = setInterval(function () { self.next(); }, this.o.interval);
   };
-  S.start = function () { if (!this.current) this.next(); else this.restart(); };
-  S.stop = function () { clearInterval(this.timer); this.timer = null; };
+  S.start = function () { this.running = true; if (!this.current) this.next(); else this.restart(); };
+  S.stop = function () { this.running = false; clearInterval(this.timer); this.timer = null; };
 })();

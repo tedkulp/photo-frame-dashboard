@@ -1,10 +1,12 @@
-// Startup configuration: settings (people + calendars, optionally Home Assistant), the Google
-// service-account key, the Home Assistant token, port, time zone and data dir (DASHBOARD_DATA_DIR,
-// else data/; opened by store.js). Each item is read from an
+// Startup configuration: settings (people + calendars, optionally Home Assistant and Immich), the
+// Google service-account key, the Home Assistant token, the Immich API key, port, time zone and
+// data dir (DASHBOARD_DATA_DIR, else data/; opened by store.js). Each item is read from an
 // inline env var, else a path env var, else a default file under config/. Anything missing or
 // invalid throws a ConfigError naming the item, so the server never starts serving an empty
 // calendar. Home Assistant is optional: without settings.homeAssistant there is no weather. A
-// person's optional homeAssistant names their person.* entity, for presence on /api/home.
+// person's optional homeAssistant names their person.* entity, for presence on /api/home. Immich is
+// optional too: settings.immich names the album the photos come from, and a person's optional
+// immich is their Immich user's email, which credits them with the photos they uploaded.
 import { createPrivateKey } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -50,6 +52,9 @@ function checkSettings(s) {
     if (p.homeAssistant !== undefined && (typeof p.homeAssistant !== 'string' || !/^person\.[a-z0-9_]+$/.test(p.homeAssistant))) {
       throw new ConfigError(`settings.people[${i}].homeAssistant (${p.name}) "${p.homeAssistant}" must be a Home Assistant person entity id like person.alex`);
     }
+    if (p.immich !== undefined && (typeof p.immich !== 'string' || !/^[^\s@]+@[^\s@]+$/.test(p.immich.trim()))) {
+      throw new ConfigError(`settings.people[${i}].immich (${p.name}) "${p.immich}" must be the email of their Immich user, like alex@example.com`);
+    }
     ids.add(p.id);
   });
   if (!Array.isArray(s.calendars)) throw new ConfigError('settings.calendars must be a list');
@@ -63,7 +68,8 @@ function checkSettings(s) {
   if (family === 0) throw new ConfigError('settings has no calendar with person "family"');
   if (family > 1) throw new ConfigError('settings must have exactly one calendar with person "family"');
   return {
-    people: s.people.map((p) => Object.assign({ id: p.id, name: p.name, colour: p.colour }, p.homeAssistant ? { homeAssistant: p.homeAssistant } : {})),
+    people: s.people.map((p) => Object.assign({ id: p.id, name: p.name, colour: p.colour },
+      p.homeAssistant ? { homeAssistant: p.homeAssistant } : {}, p.immich ? { immich: p.immich.trim() } : {})),
     calendars: s.calendars.map((c) => ({ calendarId: c.calendarId, person: c.person })),
   };
 }
@@ -95,6 +101,23 @@ function checkHomeAssistant(h) {
   };
 }
 
+// settings.immich → { url, albumId } (url without a trailing slash), or null if absent.
+function checkImmich(m) {
+  if (m === undefined) return null;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) throw new ConfigError('settings.immich must be a JSON object');
+  let url;
+  try {
+    url = new URL(m.url);
+  } catch {
+    throw new ConfigError(`settings.immich.url "${m.url}" is not a URL like http://immich.local:2283`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ConfigError(`settings.immich.url "${m.url}" must start with http:// or https://`);
+  if (!isText(m.albumId) || !/^[0-9a-fA-F-]{36}$/.test(m.albumId.trim())) {
+    throw new ConfigError(`settings.immich.albumId "${m.albumId}" must be an Immich album id (the last part of the album's URL, like 1b2c3d4e-…)`);
+  }
+  return { url: m.url.replace(/\/+$/, ''), albumId: m.albumId.trim() };
+}
+
 function checkServiceAccount(k) {
   if (!k || typeof k !== 'object') throw new ConfigError('service-account key must be a JSON object');
   if (!isText(k.client_email)) throw new ConfigError('service-account key has no client_email');
@@ -121,11 +144,19 @@ export function loadConfig({ env = process.env, cwd = process.cwd() } = {}) {
     homeAssistant = Object.assign(homeAssistant, { token });
   }
 
+  let immich = checkImmich(rawSettings.immich);
+  if (immich) {
+    const apiKey = readItem(env, cwd, 'Immich API key',
+      'IMMICH_API_KEY', 'IMMICH_API_KEY_FILE', 'config/immich-api-key').text.trim();
+    if (!apiKey) throw new ConfigError('The Immich API key is empty');
+    immich = Object.assign(immich, { apiKey });
+  }
+
   let port = 8080;
   if (env.PORT) {
     port = Number(env.PORT);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new ConfigError(`PORT "${env.PORT}" is not a valid port`);
   }
   const dataDir = resolve(cwd, env.DASHBOARD_DATA_DIR || 'data');
-  return { settings, serviceAccount, homeAssistant, port, timeZone: env.TZ || null, dataDir };
+  return { settings, serviceAccount, homeAssistant, immich, port, timeZone: env.TZ || null, dataDir };
 }

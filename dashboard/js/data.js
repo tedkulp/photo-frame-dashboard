@@ -4,8 +4,8 @@ window.DATA = (function () {
   var base = new Date();
   base.setHours(0, 0, 0, 0);
 
-  // Mock family: only the ids matter now. They say who the still-mock photos belong to, and are
-  // handed to the real people from the home server by position (feed.js).
+  // Mock family: only the ids matter now. They say who the mock photos (shown until the home server
+  // has an Immich album) belong to, and are handed to the real people by position (feed.js).
   var mockIds = ['alex', 'jordan', 'maya', 'otto'];
   var family = { id: 'family', name: 'Family', color: '#111111', rgb: '17 17 17', ink: '#FFFFFF' };
 
@@ -151,7 +151,7 @@ window.DATA = (function () {
     events: [],
     routines: routines, chores: null,
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
-    weather: null, home: null, photos: photos, agents: agents,
+    weather: null, home: null, photos: photos, mockPhotos: photos, agents: agents,
     _gid: function () { return 'g' + (++gid); }
   };
 })();

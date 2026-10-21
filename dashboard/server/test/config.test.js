@@ -203,3 +203,65 @@ test("a person's Home Assistant link is read, and must be a person entity", () =
     });
   }
 });
+
+const ALBUM = '11111111-2222-4333-8444-555555555555';
+
+test('Immich is optional', () => {
+  withDir({ 'config/settings.json': settings(), 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.equal(loadConfig({ env: { IMMICH_API_KEY: 'ignored' }, cwd: t.dir }).immich, null);
+  });
+});
+
+test('Immich settings + API key from env, path env or default file', () => {
+  const s = settings({ immich: { url: 'http://immich.local:2283/', albumId: ' ' + ALBUM + ' ' } });
+  withDir({
+    'config/settings.json': s,
+    'config/service-account.json': serviceAccount(),
+    'config/immich-api-key': 'from-file\n',
+    'other/key': 'from-path',
+  }, (t) => {
+    const im = (env) => loadConfig({ env, cwd: t.dir }).immich;
+    assert.deepEqual(im({}), { url: 'http://immich.local:2283', albumId: ALBUM, apiKey: 'from-file' });
+    assert.equal(im({ IMMICH_API_KEY_FILE: t.path('other/key') }).apiKey, 'from-path');
+    assert.equal(im({ IMMICH_API_KEY_FILE: t.path('other/key'), IMMICH_API_KEY: 'inline' }).apiKey, 'inline');
+  });
+});
+
+test('Immich settings without an API key are named', () => {
+  const s = settings({ immich: { url: 'http://immich.local:2283', albumId: ALBUM } });
+  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/Immich API key.*IMMICH_API_KEY.*IMMICH_API_KEY_FILE.*config\/immich-api-key/s));
+  });
+  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount(), 'config/immich-api-key': ' \n' }, (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/Immich API key is empty/));
+  });
+});
+
+test('bad Immich settings are named', () => {
+  const bad = (immich, re) => withDir({
+    'config/settings.json': settings({ immich }),
+    'config/service-account.json': serviceAccount(),
+    'config/immich-api-key': 'k',
+  }, (t) => assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(re)));
+  bad('http://immich', /immich must be a JSON object/);
+  bad({ url: 'immich.local', albumId: ALBUM }, /immich\.url "immich\.local"/);
+  bad({ url: 'ftp://immich.local', albumId: ALBUM }, /http:\/\/ or https:\/\//);
+  bad({ url: 'http://immich.local' }, /albumId "undefined"/);
+  bad({ url: 'http://immich.local', albumId: 'Family' }, /albumId "Family"/);
+});
+
+test("a person's Immich email is read, and must look like an email", () => {
+  const people = [
+    { id: 'alex', name: 'Alex', colour: '#2D5BFF', immich: 'alex@example.com' },
+    { id: 'sam', name: 'Sam', colour: '#E4007C' },
+  ];
+  withDir({ 'config/settings.json': settings({ people }), 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.deepEqual(loadConfig({ env: {}, cwd: t.dir }).settings.people, people);
+  });
+  for (const email of ['alex', 'a b@example.com', 3, '']) {
+    const s = settings({ people: [people[0], Object.assign({}, people[1], { immich: email })] });
+    withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount() }, (t) => {
+      assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/people\[1\]\.immich .*Sam.*email/), String(email));
+    });
+  }
+});

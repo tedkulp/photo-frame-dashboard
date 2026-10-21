@@ -1,8 +1,9 @@
 // HTTP server: the built dashboard (dist), GET /api/calendar, POST /api/events,
-// DELETE /api/events/:id, GET /api/weather, /api/chores, /api/home and GET /api/version from one
-// origin. LAN-only, no auth.
+// DELETE /api/events/:id, GET /api/weather, /api/chores, /api/home, GET /api/photos (+ the photo
+// images) and GET /api/version from one origin. LAN-only, no auth.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import { extname, join, resolve, sep } from 'node:path';
 import { createGoogle } from './google.js';
 import { createCalendar, InputError } from './calendar.js';
@@ -10,6 +11,8 @@ import { createHomeAssistant } from './homeassistant.js';
 import { createWeather } from './weather.js';
 import { createHome } from './home.js';
 import { createChores, localDate } from './chores.js';
+import { createImmich } from './immich.js';
+import { createPhotos } from './photos.js';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -76,7 +79,7 @@ async function buildId(root) {
   }
 }
 
-function createHandler({ calendar, weather, chores, home, distDir }) {
+function createHandler({ calendar, weather, chores, home, photos, distDir }) {
   const root = resolve(distDir);
 
   async function serveStatic(req, res, pathname) {
@@ -141,6 +144,13 @@ function createHandler({ calendar, weather, chores, home, distDir }) {
         }
         return await routeHome(req, res, pathname, home);
       }
+      if (pathname === '/api/photos' || pathname.startsWith('/api/photos/')) {
+        if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
+        if (pathname === '/api/photos') return photos ? await apiCall(res, 'photos', 200, () => photos.load()) : sendJson(res, 200, { configured: false });
+        const m = pathname.match(/^\/api\/photos\/([0-9A-Za-z-]+)\.jpg$/);
+        if (!photos || !m) return sendJson(res, 404, { error: 'No such photo' });
+        return await sendPhoto(res, photos, m[1]);
+      }
       if (pathname === '/api/version') {
         if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
         return sendJson(res, 200, { build: await buildId(root) });
@@ -187,6 +197,28 @@ async function sendImage(res, what, fn) {
   }
   res.writeHead(200, { 'content-type': img.type, 'content-length': img.body.length, 'cache-control': 'no-store' });
   res.end(img.body);
+}
+
+// An album photo's preview image, streamed from Immich as it arrives. Only the content type and
+// length are passed on. The browser may keep it for an hour (the frame shows the same photos again
+// and again); the server keeps nothing.
+async function sendPhoto(res, photos, id) {
+  let upstream;
+  try {
+    upstream = await photos.image(id);
+  } catch (e) {
+    console.error('[photo]', e.message);
+    return sendJson(res, 502, { error: e.message });
+  }
+  if (!upstream) return sendJson(res, 404, { error: 'No such photo' });
+  const headers = { 'content-type': upstream.headers.get('content-type') || 'image/jpeg', 'cache-control': 'private, max-age=3600' };
+  const length = upstream.headers.get('content-length');
+  if (length) headers['content-length'] = length;
+  res.writeHead(200, headers);
+  const body = Readable.fromWeb(upstream.body);
+  body.on('error', (e) => { console.error('[photo]', e.message); res.destroy(); });
+  res.on('close', () => body.destroy()); // the frame gave up: stop reading from Immich
+  body.pipe(res);
 }
 
 const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
@@ -237,8 +269,10 @@ export async function startServer({ config, store, distDir, tokenUrl, apiBase, n
     console.error(`chores: using the server's local time zone, could not read the Family calendar's: ${e.message}`);
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
   });
+  const im = config.immich;
+  const photos = im ? createPhotos({ immich: createImmich(im), albumId: im.albumId, people: config.settings.people, now }) : null;
   const chores = store ? createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await choreZone()) }) : null;
-  const server = createServer(createHandler({ calendar, weather, chores, home, distDir }));
+  const server = createServer(createHandler({ calendar, weather, chores, home, photos, distDir }));
   await new Promise((ok, fail) => {
     server.once('error', (e) => { if (home) home.close(); fail(e); });
     server.listen(config.port, () => { server.off('error', fail); ok(); });
