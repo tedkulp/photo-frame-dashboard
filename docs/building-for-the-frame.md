@@ -12,12 +12,30 @@ tested on the frame.
 | --- | --- |
 | Browser engine | Android System WebView **106.0.5249.126** (Chrome 106, from 2022), inside the `dashboard/kiosk` app |
 | OS | Android 6.0.1, no security updates, root ADB |
-| Screen | **1280 × 800** landscape, `devicePixelRatio` **1** (160 dpi), touchscreen |
+| Screen | **1280 × 800** landscape, `devicePixelRatio` **1** (160 dpi), touchscreen. The 15.6" FRAME156 is **1920 × 1080**, DPR 1, same WebView 106 ([pastigio-frame156.md](pastigio-frame156.md)); see [Screen sizes](#screen-sizes) |
 | CPU / GPU | Allwinner A33 ARMv7, 1.34 GHz, 2 cores online in our snapshot; OpenGL ES 2.0 |
 | RAM | ~1 GB total. The kiosk with the sample dashboard used ~80 MB (observed) |
 | Network | Wi-Fi only. Wi-Fi comes up **after** the kiosk starts at boot (observed) |
 | Time zone | `America/New_York`, network time on |
 | Navigation | No address bar, no back button, no status bar. The kiosk can be the Home screen (see the [kiosk README](../dashboard/kiosk/README.md#start-at-boot)) |
+
+## Screen sizes
+
+Frames come in 16:10 (1280 × 800) and 16:9 (1920 × 1080, the FRAME156). A page built for a
+fixed 1280 × 800 and scaled to fit shows 96 px black bars on each side of a 1920 × 1080 screen
+(observed on the FRAME156).
+
+The sample dashboard avoids that with a stage whose height is always 800 logical pixels and
+whose width follows the window's aspect ratio: 1280 at 16:10, 1422 at 16:9. `dashboard/js/stage.js`
+works out the size and `fit()` in `dashboard/js/app.js` scales the stage uniformly to fill the
+window, again on every resize. Views lay out in grids and flex rows, so the extra width goes to
+wider cards and, on Home controls, a fifth column of tiles; fonts and spacing stay the same. The
+width is kept between 1280 (narrower or portrait windows letterbox) and 1600. The viewport meta
+is `width=device-width`, so the page sees the screen's real size. Anything converting screen
+coordinates to stage coordinates must use the stage's current width (`App.stage.width`), not 1280.
+
+This was checked in desktop Chromium at 1920 × 1080 and 1280 × 800 (every view, and resizing
+between the two without a reload), not yet on a FRAME156 itself.
 
 ## How the kiosk loads your site
 
@@ -172,7 +190,8 @@ The frame runs for weeks unattended, with no keyboard and no way to press reload
 
 ## How to test
 
-1. **On a computer first:** Chrome DevTools, device size 1280 × 800, DPR 1. Throttle the CPU
+1. **On a computer first:** Chrome DevTools, device size 1280 × 800 (and 1920 × 1080 for a
+   16:9 frame), DPR 1. Throttle the CPU
    (6× slowdown) to get closer to the frame.
 2. **Feature check:** run your CSS through a Browserslist/`caniuse` check for `Chrome 106`,
    or a linter such as `eslint-plugin-compat` and `stylelint-no-unsupported-browser-features`

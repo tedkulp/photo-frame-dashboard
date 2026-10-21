@@ -553,10 +553,10 @@
   };
   App.closeSheet = function () {};
 
-  // Stage-local coordinates for an element's center (stage may be scaled on desktop)
+  // Stage-local coordinates for an element's center (the stage is scaled to fit the window)
   App.centerOf = function (el) {
-    var stage = $('#stage').getBoundingClientRect(), r = el.getBoundingClientRect(), k = stage.width / 1280;
-    return { x: (r.left + r.width / 2 - stage.left) / k, y: (r.top + r.height / 2 - stage.top) / k };
+    var r = el.getBoundingClientRect();
+    return window.Stage.toStage($('#stage').getBoundingClientRect(), App.stage.width, r.left + r.width / 2, r.top + r.height / 2);
   };
 
   // ------------------------------------------------------------ press-and-hold
@@ -604,10 +604,18 @@
   }
   App.resetIdle = function () { idleSec = 0; };
 
-  // ------------------------------------------------------------ stage scaling (desktop preview only)
+  // ------------------------------------------------------------ stage size + scaling
+  // Height is always 800 logical px; width follows the window's aspect (1280 at 16:10, 1422 at
+  // 16:9, see stage.js), then the stage is scaled uniformly to fill the window. Views lay out
+  // fluidly in whatever width they get. App.stage is the current { width, height, scale, x, y }.
+  App.stage = window.Stage.fit(0, 0);
   function fit() {
-    var s = Math.min(window.innerWidth / 1280, window.innerHeight / 800);
-    $('#stage').style.transform = Math.abs(s - 1) < 0.01 ? '' : 'scale(' + s + ')';
+    var f = window.Stage.fit(window.innerWidth, window.innerHeight), el = $('#stage');
+    App.stage = f;
+    el.style.width = f.width + 'px';
+    el.style.height = f.height + 'px';
+    el.style.transform = (f.x || f.y ? 'translate(' + f.x + 'px,' + f.y + 'px) ' : '') +
+      (Math.abs(f.scale - 1) < 0.001 ? '' : 'scale(' + f.scale + ')');
   }
 
   // ------------------------------------------------------------ clock tick
@@ -625,6 +633,7 @@
 
   // ------------------------------------------------------------ boot
   App.start = function () {
+    fit(); // size the stage before any view is built
     // Real time by default; ?demo pins a busy weekday afternoon.
     if (/[?&]demo(=|&|$)/.test(location.search)) App.setTime(15, 18);
     var storage = null;
@@ -661,7 +670,6 @@
       onChange: onHome, onState: function () { App.emit('homestate'); }, onError: function (e) { console.error('[home]', e); }
     });
     App.homeFeed.start();
-    fit();
     window.addEventListener('resize', fit);
     // Switch tabs the instant a finger lands (pointerdown), not on release. Keyboard "clicks"
     // (detail === 0) still work.
