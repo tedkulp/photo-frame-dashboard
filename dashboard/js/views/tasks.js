@@ -203,7 +203,6 @@
     }
   };
   App.register('tasks', view);
-  App.on('time', function () { V.routine = null; });
   // Going offline or coming back changes whether ticking works: re-render (or rebuild on the next
   // visit) when the note changes.
   App.on('choresstate', function () {

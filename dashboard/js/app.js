@@ -1,4 +1,4 @@
-// Core shell: router, demo clock, idle/ambient, toasts, sheets, helpers.
+// Core shell: router, clock, idle/ambient, toasts, sheets, helpers.
 (function () {
   'use strict';
   var D = window.DATA;
@@ -11,16 +11,8 @@
   App.on = function (e, fn) { (handlers[e] = handlers[e] || []).push(fn); };
   App.emit = function (e, a) { (handlers[e] || []).forEach(function (fn) { fn(a); }); };
 
-  // ------------------------------------------------------------ time (demo clock)
-  var offset = 0;
-  App.now = function () { return new Date(Date.now() + offset); };
-  App.setTime = function (h, m) {
-    if (h == null) offset = 0;
-    else { var d = new Date(); d.setHours(h, m, 0, 0); offset = d - Date.now(); }
-    lastMin = -1;
-    App.emit('time');
-    App.rerender();
-  };
+  // ------------------------------------------------------------ time
+  App.now = function () { return new Date(); };
   App.dayStart = function (d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
   App.addDays = function (d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; };
   App.sameDay = function (a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); };
@@ -500,7 +492,7 @@
   // ------------------------------------------------------------ router
   App.register = function (name, view) { App.views[name] = view; };
   // Views are built once and kept laid out (hidden with content-visibility), so switching tabs
-  // only has to paint. A view is rebuilt when its data changed ('data'/'time' events) or, for
+  // only has to paint. A view is rebuilt when its data changed ('data' events) or, for
   // time-sensitive views (minutely: true), when the minute has rolled over since it was built.
   function minuteKey() { return Math.floor(App.now().getTime() / 60000); }
   function build(name, opts) {
@@ -553,7 +545,6 @@
   App.on('feed', function () { markStale(); App.rerender(); });
   App.on('weather', function () { markStale(); App.rerender(); });
   App.on('chores', function () { markStale(); App.rerender(); });
-  App.on('time', markStale);
   App.rerender = function () {
     if (App.current) App.views[App.current].show($('#view-' + App.current), { rerender: true });
   };
@@ -701,8 +692,6 @@
   // ------------------------------------------------------------ boot
   App.start = function () {
     fit(); // size the stage before any view is built
-    // Real time by default; ?demo pins a busy weekday afternoon.
-    if (/[?&]demo(=|&|$)/.test(location.search)) App.setTime(15, 18);
     var storage = null;
     try { storage = window.localStorage; } catch (e) {}
     App.feed = window.Feed.create({
@@ -773,7 +762,6 @@
     setInterval(tick, 1000);
     App.emit('ready');
     refreshStale(1500);
-    setTimeout(function () { App.toast('Tip: press and hold the <b>clock</b> ' + (App.isPhone() ? 'at the top' : 'in the sidebar') + ' for demo controls', { ms: 6000, icon: 'bolt' }); }, 1200);
   };
   document.addEventListener('DOMContentLoaded', function () { App.start(); });
 })();

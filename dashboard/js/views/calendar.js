@@ -450,5 +450,4 @@
     var now = App.now();
     if (line) { line.style.top = y(now) + 'px'; line.querySelector('span').textContent = App.fmt.time(now, false); }
   });
-  App.on('time', function () { V.date = App.dayStart(App.now()); V.scroll = null; });
 })();
