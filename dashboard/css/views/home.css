@@ -60,7 +60,7 @@
 }
 .h-ad b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .h-ad .dots { flex: none; }
-.h-ad .dots i { box-shadow: 0 0 0 2px var(--card), 0 0 0 3px rgba(17, 17, 17, .25); }
+.h-ad .dots i { box-shadow: 0 0 0 2px var(--card), 0 0 0 3px rgb(var(--ink-rgb) / .25); }
 .h-ad-until { flex: none; font-size: var(--fs-min); font-weight: 800; font-stretch: 75%; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
 .h-ad-more { background: transparent; border-color: transparent; font-size: 16px; font-weight: 800; font-stretch: 75%; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); padding: 0 8px; }
 .h-hero {

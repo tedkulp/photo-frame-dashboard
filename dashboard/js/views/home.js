@@ -74,7 +74,7 @@
   // Today's all-day events, one chip each, in feed order. On the frame it is one line: fitAllDay
   // hides the chips that don't fit whole and fills in the "+N more" chip.
   function allDayList() { return App.hasCalendar() ? App.allDayOn(App.now()) : []; }
-  function allDay(list) {
+  function allDayChips(list) {
     var now = App.now();
     return list.map(function (e) {
       var until = window.AllDay.until(e, now);
@@ -87,7 +87,7 @@
   function paintAllDay() {
     var list = allDayList(), main = V.el.querySelector('.h-main');
     main.classList.toggle('has-allday', list.length > 0);
-    main.querySelector('.h-allday').innerHTML = list.length ? allDay(list) : '';
+    main.querySelector('.h-allday').innerHTML = list.length ? allDayChips(list) : '';
     fitAllDay();
   }
   function fitAllDay() {
@@ -100,7 +100,7 @@
     more.textContent = '+' + chips.length + ' more'; // the widest it can read
     var gap = parseFloat(getComputedStyle(box).columnGap) || 0;
     var n = window.AllDay.fit(chips.map(function (c) { return c.offsetWidth; }), box.clientWidth, gap, more.offsetWidth);
-    if (n === null) return; // hidden: measured again on resume
+    if (n === null) { more.style.display = 'none'; return; } // hidden: measured again when shown
     chips.forEach(function (c, i) { if (i >= n) c.style.display = 'none'; });
     if (n < chips.length) more.textContent = '+' + (chips.length - n) + ' more';
     else more.style.display = 'none';
@@ -218,8 +218,8 @@
           var g = e.target.closest('[data-go]');
           if (g) App.go(g.dataset.go);
         });
-        // the chips' widths change once the web fonts arrive
-        if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAllDay);
+        // the chips' widths change when the web fonts arrive, which can be long after boot
+        if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', fitAllDay);
         V.slides = new App.Slideshow(el.querySelector('.h-photo-stage'), { layout: 'cover', captions: false, interval: 12000, onChange: photoCaption });
       }
       paint();

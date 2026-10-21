@@ -4,6 +4,7 @@
   'use strict';
   var AllDay = root.AllDay = {};
 
+  // App.dayStart's twin: this loads before app.js, and in Node.
   function dayStart(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 
   // The event's last day when it runs on past `day` (the chip reads "until <that weekday>"), else
