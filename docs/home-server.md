@@ -130,7 +130,8 @@ zones → Labels) and add it to each entity that belongs on the panel (see
 [ADR 0003](adr/0003-home-controls-curated-by-ha-label.md)). Room = the entity's area, else its
 device's area; name = its friendly name. Supported: `light`, `switch`, `input_boolean`, `fan`,
 `lock`, `climate`, `scene`, `script`, `camera`, `media_player`; labelled entities in other
-domains, and disabled ones, are ignored. Tag a light group only when it acts as one fixture, not
+domains, and disabled ones, are ignored. Home controls shows the first four labelled cameras by
+name (a 2×2 grid). Tag a light group only when it acts as one fixture, not
 both a group and its members.
 
 Two optional keys in `homeAssistant`:

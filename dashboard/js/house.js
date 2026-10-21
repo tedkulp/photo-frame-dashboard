@@ -12,6 +12,7 @@
   House.STALE = 2 * MIN;      // no good fetch for this long: treat Home Assistant as unreachable
   House.CONFIRM_MS = 5000;    // a tap not seen in the data by then is put back
   House.CAMERA_MS = 20000;    // camera snapshots, only while Home controls is visible
+  House.CAMERAS_MAX = 4;      // cameras Home controls shows (a 2×2 grid), first in the server's order
 
   var KINDS = { light: true, switch: true, fan: true, lock: true, toggle: true };
 
@@ -60,6 +61,11 @@
     var p = data && data.configured && data.connected && data.presence;
     return p && Object.prototype.hasOwnProperty.call(p, id) ? p[id] : 'unknown';
   };
+  // The cameras Home controls shows: the first CAMERAS_MAX in the server's order (by name).
+  House.cameras = function (data) {
+    return data && data.configured ? data.cameras.slice(0, House.CAMERAS_MAX) : [];
+  };
+
   House.changeKey = function (body) { return JSON.stringify(body); };
 
   // ------------------------------------------------------------ optimistic changes

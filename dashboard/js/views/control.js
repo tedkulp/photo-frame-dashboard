@@ -220,16 +220,17 @@
   // ------------------------------------------------------------ cameras
   function camUrl(c) { return '/api/home/cameras/' + encodeURIComponent(c.id) + '.jpg?t=' + V.camAt; }
   function camAge() { return V.camAt ? Math.max(0, Math.round((Date.now() - V.camAt) / 1000)) + 's ago' : ''; }
+  // Up to House.CAMERAS_MAX in two columns; a second row gets wider tiles so the media card still fits.
   function cams(h) {
-    var list = h ? h.cameras.slice(0, 2) : [];
+    var list = H.cameras(h);
     if (!list.length) return '';
-    return '<div class="label">Cameras · snapshots every 20s</div><div class="cams">' + list.map(function (c) {
+    return '<div class="label">Cameras · snapshots every 20s</div><div class="cams' + (list.length > 2 ? ' is-rows' : '') + '">' + list.map(function (c) {
       if (!c.available) return '<div class="cam is-off"><span class="cam-name">' + esc(c.name) + '</span><span class="cam-age">Offline</span></div>';
       return '<button class="cam" data-cam="' + esc(c.id) + '"><img' + (V.camAt ? ' src="' + camUrl(c) + '"' : '') + ' alt=""><span class="cam-name">' + esc(c.name) + '</span><span class="cam-age">' + camAge() + '</span></button>';
     }).join('') + '</div>';
   }
   // The structure only (which cameras, available or not): new snapshots swap the img src instead.
-  function camsKey(h) { return h ? JSON.stringify(h.cameras.slice(0, 2)) : ''; }
+  function camsKey(h) { return h ? JSON.stringify(H.cameras(h)) : ''; }
   // Snapshots load only while Home controls is visible (live), so camAt is 0 until it first opens.
   function refreshCams() {
     V.camAt = Date.now();
