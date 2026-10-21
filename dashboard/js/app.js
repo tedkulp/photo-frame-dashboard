@@ -461,7 +461,7 @@
   }
   App.go = function (name, opts) {
     opts = opts || {};
-    if (!App.views[name]) name = 'home';
+    if (!App.views[name] || (name === 'photos' && App.isPhone())) name = 'home'; // no Photos on a phone
     if (App.current && App.current !== name && App.views[App.current].hide) App.views[App.current].hide();
     App.$$('.view').forEach(function (v) { v.classList.toggle('is-active', v.dataset.view === name); });
     App.$$('.rail-item').forEach(function (b) { b.classList.toggle('is-active', b.dataset.go === name); });
@@ -580,8 +580,10 @@
   };
 
   // ------------------------------------------------------------ modes: day / ambient / night
+  // The phone layout is always 'day': no ambient, night or night dashboard there.
   App.setMode = function (m) {
     var stage = $('#stage');
+    if (App.isPhone() && m !== 'day') return;
     App.mode = m;
     stage.dataset.mode = m;
     App.emit('mode', m);
@@ -591,6 +593,7 @@
   App.idle = { home: 60, ambient: 120 };
   var idleSec = 0;
   function onIdleTick() {
+    if (App.isPhone()) return; // a phone never goes back to Today or into ambient/night on its own
     idleSec++;
     var blocked = $('#takeover').classList.contains('is-open');
     if (App.mode === 'nightdash' && idleSec >= 20) { App.setMode('night'); return; }
@@ -608,14 +611,27 @@
   // Height is always 800 logical px; width follows the window's aspect (1280 at 16:10, 1422 at
   // 16:9, see stage.js), then the stage is scaled uniformly to fill the window. Views lay out
   // fluidly in whatever width they get. App.stage is the current { width, height, scale, x, y }.
+  // A portrait phone gets the phone layout instead (stage.js): the window's own size, unscaled,
+  // data-layout="phone" on the stage for CSS, a bottom tab bar, views that scroll, no idle switch
+  // and no Photos/ambient/night. Switching layout (rotating a tablet, resizing) rebuilds the views.
   App.stage = window.Stage.fit(0, 0);
+  App.isPhone = function () { return App.stage.layout === 'phone'; };
   function fit() {
     var f = window.Stage.fit(window.innerWidth, window.innerHeight), el = $('#stage');
+    var was = App.stage.layout;
     App.stage = f;
+    el.setAttribute('data-layout', f.layout);
     el.style.width = f.width + 'px';
     el.style.height = f.height + 'px';
     el.style.transform = (f.x || f.y ? 'translate(' + f.x + 'px,' + f.y + 'px) ' : '') +
       (Math.abs(f.scale - 1) < 0.001 ? '' : 'scale(' + f.scale + ')');
+    if (f.layout === was || !App.current) return;
+    if (App.isPhone()) {
+      if (App.mode !== 'day') App.setMode('day');
+      if (App.current === 'photos') { App.go('home'); return; }
+    }
+    markStale();
+    App.rerender();
   }
 
   // ------------------------------------------------------------ clock tick
@@ -688,7 +704,7 @@
     setInterval(tick, 1000);
     App.emit('ready');
     refreshStale(1500);
-    setTimeout(function () { App.toast('Tip: press and hold the <b>clock</b> in the sidebar for demo controls', { ms: 6000, icon: 'bolt' }); }, 1200);
+    setTimeout(function () { App.toast('Tip: press and hold the <b>clock</b> ' + (App.isPhone() ? 'at the top' : 'in the sidebar') + ' for demo controls', { ms: 6000, icon: 'bolt' }); }, 1200);
   };
   document.addEventListener('DOMContentLoaded', function () { App.start(); });
 })();

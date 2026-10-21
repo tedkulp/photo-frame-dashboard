@@ -80,3 +80,23 @@
 .ch-week-row .is-today i { box-shadow: inset 0 0 0 3px var(--ink); }
 .ch-week-row .is-today { color: var(--ink); }
 .ch-week-row .is-future i { opacity: .4; }
+
+/* ---- phone layout: one scrolling column (see base.css) */
+.stage[data-layout="phone"] .tasks { height: auto; }
+.stage[data-layout="phone"] .t-head { flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.stage[data-layout="phone"] .t-title { flex-basis: 100%; margin-right: 0; }
+.stage[data-layout="phone"] .t-title h1 { font-size: 44px; }
+.stage[data-layout="phone"] .t-progress { margin-right: auto; }
+.stage[data-layout="phone"] .t-progress > .num { font-size: 40px; }
+.stage[data-layout="phone"] .t-progress small { font-size: 22px; }
+.stage[data-layout="phone"] .t-bar { width: 64px; }
+.stage[data-layout="phone"] .t-empty { padding: 60px 0; font-size: 28px; }
+.stage[data-layout="phone"] .ch-lanes { flex: none; grid-template-columns: minmax(0, 1fr) !important; gap: 14px; }
+.stage[data-layout="phone"] .ch-lane { min-height: 0; }
+.stage[data-layout="phone"] .ch-list { flex: none; overflow: visible; }
+.stage[data-layout="phone"] .ch { min-height: 64px; }
+.stage[data-layout="phone"] .emoji-grid { grid-template-columns: repeat(7, 1fr); }
+.stage[data-layout="phone"] .emoji-btn { height: 46px; font-size: 24px; }
+.stage[data-layout="phone"] .edit-sheet .add-row { gap: 0; }
+.stage[data-layout="phone"] .edit-sheet .add-row .chips { flex-wrap: wrap; gap: 6px; }
+.stage[data-layout="phone"] .day-btn { width: 44px; }

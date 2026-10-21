@@ -67,3 +67,28 @@
 .s-ac-row { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 0 18px 0 22px; border-radius: 14px; background: var(--card); }
 .s-ac-row b { flex: 1; font-size: 22px; }
 .s-ac-row--new { background: transparent; box-shadow: inset 0 0 0 2px var(--line); }
+
+/* ---- phone layout: one scrolling column (see base.css) */
+.stage[data-layout="phone"] .shop { height: auto; display: flex; flex-direction: column; gap: 14px; }
+.stage[data-layout="phone"] .s-head { flex-wrap: wrap; gap: 8px 16px; }
+.stage[data-layout="phone"] .s-head h1 { font-size: 44px; }
+.stage[data-layout="phone"] .s-count { padding-top: 0; font-size: 18px; }
+.stage[data-layout="phone"] .s-count .num { font-size: 28px; }
+.stage[data-layout="phone"] .s-head .seg { flex-basis: 100%; }
+.stage[data-layout="phone"] .s-side { order: 1; gap: 12px; }
+.stage[data-layout="phone"] .s-list { order: 2; overflow: visible; padding-bottom: 0; }
+.stage[data-layout="phone"] .s-add { padding: 10px; }
+.stage[data-layout="phone"] .s-input-wrap { height: 60px; padding: 0 14px; }
+.stage[data-layout="phone"] .s-input { font-size: 22px; }
+.stage[data-layout="phone"] .s-usuals { flex: none; grid-auto-rows: auto; }
+.stage[data-layout="phone"] .s-tile { min-height: 56px; padding: 10px; }
+.stage[data-layout="phone"] .s-tile b { font-size: 16px; }
+.stage[data-layout="phone"] .s-ac-row { min-height: 56px; padding: 0 12px 0 16px; }
+.stage[data-layout="phone"] .s-ac-row b { font-size: 19px; }
+.stage[data-layout="phone"] .s-row { min-height: 64px; }
+.stage[data-layout="phone"] .s-hit { gap: 10px; }
+.stage[data-layout="phone"] .s-box { width: 34px; height: 34px; }
+.stage[data-layout="phone"] .s-name b { font-size: 19px; }
+.stage[data-layout="phone"] .s-qty button { width: 44px; height: 44px; }
+.stage[data-layout="phone"] .s-qty .num { font-size: 22px; min-width: 20px; }
+.stage[data-layout="phone"] .s-empty { font-size: 34px; padding: 40px 0; }

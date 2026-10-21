@@ -187,3 +187,77 @@
 .fab.is-off { opacity: .35; }
 .add [data-save]:disabled { opacity: .45; }
 .add-why { margin-right: auto; align-self: center; font-size: 18px; font-weight: 700; color: var(--alert); }
+
+/* ---- phone layout: one scrolling column (see base.css) */
+
+.stage[data-layout="phone"] .cal { height: auto; }
+.stage[data-layout="phone"] .cal-head { height: auto; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.stage[data-layout="phone"] .cal-title { flex: 1; min-width: 0; padding: 0 2px; flex-direction: column; align-items: flex-start; gap: 2px; }
+.stage[data-layout="phone"] .cal-title .serif { font-size: 26px; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.stage[data-layout="phone"] .cal-head .icon-btn { width: 48px; height: 48px; }
+.stage[data-layout="phone"] .cal-head [data-today] { order: 1; margin-right: 0; min-height: 48px; padding: 0 14px; }
+.stage[data-layout="phone"] .cal-head .seg { order: 2; margin-right: auto; }
+.stage[data-layout="phone"] .cal-head .seg button { min-height: 44px; padding: 0 14px; }
+.stage[data-layout="phone"] .cal-head button[data-mode="3day"] { display: none; }
+.stage[data-layout="phone"] .cal-head .fab { order: 3; width: 56px; height: 56px; }
+.stage[data-layout="phone"] .cal-feed { order: 4; flex-basis: 100%; white-space: normal; }
+.stage[data-layout="phone"] .cal-body { flex: none; min-height: 0; }
+.stage[data-layout="phone"] .cal-empty { position: static; padding: 60px 0; font-size: 36px; text-align: center; }
+
+/* Today as one list (calendar.js listView) */
+.cal-list { display: flex; flex-direction: column; gap: 8px; }
+.cl-allday { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.cl-allday .ad { width: 100%; }
+.cl-ev {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 64px; padding: 8px 12px; border-radius: 12px;
+  background: rgb(var(--c-rgb) / .14); box-shadow: inset 5px 0 0 var(--c); text-align: left;
+}
+.cl-ev:active { transform: scale(.98); }
+.cl-ev.is-now { background: var(--c); color: var(--c-ink); box-shadow: none; }
+.cl-ev.is-now .cl-main span { color: inherit; opacity: .85; }
+.cl-ev.is-past { opacity: .45; }
+.cl-t { flex: none; width: 54px; font-size: 24px; line-height: 1; display: flex; flex-direction: column; }
+.cl-t small { font-size: 12px; letter-spacing: .08em; margin-top: 3px; }
+.cl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cl-main b { font-size: 18px; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
+.cl-main span { font-size: var(--fs-min); font-weight: 600; color: var(--ink-2); }
+.cl-main em { font-style: normal; font-weight: 800; display: inline-flex; align-items: center; gap: 3px; vertical-align: bottom; }
+.cl-who { flex: none; }
+.cl-empty { padding: 60px 0; font-size: 36px; line-height: 1.05; color: var(--mute); text-align: center; }
+
+/* week: the seven days stacked */
+.stage[data-layout="phone"] .week { height: auto; display: flex; flex-direction: column; gap: 14px; }
+.stage[data-layout="phone"] .wk-head { padding: 6px 10px; }
+.stage[data-layout="phone"] .wk-ev { min-height: 52px; }
+.stage[data-layout="phone"] .wk-ad { min-height: 44px; }
+.stage[data-layout="phone"] .wk-free { font-size: 18px; padding: 4px 10px; }
+
+/* month: seven narrow columns, rows sized to fit */
+.stage[data-layout="phone"] .month { height: auto; }
+.stage[data-layout="phone"] .mo-dow { gap: 3px; }
+.stage[data-layout="phone"] .mo-dow .label { padding-left: 4px; font-size: 12px; letter-spacing: .04em; }
+.stage[data-layout="phone"] .mo-grid { grid-template-rows: none; grid-auto-rows: 58px; gap: 3px; }
+.stage[data-layout="phone"] .mo-cell { padding: 5px 5px; border-radius: 8px; min-width: 0; }
+.stage[data-layout="phone"] .mo-cell .num { font-size: 19px; }
+.stage[data-layout="phone"] .mo-dots { gap: 3px; }
+.stage[data-layout="phone"] .mo-dots i { width: 7px; height: 7px; }
+.stage[data-layout="phone"] .mo-dots em { font-size: 11px; }
+
+/* sheets */
+.stage[data-layout="phone"] .sheet--event { overflow: auto; }
+.stage[data-layout="phone"] .evs-band { padding: 24px 18px 20px; }
+.stage[data-layout="phone"] .evs-band h2 { font-size: 40px; padding-right: 44px; }
+.stage[data-layout="phone"] .evs-time { font-size: 24px; }
+.stage[data-layout="phone"] .evs-body { padding: 10px 18px 22px; }
+.stage[data-layout="phone"] .evs-row { gap: 12px; min-height: 64px; }
+.stage[data-layout="phone"] .evs-row b { font-size: 18px; }
+.stage[data-layout="phone"] .evs-notes { font-size: 22px; }
+.stage[data-layout="phone"] .big-input { height: 60px; font-size: 32px; margin-bottom: 10px; padding-right: 44px; }
+.stage[data-layout="phone"] .add .label { margin: 16px 0 8px; }
+.stage[data-layout="phone"] .add-who { flex-wrap: wrap; gap: 6px; }
+.stage[data-layout="phone"] .who-btn { min-width: 72px; padding: 8px 6px; font-size: 15px; border-radius: 16px; }
+.stage[data-layout="phone"] .add-row { flex-direction: column; gap: 0; }
+.stage[data-layout="phone"] .more-row { min-height: 60px; padding: 0 14px; }
+.stage[data-layout="phone"] .more-row b { font-size: 18px; }
+.stage[data-layout="phone"] .add-why { flex-basis: 100%; font-size: 16px; }

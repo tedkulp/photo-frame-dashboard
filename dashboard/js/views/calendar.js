@@ -1,4 +1,4 @@
-// Calendar: Today-by-person lanes (default), 3-day, rolling week, month.
+// Calendar: Today-by-person lanes (default; one list on a phone), 3-day, rolling week, month.
 (function () {
   'use strict';
   var D = window.DATA;
@@ -116,6 +116,29 @@
     return '<div class="cal-day">' + ad + grid + empty + '</div>';
   }
 
+  // ------------------------------------------------------------ Today on a phone (one list)
+  // Lanes side by side don't fit a phone, so Today there is one list in time order, each event
+  // in its person's colour (everyone's: ink) with the others on it as dots.
+  function listView() {
+    var day = V.date, now = App.now(), s = App.dayStart(day);
+    var allDay = App.allDayOn(day), timed = App.timedOn(day);
+    if (!allDay.length && !timed.length) return '<div class="cal-list"><div class="cl-empty serif">Nothing on the calendar.<br><i>A rare, quiet day.</i></div></div>';
+    return '<div class="cal-list">' +
+      (allDay.length ? '<div class="cl-allday">' + allDay.map(function (e) {
+        return '<button class="ad" data-ev="' + e.id + '" style="' + App.pstyle(App.evColor(e)) + '">' + App.esc(e.title) + '</button>';
+      }).join('') + '</div>' : '') +
+      timed.map(function (e) {
+        var fam = App.isFamily(e), others = fam ? ids() : e.people.length > 1 ? e.people : [];
+        var cls = 'cl-ev' + (e.end <= now ? ' is-past' : '') + (e.start <= now && e.end > now ? ' is-now' : '') + (fam ? ' is-family' : '');
+        return '<button class="' + cls + '" data-ev="' + e.id + '" style="' + App.pstyle(App.evColor(e)) + '">' +
+          '<span class="cl-t num">' + (e.start < s ? 'Cont.' : App.fmt.time(e.start, false) + '<small>' + App.fmt.ampm(e.start) + '</small>') + '</span>' +
+          '<span class="cl-main"><b>' + App.esc(e.title) + '</b><span>' + App.fmt.range(e.start, e.end) + (e.loc ? ' · ' + App.esc(e.loc) : '') +
+          (e.travel ? ' · <em>' + App.icon('car', 14) + 'Leave ' + App.fmt.time(App.leaveBy(e), false) + '</em>' : '') + '</span></span>' +
+          (others.length ? '<span class="cl-who">' + App.dots(others, 12) + '</span>' : '') +
+          '</button>';
+      }).join('') + '</div>';
+  }
+
   // ------------------------------------------------------------ 3 day
   function threeDay() {
     var days = [0, 1, 2].map(function (i) { return App.addDays(V.date, i); });
@@ -207,9 +230,12 @@
   }
 
   function render() {
+    // A phone has Today (as a list), Week and Month; 3 Day's columns don't fit.
+    var phone = App.isPhone();
+    if (phone && V.mode === '3day') V.mode = 'day';
     // No data yet (first boot, server unreachable): say so instead of an empty calendar.
     var body = App.hasCalendar()
-      ? { day: dayView, '3day': threeDay, week: weekView, month: monthView }[V.mode]()
+      ? { day: phone ? listView : dayView, '3day': threeDay, week: weekView, month: monthView }[V.mode]()
       : '<div class="cal-empty serif feed-note">' + App.feedNote() + '</div>';
     V.el.innerHTML = '<div class="cal cal--' + V.mode + '">' + header() + '<div class="cal-body">' + body + '</div></div>';
     var sc = V.el.querySelector('.grid-scroll');

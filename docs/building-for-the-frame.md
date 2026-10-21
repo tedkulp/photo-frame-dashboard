@@ -30,12 +30,30 @@ whose width follows the window's aspect ratio: 1280 at 16:10, 1422 at 16:9. `das
 works out the size and `fit()` in `dashboard/js/app.js` scales the stage uniformly to fill the
 window, again on every resize. Views lay out in grids and flex rows, so the extra width goes to
 wider cards and, on Home controls, a fifth column of tiles; fonts and spacing stay the same. The
-width is kept between 1280 (narrower or portrait windows letterbox) and 1600. The viewport meta
+width is kept between 1280 (narrower windows letterbox, except a phone, see [Phones](#phones)) and 1600. The viewport meta
 is `width=device-width`, so the page sees the screen's real size. Anything converting screen
 coordinates to stage coordinates must use the stage's current width (`App.stage.width`), not 1280.
 
 This was checked in headless Chromium 149 on Linux at 1920 × 1080 and 1280 × 800 (every view, and resizing
 between the two without a reload), not yet on a FRAME156 itself.
+
+### Phones
+
+The sample dashboard also works on a phone held upright. A window narrower than 700 CSS px and
+taller than it is wide gets the **phone layout** (`Stage.layout` in `stage.js`): the stage is not
+scaled but laid out at the phone's own CSS pixels, with `data-layout="phone"` on it for CSS. The
+rail becomes a bottom tab bar (Photos left out), the clock moves to a slim top bar, each view
+stacks into one column that scrolls, and Calendar's Today shows one list instead of a lane per
+person (3 Day is left out). Sheets fit the phone's width and scroll. Every phone rule sits at the
+end of `css/base.css` or the view's own file in `css/views/`, so the frame layouts don't change.
+A phone never goes back to Today on its own, nor into ambient or night mode. A phone turned
+sideways, and a portrait tablet 700 px or wider, keep the scaled stage.
+
+Open the dashboard's LAN address in the phone's browser (the home server, or `npm run dev`, which
+listens on the LAN). It was checked in headless Chromium 147 on Linux at 390 × 844 (DPR 3) and
+360 × 640 against the home server and its test fakes: no sideways scrolling in any view, adding and
+undoing an event, adding, ticking and editing a chore, and Home controls taps and "All off".
+1280 × 800 and 1920 × 1080 rendered the same as before.
 
 ## How the kiosk loads your site
 

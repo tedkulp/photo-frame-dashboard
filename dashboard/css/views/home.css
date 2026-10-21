@@ -113,3 +113,32 @@
 .h-st-row.is-warn { color: #B45F00; font-weight: 800; }
 .h-st-row.is-warn span { color: inherit; }
 .h-st-note { display: block; font-size: var(--fs-min); color: var(--mute); margin-top: 6px; line-height: 1.25; }
+
+/* ---- phone layout: one scrolling column (see base.css) */
+.stage[data-layout="phone"] .home { height: auto; display: flex; flex-direction: column; gap: 14px; }
+/* the top bar has the time, so Today keeps just the date */
+.stage[data-layout="phone"] .h-clock { padding-bottom: 10px; }
+.stage[data-layout="phone"] .h-time { display: none; }
+.stage[data-layout="phone"] .h-date { font-size: 24px; margin-top: 0; }
+.stage[data-layout="phone"] .h-date b { font-size: 17px; }
+.stage[data-layout="phone"] .h-weather { padding: 0 0 10px; }
+.stage[data-layout="phone"] .h-wx-temp { font-size: 60px; }
+.stage[data-layout="phone"] .h-wx-say { font-size: 19px; }
+.stage[data-layout="phone"] .h-presence { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; gap: 8px 16px; padding: 0 0 10px; }
+.stage[data-layout="phone"] .h-feed { flex-basis: 100%; white-space: normal; }
+.stage[data-layout="phone"] .h-main { display: flex; flex-direction: column; gap: 14px; }
+.stage[data-layout="phone"] .h-hero { padding: 18px; gap: 12px; }
+.stage[data-layout="phone"] .h-hero-title { font-size: 40px; }
+.stage[data-layout="phone"] .h-hero--empty .h-hero-title { font-size: 34px; }
+.stage[data-layout="phone"] .h-hero-meta { font-size: 17px; }
+.stage[data-layout="phone"] .h-hero-foot { flex-wrap: wrap; margin-top: 10px; }
+.stage[data-layout="phone"] .h-hero-count { font-size: 72px; }
+.stage[data-layout="phone"] .h-hero-count small { font-size: 16px; }
+.stage[data-layout="phone"] .h-lanes { grid-template-columns: minmax(0, 1fr) !important; gap: 16px; }
+.stage[data-layout="phone"] .h-ev { min-height: 52px; }
+.stage[data-layout="phone"] .h-more { min-height: 44px; }
+.stage[data-layout="phone"] .h-side { display: flex; flex-direction: column; gap: 14px; }
+.stage[data-layout="phone"] .h-photo { display: none; }
+.stage[data-layout="phone"] .h-rings { flex-wrap: wrap; justify-content: flex-start; gap: 12px 18px; }
+.stage[data-layout="phone"] .h-duo { gap: 12px; }
+.stage[data-layout="phone"] .h-stat .num { font-size: 44px; }

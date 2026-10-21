@@ -1,4 +1,4 @@
-// Home / Today: the glanceable overview. Never scrolls.
+// Home / Today: the glanceable overview. Never scrolls on the frame; one scrolling column on a phone.
 (function () {
   'use strict';
   var D = window.DATA, V = {};
@@ -162,6 +162,9 @@
     V.el.querySelector('.h-photo-cap').innerHTML = '<b>' + (m.onThisDay ? 'On this day · ' : '') + m.kicker + '</b><span>' + App.esc(m.place) + '</span>';
   }
 
+  // The photo tile is hidden in the phone layout (no Photos there), so it doesn't load photos.
+  function slides() { if (App.isPhone()) V.slides.stop(); else V.slides.start(); }
+
   App.register('home', {
     show: function (el) {
       V.el = el;
@@ -185,9 +188,9 @@
         V.slides = new App.Slideshow(el.querySelector('.h-photo-stage'), { layout: 'cover', captions: false, interval: 12000, onChange: photoCaption });
       }
       paint();
-      V.slides.start();
+      slides();
     },
-    resume: function () { V.slides.start(); },
+    resume: slides,
     hide: function () { if (V.slides) V.slides.stop(); }
   });
   // Every minute: just the clock and next-up countdown (cheap, even while hidden). Weather on the
