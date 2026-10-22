@@ -19,7 +19,13 @@
     var first = App.timedOn(tomorrow)[0], w = App.weatherNow();
     return '<div class="nt-time num">' + App.fmt.time(n, false) + '</div>' +
       '<div class="nt-line">' + (w ? App.icon(w.cond, 26) + ' ' + w.temp + '° · ' : '') + (!App.hasCalendar() ? App.feedNote() : first ? 'First up ' + App.fmt.rel(first.start).toLowerCase() + ': <b>' + App.esc(first.title) + '</b> ' + App.fmt.time(first.start) + ' · ' + App.esc(App.person(first.people[0]).name) : 'Nothing early tomorrow') + '</div>' +
-      '<div class="nt-lock">' + App.icon('lock', 20) + ' House locked · alarm armed</div>';
+      nightLock();
+  }
+  function nightLock() {
+    var line = window.House.nightLock(App.home(), App.homeNote());
+    if (!line) return '';
+    return '<div class="nt-lock' + (line.warn ? ' nt-lock--warn' : '') + '">' +
+      App.icon(line.warn ? 'unlock' : 'lock', 20) + ' ' + App.esc(line.text) + '</div>';
   }
 
   function paint() {
@@ -49,4 +55,5 @@
     App.resetIdle();
   });
   App.on('minute', paint);
+  App.on('home', function () { if (App.mode === 'night') paint(); });
 })();
