@@ -147,13 +147,63 @@ test('settle with no data still expires by time', () => {
 // ------------------------------------------------------------ stats, now playing, scene icons
 test('stats: lights on and in how many rooms, locks, unlocked names, inside temperature', () => {
   const v = House.view(House.parse(body()), pend('lock.front', 'unlock', null, T));
-  assert.deepEqual(House.stats(v), { lightsOn: 1, lightRooms: 1, locks: 1, unlocked: ['Front Door'], inside: 68 });
-  assert.deepEqual(House.stats(House.parse(body({ rooms: [], climate: null }))), { lightsOn: 0, lightRooms: 0, locks: 0, unlocked: [], inside: null });
+  assert.deepEqual(House.stats(v), { lightsOn: 1, lightRooms: 1, locks: 1, unlocked: ['Front Door'], locksOffline: 0, inside: 68 });
+  assert.deepEqual(House.stats(House.parse(body({ rooms: [], climate: null }))), { lightsOn: 0, lightRooms: 0, locks: 0, unlocked: [], locksOffline: 0, inside: null });
 });
 
 test('an offline lock does not count as unlocked', () => {
   const h = House.parse(body({ rooms: [{ name: 'Entry', tiles: [Object.assign({}, door, { available: false, locked: false, state: 'unavailable' })] }] }));
   assert.deepEqual(House.stats(h).unlocked, []);
+  assert.equal(House.stats(h).locksOffline, 1);
+});
+
+// ------------------------------------------------------------ night lock line
+const lockTile = (name, over) => Object.assign({ id: 'lock.' + name.toLowerCase().replace(/ /g, '_'), kind: 'lock', name, available: true, locked: true, state: 'locked' }, over);
+const withLocks = (...tiles) => House.parse(body({ rooms: [{ name: 'Living Room', tiles: [lamp] }, { name: 'Entry', tiles }] }));
+
+test('nightLock: every lock locked reads "House locked", no alarm wording', () => {
+  assert.deepEqual(House.nightLock(withLocks(lockTile('Front door'), lockTile('Back door')), ''), { warn: false, text: 'House locked' });
+});
+
+test('nightLock: one lock unlocked is a warning naming it', () => {
+  const h = withLocks(lockTile('Front door', { locked: false, state: 'unlocked' }), lockTile('Back door'));
+  assert.deepEqual(House.nightLock(h, ''), { warn: true, text: 'Front door unlocked' });
+});
+
+test('nightLock: several unlocked names the first, then +N', () => {
+  const open = { locked: false, state: 'unlocked' };
+  const h = withLocks(lockTile('Front door', open), lockTile('Back door', open), lockTile('Garage', open));
+  assert.deepEqual(House.nightLock(h, ''), { warn: true, text: 'Front door unlocked +2' });
+});
+
+test('nightLock: an unavailable lock hides the line unless another is known unlocked', () => {
+  const gone = { available: false, locked: false, state: 'unavailable' };
+  assert.equal(House.nightLock(withLocks(lockTile('Front door'), lockTile('Back door', gone)), ''), null);
+  const h = withLocks(lockTile('Front door', { locked: false, state: 'unlocked' }), lockTile('Back door', gone));
+  assert.deepEqual(House.nightLock(h, ''), { warn: true, text: 'Front door unlocked' });
+});
+
+test('nightLock: a pending unlock from the frame shows as unlocked', () => {
+  const v = House.view(House.parse(body()), pend('lock.front', 'unlock', null, T));
+  assert.deepEqual(House.nightLock(v, ''), { warn: true, text: 'Front Door unlocked' });
+});
+
+test('nightLock: no locks hides the line', () => {
+  assert.equal(House.nightLock(withLocks(), ''), null);
+  assert.equal(House.nightLock(House.parse(body({ rooms: [] })), ''), null);
+});
+
+test('nightLock: any home note hides the line, even over data that says locked', () => {
+  const h = withLocks(lockTile('Front door'));
+  assert.equal(House.nightLock(h, 'Home Assistant unreachable · updated 3 min ago'), null);
+  assert.equal(House.nightLock(h, 'Loading Home Assistant…'), null);
+  assert.equal(House.nightLock(null, 'Can’t reach the home server · retrying'), null);
+});
+
+test('nightLock: Home Assistant not set up (or no data) hides the line', () => {
+  assert.equal(House.nightLock(House.parse({ configured: false }), ''), null);
+  assert.equal(House.nightLock(null, ''), null);
+  assert.equal(House.nightLock(undefined, ''), null);
 });
 
 test('nowPlaying: the first playing player, else the one last shown if it is only paused', () => {

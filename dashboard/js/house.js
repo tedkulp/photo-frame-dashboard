@@ -164,8 +164,23 @@
       lightRooms: rooms,
       locks: locks.length,
       unlocked: locks.filter(function (t) { return t.available && !t.locked; }).map(function (t) { return t.name; }),
+      locksOffline: locks.filter(function (t) { return !t.available; }).length,
       inside: data.climate && num(data.climate.current) ? data.climate.current : null
     };
+  };
+
+  // The night screen's lock line from the home data (App.home()) and its note (App.homeNote()):
+  // null (hide it: nothing true to say), { warn: false, text: 'House locked' } or
+  // { warn: true, text: '<first> unlocked[ +N]' }. A known-unlocked lock wins over an offline one;
+  // an offline lock alone means the house can't be vouched for.
+  House.nightLock = function (data, note) {
+    if (note || !data || !data.configured) return null;
+    var s = House.stats(data);
+    if (s.unlocked.length) {
+      return { warn: true, text: s.unlocked[0] + ' unlocked' + (s.unlocked.length > 1 ? ' +' + (s.unlocked.length - 1) : '') };
+    }
+    if (!s.locks || s.locksOffline) return null;
+    return { warn: false, text: 'House locked' };
   };
 
   // The player for the media card: the first one playing, else the one shown last (lastId) while
