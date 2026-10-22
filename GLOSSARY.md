@@ -36,6 +36,15 @@ A condition on the weather (and time of day) paired with the advice it produces.
 The page with the full weather: now (feels-like, humidity, wind, UV, sunrise and sunset), the next hours, and the week. Opened from the rail or by tapping the weather on Today.
 _Avoid_: Forecast page, weather screen
 
+### Calendar
+
+**Family calendar**:
+The one calendar whose events belong to everyone. An event added for several people, or for someone with no writable calendar of their own, goes here.
+
+**Read-only calendar**:
+A calendar whose events the dashboard shows but can't add to or delete from, such as a person's Fastmail or work Outlook calendar.
+_Avoid_: External calendar, subscribed calendar
+
 ### Home
 
 **Today**:
