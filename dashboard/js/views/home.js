@@ -25,12 +25,13 @@
   }
 
   // The family, Home or Away from Home Assistant (App.avatar keeps it current), and a note while
-  // the calendar is missing or stale.
+  // the calendar is missing or stale. The note comes first in the markup (CSS shows it last) so
+  // home.css can tighten the people after it whenever paintFeedNotes fills it in, no rerender.
   function people() {
     var size = D.people.length > 4 ? 26 : 36;
-    return D.people.map(function (p) {
+    return '<small class="h-feed feed-note">' + App.feedNote() + '</small>' + D.people.map(function (p) {
       return '<div class="h-who" style="' + App.pstyle(p) + '">' + App.avatar(p, size, '', { presence: true }) + '<b>' + App.esc(p.name) + '</b></div>';
-    }).join('') + '<small class="h-feed feed-note">' + App.feedNote() + '</small>';
+    }).join('');
   }
 
   function hero() {

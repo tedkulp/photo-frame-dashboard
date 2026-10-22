@@ -42,6 +42,15 @@
 .h-who b { font-size: 18px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .h-feed { font-size: var(--fs-min); font-weight: 700; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h-feed:empty { display: none; }
+/* With a note (it's the first child, shown last via order) the people make room for it: 2 px
+   between rows (-2 px against .h-presence's 4 px gap), and from four people the avatars drop to
+   26 px (22 px from six; nth-last-child counts the note + one .h-who per person, nothing else).
+   !important beats the size App.avatar writes inline (font-size is its round(size × .46)).
+   Not on phones, where the list wraps instead. */
+.h-feed { order: 1; }
+.stage:not([data-layout="phone"]) .h-feed:not(:empty) ~ .h-who + .h-who { margin-top: -2px; }
+.stage:not([data-layout="phone"]) .h-feed:not(:empty):nth-last-child(n+5) ~ .h-who .avatar { width: 26px !important; height: 26px !important; font-size: 12px !important; }
+.stage:not([data-layout="phone"]) .h-feed:not(:empty):nth-last-child(n+7) ~ .h-who .avatar { width: 22px !important; height: 22px !important; font-size: 10px !important; }
 
 /* ---- main column */
 .h-main { grid-column: 1 / 8; display: grid; grid-template-rows: 232px 1fr; gap: 16px; min-height: 0; }
