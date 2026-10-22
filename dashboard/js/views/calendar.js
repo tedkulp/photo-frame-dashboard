@@ -270,8 +270,8 @@
     // below it — month cells, week columns and the add button — and set V.mode from the
     // stage's attribute instead, which is why tapping any day in Month opened the 1st.
     if ((t = e.target.closest('button[data-mode]'))) {
+      V.date = CalNav.modeDate(V.mode, t.dataset.mode, V.date, App.now());
       V.mode = t.dataset.mode;
-      if (V.mode === 'month') V.date = new Date(V.date.getFullYear(), V.date.getMonth(), 1);
       V.scroll = null;
       return render();
     }
