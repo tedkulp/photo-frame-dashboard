@@ -222,6 +222,24 @@ for (const [name, broken] of [['returning 500', { status: 500 }], ['timing out',
   });
 }
 
+test('a failing feed is retried after 2 minutes, not on every load', async () => {
+  await withServer(async ({ url, ics, feeds, advance }) => {
+    await calendar(url);
+    feeds['sam-work'] = { status: 500 };
+    advance(11 * MIN);
+    await calendar(url);
+    const samFetches = () => ics.requests.filter((n) => n === 'sam-work').length;
+    assert.equal(samFetches(), 2);
+    advance(MIN);
+    await calendar(url);
+    assert.equal(samFetches(), 2);
+    feeds['sam-work'] = { body: icsFixture('outlook.ics').replace('SUMMARY:Planning', 'SUMMARY:Planning (new)') };
+    advance(2 * MIN);
+    assert.ok((await calendar(url)).some((e) => e.title === 'Planning (new)'));
+    assert.equal(samFetches(), 3);
+  });
+});
+
 test('a feed that has never loaded shows nothing, and the rest of the calendar still loads', async () => {
   await withServer(async ({ url, logs }) => {
     const res = await call(url, 'GET', '/api/calendar');
@@ -262,6 +280,11 @@ test('an EXDATE written in UTC still removes its occurrence', () => {
 test('floating times and an edited occurrence without its series are read in the frame zone', () => {
   const items = expandIcs(vcal('BEGIN:VEVENT\nUID:f@example.org\nDTSTART:20261020T080000\nDTEND:20261020T090000\nSUMMARY:Floating\nEND:VEVENT\nBEGIN:VEVENT\nUID:orphan@example.org\nRECURRENCE-ID:20261021T120000Z\nDTSTART:20261021T130000Z\nDTEND:20261021T140000Z\nSUMMARY:Orphan\nEND:VEVENT\n'), RANGE);
   assert.deepEqual(items.map((i) => [i.summary, i.start.dateTime]), [['Floating', '2026-10-20T08:00:00-04:00'], ['Orphan', '2026-10-21T09:00:00-04:00']]);
+});
+
+test('two series with the same UID both show', () => {
+  const items = expandIcs(vcal('BEGIN:VEVENT\nUID:dup@example.org\nDTSTART:20261020T130000Z\nDTEND:20261020T140000Z\nSUMMARY:One\nEND:VEVENT\nBEGIN:VEVENT\nUID:dup@example.org\nDTSTART:20261022T130000Z\nDTEND:20261022T140000Z\nSUMMARY:Two\nEND:VEVENT\n'), RANGE);
+  assert.deepEqual(items.map((i) => i.summary), ['One', 'Two']);
 });
 
 test('an all-day event without DTEND lasts one day', () => {

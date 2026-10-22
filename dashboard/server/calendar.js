@@ -51,7 +51,8 @@ function sortKey(e) {
   return Date.parse((e.allDay ? e.start + 'T00:00:00' : e.start.slice(0, 19)) + 'Z');
 }
 
-const isGoogle = (cal) => typeof cal.calendarId === 'string';
+// A settings.calendars entry: Google ({ calendarId }) or read-only ({ ics, url }).
+export const isGoogle = (cal) => typeof cal.calendarId === 'string';
 const calKey = (cal) => (isGoogle(cal) ? cal.calendarId : 'ics:' + cal.ics);
 
 function toEvent(item, cal) {
@@ -108,7 +109,7 @@ function checkInput(input, allIds) {
 export function createCalendar({ settings, google, icsFeeds = null, timeZone = null, now = Date.now }) {
   const allIds = settings.people.map((p) => p.id);
   const family = settings.calendars.find((c) => c.person === 'family');
-  const others = settings.calendars.filter((c) => c !== family && isGoogle(c));
+  const others = settings.calendars.filter((c) => c !== family && isGoogle(c)); // per-person Google calendars
   const readOnly = settings.calendars.filter((c) => !isGoogle(c));
   const peopleOf = (cal) => (cal.person === 'family' ? allIds : [cal.person]);
   let familyZone = null;

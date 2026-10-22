@@ -9,6 +9,7 @@ import ICAL from 'ical.js';
 
 export const CACHE_MS = 10 * 60 * 1000;
 export const TIMEOUT_MS = 10 * 1000;
+export const RETRY_MS = 2 * 60 * 1000; // after a failed fetch, so a dead link doesn't slow every load
 const MAX_STEPS = 100000; // occurrences walked per recurring event, so a runaway RRULE can't hang a load
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -111,7 +112,11 @@ export function expandIcs(vcal, { timeMin, timeMax, zone }) {
   for (const comp of vcal.getAllSubcomponents('vevent')) {
     if (!comp.getFirstPropertyValue('dtstart')) continue;
     if (comp.hasProperty('recurrence-id')) exceptions.push(comp);
-    else masters.set(comp.getFirstPropertyValue('uid') || Symbol('no-uid'), comp);
+    else {
+      // A second series with the same UID (invalid, but seen) still shows, without the edits.
+      const uid = comp.getFirstPropertyValue('uid');
+      masters.set(uid && !masters.has(uid) ? uid : Symbol(uid || 'no-uid'), comp);
+    }
   }
   const byUid = new Map();
   for (const comp of exceptions) {
@@ -157,9 +162,9 @@ export function expandIcs(vcal, { timeMin, timeMax, zone }) {
 
 // ------------------------------------------------------------ fetching and caching
 // feeds: [{ ics: name, url }]. items(name, { timeMin, timeMax, zone }) → Google-style items.
-export function createIcsFeeds({ feeds, now = Date.now, timeoutMs = TIMEOUT_MS, cacheMs = CACHE_MS, log = console }) {
+export function createIcsFeeds({ feeds, now = Date.now, timeoutMs = TIMEOUT_MS, cacheMs = CACHE_MS, retryMs = RETRY_MS, log = console }) {
   const urls = new Map(feeds.map((f) => [f.ics, f.url]));
-  const cache = new Map(); // name → { vcal, at }
+  const cache = new Map(); // name → { vcal (last good, or null), at (when fetched), failedAt? }
   const pending = new Map(); // name → Promise
   const warned = new Set();
 
@@ -184,16 +189,18 @@ export function createIcsFeeds({ feeds, now = Date.now, timeoutMs = TIMEOUT_MS, 
   }
 
   // The feed's calendar: the cached copy while it is fresh, else a new fetch, else the last good
-  // copy (null before the first success).
+  // copy (null before the first success). A failed fetch is retried after retryMs, not on every load.
   async function calendarOf(name) {
     const c = cache.get(name);
-    if (c && now() - c.at < cacheMs) return c.vcal;
+    if (c && (now() - c.at < cacheMs || now() - c.failedAt < retryMs)) return c.vcal;
     if (!pending.has(name)) {
       pending.set(name, fetchFeed(name).then(
         (vcal) => { cache.set(name, { vcal, at: now() }); return vcal; },
         (e) => {
-          log.error(`Read-only calendar "${name}" could not be read (${e.message}); ${c ? 'showing its last good copy' : 'it shows no events until it can be'}`);
-          return c ? c.vcal : null;
+          const last = c ? c.vcal : null;
+          log.error(`Read-only calendar "${name}" could not be read (${e.message}); ${last ? 'showing its last good copy' : 'it shows no events until it can be'}`);
+          cache.set(name, { vcal: last, at: c ? c.at : -Infinity, failedAt: now() });
+          return last;
         },
       ).finally(() => pending.delete(name)));
     }

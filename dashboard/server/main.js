@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, ConfigError } from './config.js';
 import { startServer } from './app.js';
+import { isGoogle } from './calendar.js';
 import { openStore, DataDirError } from './store.js';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -22,6 +23,7 @@ if (!existsSync(join(distDir, 'index.html'))) {
   console.warn(`No built dashboard at ${distDir}; run \`npm run build\`. Serving the API only.`);
 }
 
+const readOnly = config.settings.calendars.filter((c) => !isGoogle(c)).map((c) => c.ics).join(', ') || 'none';
 const { server } = await startServer({
   config,
   store,
@@ -30,6 +32,6 @@ const { server } = await startServer({
   tokenUrl: process.env.GOOGLE_TOKEN_URL || undefined,
   apiBase: process.env.GOOGLE_CALENDAR_API_URL || undefined,
 });
-console.log(`Dashboard on http://0.0.0.0:${server.address().port}/ (data: ${config.dataDir}; calendar time zone: ${config.timeZone || 'from the Family calendar'}; read-only calendars: ${config.settings.calendars.filter((c) => c.ics !== undefined).map((c) => c.ics).join(', ') || 'none'}; weather: ${config.homeAssistant ? config.homeAssistant.weatherEntity : 'not configured'}; home controls: ${config.homeAssistant ? 'label "' + config.homeAssistant.label + '"' : 'not configured'}; photos: ${config.immich ? 'Immich album ' + config.immich.albumId : 'not configured'})`);
+console.log(`Dashboard on http://0.0.0.0:${server.address().port}/ (data: ${config.dataDir}; calendar time zone: ${config.timeZone || 'from the Family calendar'}; read-only calendars: ${readOnly}; weather: ${config.homeAssistant ? config.homeAssistant.weatherEntity : 'not configured'}; home controls: ${config.homeAssistant ? 'label "' + config.homeAssistant.label + '"' : 'not configured'}; photos: ${config.immich ? 'Immich album ' + config.immich.albumId : 'not configured'})`);
 
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => server.close(() => { store.close(); process.exit(0); }));

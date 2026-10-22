@@ -150,7 +150,7 @@ in Fastmail or Outlook.
   people. It can be deleted through its Google copy; the feed's copy keeps showing.
 - Each link is read at most every 10 minutes. If one fails (the server logs why), its last good
   copy keeps showing and the other calendars are unaffected; before it has ever worked it shows
-  nothing.
+  nothing. A failing link is tried again every 2 minutes.
 - Times use the time zones the file defines (Outlook names them the Windows way, like "Eastern
   Standard Time"). A time zone the file uses but doesn't define is read in the frame's time zone,
   and the server logs a warning once.

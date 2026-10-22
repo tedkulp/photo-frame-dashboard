@@ -6,7 +6,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { extname, join, resolve, sep } from 'node:path';
 import { createGoogle } from './google.js';
-import { createCalendar, InputError } from './calendar.js';
+import { createCalendar, InputError, isGoogle } from './calendar.js';
 import { createIcsFeeds } from './ics.js';
 import { createHomeAssistant } from './homeassistant.js';
 import { createWeather } from './weather.js';
@@ -261,7 +261,7 @@ async function routeHome(req, res, pathname, home) {
 // tokenUrl/apiBase/now/homeRetryMs/icsTimeoutMs/log are overridable for tests.
 export async function startServer({ config, store, distDir, tokenUrl, apiBase, now = Date.now, homeRetryMs, icsTimeoutMs, log = console }) {
   const google = createGoogle({ serviceAccount: config.serviceAccount, tokenUrl, apiBase, now });
-  const feeds = config.settings.calendars.filter((c) => c.ics !== undefined);
+  const feeds = config.settings.calendars.filter((c) => !isGoogle(c));
   const icsFeeds = feeds.length ? createIcsFeeds({ feeds, now, timeoutMs: icsTimeoutMs, log }) : null;
   const calendar = createCalendar({ settings: config.settings, google, icsFeeds, timeZone: config.timeZone, now });
   const ha = config.homeAssistant;
