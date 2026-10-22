@@ -40,6 +40,9 @@ function readJsonItem(env, cwd, what, inlineVar, pathVar, defaultFile) {
 
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 
+// A settings.calendars entry is Google ({ calendarId }) or read-only from an ICS link ({ ics, url }).
+export const isReadOnly = (cal) => isText(cal.ics);
+
 function checkSettings(s) {
   if (!s || typeof s !== 'object') throw new ConfigError('settings must be a JSON object');
   if (!Array.isArray(s.people) || s.people.length === 0) throw new ConfigError('settings.people must be a non-empty list');
@@ -61,7 +64,7 @@ function checkSettings(s) {
   });
   if (!Array.isArray(s.calendars)) throw new ConfigError('settings.calendars must be a list');
   s.calendars.forEach((c, i) => {
-    if (!c || isText(c.calendarId) === isText(c.ics)) {
+    if (!c || isText(c.calendarId) === isReadOnly(c)) {
       throw new ConfigError(`settings.calendars[${i}] needs either a calendarId (a Google calendar) or an ics name (a read-only calendar from an ICS link)`);
     }
     if (c.person !== 'family' && !ids.has(c.person)) {
@@ -71,13 +74,13 @@ function checkSettings(s) {
   const family = s.calendars.filter((c) => c.person === 'family').length;
   if (family === 0) throw new ConfigError('settings has no calendar with person "family"');
   if (family > 1) throw new ConfigError('settings must have exactly one calendar with person "family"');
-  if (!isText(s.calendars.find((c) => c.person === 'family').calendarId)) {
+  if (isReadOnly(s.calendars.find((c) => c.person === 'family'))) {
     throw new ConfigError('The Family calendar must be a Google calendar (a calendarId, not an ics link): events added on the frame go there');
   }
   return {
     people: s.people.map((p) => Object.assign({ id: p.id, name: p.name, colour: p.colour },
       p.homeAssistant ? { homeAssistant: p.homeAssistant } : {}, p.immich ? { immich: p.immich.trim() } : {})),
-    calendars: s.calendars.map((c) => (isText(c.calendarId) ? { calendarId: c.calendarId, person: c.person } : { ics: c.ics.trim(), person: c.person })),
+    calendars: s.calendars.map((c) => (isReadOnly(c) ? { ics: c.ics.trim(), person: c.person } : { calendarId: c.calendarId, person: c.person })),
   };
 }
 
@@ -85,7 +88,7 @@ function checkSettings(s) {
 function addIcsUrls(calendars, urls) {
   if (!urls || typeof urls !== 'object' || Array.isArray(urls)) throw new ConfigError('The calendar URLs must be a JSON object of name → ICS link');
   calendars.forEach((c, i) => {
-    if (c.ics === undefined) return;
+    if (!isReadOnly(c)) return;
     if (!Object.hasOwn(urls, c.ics)) throw new ConfigError(`settings.calendars[${i}] names the ICS link "${c.ics}", which has no URL in the calendar URLs`);
     let url;
     try {
@@ -160,7 +163,7 @@ export function loadConfig({ env = process.env, cwd = process.cwd() } = {}) {
   const rawSettings = readJsonItem(env, cwd, 'settings',
     'DASHBOARD_SETTINGS_JSON', 'DASHBOARD_SETTINGS_FILE', 'config/settings.json');
   const settings = checkSettings(rawSettings);
-  if (settings.calendars.some((c) => c.ics !== undefined)) {
+  if (settings.calendars.some(isReadOnly)) {
     addIcsUrls(settings.calendars, readJsonItem(env, cwd, 'calendar URLs',
       'CALENDAR_URLS_JSON', 'CALENDAR_URLS_FILE', 'config/calendar-urls.json'));
   }

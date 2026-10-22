@@ -105,8 +105,9 @@ function toItem(ev, start, end, key, zone, minMs, maxMs) {
 }
 
 // Every occurrence of the calendar's events that overlaps [timeMin, timeMax) (ISO strings), as
-// Google-style items with times in `zone`.
-export function expandIcs(vcal, { timeMin, timeMax, zone }) {
+// Google-style items with times in `zone`. A series whose walk from DTSTART hits MAX_STEPS before
+// timeMax is cut short there (its later occurrences are missing) and passed to onCapped(event).
+export function expandIcs(vcal, { timeMin, timeMax, zone, onCapped }) {
   const minMs = Date.parse(timeMin), maxMs = Date.parse(timeMax);
   const masters = new Map(), exceptions = [];
   for (const comp of vcal.getAllSubcomponents('vevent')) {
@@ -144,8 +145,13 @@ export function expandIcs(vcal, { timeMin, timeMax, zone }) {
       push(toItem(ex, ex.startDate, ex.endDate, ex.recurrenceId.toString(), zone, minMs, maxMs));
     }
     const it = ev.iterator();
-    for (let next, steps = 0; (next = it.next()) && steps < MAX_STEPS; steps++) {
+    let steps = 0;
+    for (let next; (next = it.next()); steps++) {
       if (instant(next, zone) >= maxMs) break;
+      if (steps === MAX_STEPS) {
+        if (onCapped) onCapped(ev);
+        break;
+      }
       if (edited.has(next.toString()) || edited.has(next.convertToZone(ICAL.Timezone.utcTimezone).toString())) continue;
       const d = ev.getOccurrenceDetails(next);
       push(toItem(d.item, d.startDate, d.endDate, next.toString(), zone, minMs, maxMs));
@@ -167,6 +173,7 @@ export function createIcsFeeds({ feeds, now = Date.now, timeoutMs = TIMEOUT_MS, 
   const cache = new Map(); // name → { vcal (last good, or null), at (when fetched), failedAt? }
   const pending = new Map(); // name → Promise
   const warned = new Set();
+  const cappedWarned = new WeakSet(); // parsed copies already warned about a capped series
 
   async function fetchFeed(name) {
     let res;
@@ -209,7 +216,15 @@ export function createIcsFeeds({ feeds, now = Date.now, timeoutMs = TIMEOUT_MS, 
 
   async function items(name, range) {
     const vcal = await calendarOf(name);
-    return vcal ? expandIcs(vcal, range) : [];
+    if (!vcal) return [];
+    const capped = [];
+    const out = expandIcs(vcal, Object.assign({ onCapped: (ev) => capped.push(ev) }, range));
+    if (capped.length && !cappedWarned.has(vcal)) {
+      cappedWarned.add(vcal);
+      const names = capped.map((ev) => `${ev.summary ? '"' + ev.summary + '" ' : ''}(UID ${ev.uid || 'none'})`).join(', ');
+      log.warn(`Read-only calendar "${name}" has recurring events with too many occurrences before today to walk (${names}); some of their occurrences are missing`);
+    }
+    return out;
   }
 
   return { items };

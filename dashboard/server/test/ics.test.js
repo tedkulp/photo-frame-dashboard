@@ -261,6 +261,25 @@ test('a feed that is not iCalendar counts as failed', async () => {
   }, { feeds: { 'sam-work': { body: '<html>Sign in</html>' } } });
 });
 
+// Every minute since 2020: the walk from DTSTART stops after MAX_STEPS (about 69 days) long
+// before the window, which is logged once per parsed copy, naming the event and not the link.
+test('a series too dense to walk to the window is logged once', async () => {
+  const dense = 'BEGIN:VEVENT\nUID:dense@example.org\nDTSTART:20200101T000000Z\nDTEND:20200101T000100Z\nRRULE:FREQ=MINUTELY\nSUMMARY:Tick\nEND:VEVENT\n';
+  const body = icsFixture('outlook.ics').replace(/(BEGIN:VEVENT)/, dense.replace(/\n/g, '\r\n') + '$1');
+  await withServer(async ({ url, ics, logs }) => {
+    for (let i = 0; i < 2; i++) {
+      const res = await call(url, 'GET', '/api/calendar');
+      assert.equal(res.status, 200);
+      assert.ok(!res.body.events.some((e) => e.title === 'Tick'));
+      assert.ok(res.body.events.some((e) => e.people.includes('sam'))); // the feed's other events still show
+    }
+    const warns = logs.filter(([level, m]) => level === 'warn' && /dense@example\.org/.test(m));
+    assert.equal(warns.length, 1);
+    assert.match(warns[0][1], /"sam-work".*"Tick"/);
+    assert.ok(!warns[0][1].includes(ics.url('sam-work')));
+  }, { feeds: { 'sam-work': { body } } });
+});
+
 // ------------------------------------------------------------ expansion edge cases
 const vcal = (events) => parseIcs(icsFixture('fastmail.ics').replace(/BEGIN:VEVENT[\s\S]*END:VEVENT\n/, events));
 const RANGE = { timeMin: new Date(NOW - 7 * 864e5).toISOString(), timeMax: new Date(NOW + 42 * 864e5).toISOString(), zone: 'America/Toronto' };

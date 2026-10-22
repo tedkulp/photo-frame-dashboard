@@ -2,9 +2,8 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, ConfigError } from './config.js';
+import { loadConfig, ConfigError, isReadOnly } from './config.js';
 import { startServer } from './app.js';
-import { isGoogle } from './calendar.js';
 import { openStore, DataDirError } from './store.js';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -23,7 +22,7 @@ if (!existsSync(join(distDir, 'index.html'))) {
   console.warn(`No built dashboard at ${distDir}; run \`npm run build\`. Serving the API only.`);
 }
 
-const readOnly = config.settings.calendars.filter((c) => !isGoogle(c)).map((c) => c.ics).join(', ') || 'none';
+const readOnly = config.settings.calendars.filter(isReadOnly).map((c) => c.ics).join(', ') || 'none';
 const { server } = await startServer({
   config,
   store,

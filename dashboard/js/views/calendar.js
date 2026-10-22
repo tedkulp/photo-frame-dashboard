@@ -396,7 +396,7 @@
         render();
         App.emit('data');
         App.toast('Added <b>' + App.esc(e.title) + '</b> · ' + App.fmt.rel(e.start) + ' ' + App.fmt.time(e.start), {
-          icon: 'calendar', undo: e.deletable ? function () { undoAdd(e); } : null
+          icon: 'calendar', undo: function () { undoAdd(e); }
         });
       }, function (err) {
         V.adding = false;

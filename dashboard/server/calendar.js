@@ -5,6 +5,8 @@
 // Each event says whether it can be deleted: only through a Google copy, so an event that is only
 // on read-only calendars can't. create/remove write single events: to that person's own Google
 // calendar when exactly one person with one is picked, otherwise to the Family calendar.
+import { isReadOnly } from './config.js';
+import { createIcsFeeds } from './ics.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const DAYS_BACK = 7;
@@ -51,14 +53,12 @@ function sortKey(e) {
   return Date.parse((e.allDay ? e.start + 'T00:00:00' : e.start.slice(0, 19)) + 'Z');
 }
 
-// A settings.calendars entry: Google ({ calendarId }) or read-only ({ ics, url }).
-export const isGoogle = (cal) => typeof cal.calendarId === 'string';
-const calKey = (cal) => (isGoogle(cal) ? cal.calendarId : 'ics:' + cal.ics);
+const calKey = (cal) => (isReadOnly(cal) ? 'ics:' + cal.ics : cal.calendarId);
 
 function toEvent(item, cal) {
   const allDay = Boolean(item.start.date);
   const e = {
-    id: isGoogle(cal) ? encodeEventId(cal.calendarId, item.id) : encodeReadOnlyId(cal.ics, item.id),
+    id: isReadOnly(cal) ? encodeReadOnlyId(cal.ics, item.id) : encodeEventId(cal.calendarId, item.id),
     title: item.summary || '(No title)',
     start: allDay ? item.start.date : item.start.dateTime,
     end: allDay ? item.end.date : item.end.dateTime,
@@ -67,7 +67,7 @@ function toEvent(item, cal) {
   if (allDay) e.allDay = true;
   if (item.location) e.loc = item.location;
   if (item.description) e.notes = item.description;
-  e.deletable = isGoogle(cal);
+  e.deletable = !isReadOnly(cal);
   return e;
 }
 
@@ -105,12 +105,13 @@ function checkInput(input, allIds) {
   return { title, start, end, allDay, people: [...new Set(input.people)] };
 }
 
-// icsFeeds: from createIcsFeeds() (needed only when settings has read-only calendars).
-export function createCalendar({ settings, google, icsFeeds = null, timeZone = null, now = Date.now }) {
+// Read-only calendars are fetched through createIcsFeeds() (icsTimeoutMs/log passed on).
+export function createCalendar({ settings, google, timeZone = null, now = Date.now, icsTimeoutMs, log = console }) {
   const allIds = settings.people.map((p) => p.id);
   const family = settings.calendars.find((c) => c.person === 'family');
-  const others = settings.calendars.filter((c) => c !== family && isGoogle(c)); // per-person Google calendars
-  const readOnly = settings.calendars.filter((c) => !isGoogle(c));
+  const others = settings.calendars.filter((c) => c !== family && !isReadOnly(c)); // per-person Google calendars
+  const readOnly = settings.calendars.filter(isReadOnly);
+  const icsFeeds = readOnly.length ? createIcsFeeds({ feeds: readOnly, now, timeoutMs: icsTimeoutMs, log }) : null;
   const peopleOf = (cal) => (cal.person === 'family' ? allIds : [cal.person]);
   let familyZone = null;
 
