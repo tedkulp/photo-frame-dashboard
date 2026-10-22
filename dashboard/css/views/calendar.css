@@ -148,7 +148,7 @@
 
 /* ---- event sheet */
 /* The band stays put and the body scrolls when the sheet would pass its max height. Notes keep
-   their line breaks; word-wrap, not overflow-wrap: anywhere, which Chrome 61 doesn't know. */
+   their line breaks (the server already turned HTML into text); word-wrap, not overflow-wrap: anywhere, which Chrome 61 doesn't know. */
 .sheet--event { width: 640px; overflow: hidden; display: flex; flex-direction: column; }
 .evs { display: flex; flex-direction: column; min-height: 0; }
 .evs-band { flex: none; background: var(--c); color: var(--c-ink); padding: 34px 36px 30px; }
@@ -163,8 +163,7 @@
 .evs-leave { color: var(--ink); }
 .evs-leave b { font-weight: 800; }
 .evs-people { flex-direction: row !important; flex-wrap: wrap; gap: 8px; padding: 10px 0; }
-.evs-notes { font-size: 28px; line-height: 1.2; padding-top: 22px; font-style: italic; white-space: pre-wrap; word-wrap: break-word; }
-.evs-notes--long { font-size: 20px; line-height: 1.4; }
+.evs-notes { font-size: 24px; line-height: 1.25; padding-top: 22px; font-style: italic; white-space: pre-wrap; word-wrap: break-word; }
 
 /* ---- add sheet + shared "who" pickers */
 .big-input {
@@ -257,7 +256,6 @@
 .stage[data-layout="phone"] .evs-row { gap: 12px; min-height: 64px; }
 .stage[data-layout="phone"] .evs-row b { font-size: 18px; }
 .stage[data-layout="phone"] .evs-notes { font-size: 22px; }
-.stage[data-layout="phone"] .evs-notes--long { font-size: 17px; }
 .stage[data-layout="phone"] .big-input { height: 60px; font-size: 32px; margin-bottom: 10px; padding-right: 44px; }
 .stage[data-layout="phone"] .add .label { margin: 16px 0 8px; }
 .stage[data-layout="phone"] .add-who { flex-wrap: wrap; gap: 6px; }
