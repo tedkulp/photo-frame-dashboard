@@ -55,8 +55,9 @@
       if (k === 'a') App.setMode('ambient');
       if (k === 'n') App.setMode('night');
       if (k === 'escape') App.closeSheet();
-      var views = ['home', 'calendar', 'tasks', 'shopping', 'photos', 'control', 'agents'];
-      if (k >= '1' && k <= '7') App.go(views[+k - 1]);
+      // 1–9 follow the rail's tabs in order, so a hidden tab drops out
+      var tab = App.$$('.rail-item')[+k - 1];
+      if (k >= '1' && k <= '9' && tab) App.go(tab.dataset.go);
     });
   });
 })();

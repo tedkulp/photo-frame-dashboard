@@ -232,6 +232,18 @@ The frame runs for weeks unattended, with no keyboard and no way to press reload
    frame to confirm that it comes back on its own. Unplug it rather than `adb reboot`, which hangs
    on many PF1007L units.
 
+### Keyboard shortcuts
+
+The sample dashboard has a few keys for testing on a computer (`dashboard/js/system.js`). They
+do nothing while you type in a text box.
+
+| Key | Does |
+| --- | --- |
+| `A` | Ambient screen |
+| `N` | Night screen (tap it to leave) |
+| `1`–`9` | The rail's tabs in order: Today, Weather, Calendar, Chores, Shopping, Photos, Home controls. A tab hidden from the rail has no number. |
+| `Esc` | Close the open sheet |
+
 ## Do not change on the frame
 
 The site should need no changes to the frame. An agent that builds the site should not:
