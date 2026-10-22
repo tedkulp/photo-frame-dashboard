@@ -164,7 +164,7 @@
 .evs-leave b { font-weight: 800; }
 .evs-people { flex-direction: row !important; flex-wrap: wrap; gap: 8px; padding: 10px 0; }
 .evs-notes { font-size: 28px; line-height: 1.2; padding-top: 22px; font-style: italic; white-space: pre-wrap; word-wrap: break-word; }
-.evs-notes--long { font-size: 20px; line-height: 1.4; font-style: normal; }
+.evs-notes--long { font-size: 20px; line-height: 1.4; }
 
 /* ---- add sheet + shared "who" pickers */
 .big-input {
