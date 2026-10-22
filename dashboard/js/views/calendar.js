@@ -295,6 +295,14 @@
   }
 
   // ------------------------------------------------------------ sheets
+  // A short one-line note reads as a quote; a long or multi-line one as plain body text. Either
+  // way it is escaped text with its line breaks kept (the server already turned HTML into text).
+  function notes(text) {
+    if (!text) return '';
+    if (text.length > 140 || text.indexOf('\n') >= 0) return '<div class="evs-notes evs-notes--long">' + App.esc(text) + '</div>';
+    return '<div class="evs-notes serif">“' + App.esc(text) + '”</div>';
+  }
+
   App.eventSheet = function (e) {
     if (!e) return;
     var p = App.evColor(e), fam = App.isFamily(e);
@@ -309,7 +317,7 @@
       '<div class="evs-row">' + App.icon('person', 28) + '<div class="evs-people">' + (fam ? D.people : e.people.map(App.person)).map(function (x) {
         return '<span class="chip" style="' + App.pstyle(x) + '">' + App.avatar(x, 32) + App.esc(x.name) + '</span>';
       }).join('') + '</div></div>' +
-      (e.notes ? '<div class="evs-notes serif">“' + App.esc(e.notes) + '”</div>' : '') +
+      notes(e.notes) +
       '</div></div>', { cls: 'sheet--event' });
   };
 

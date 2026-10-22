@@ -53,6 +53,32 @@ function sortKey(e) {
   return Date.parse((e.allDay ? e.start + 'T00:00:00' : e.start.slice(0, 19)) + 'Z');
 }
 
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+function decodeEntity(m, name) {
+  if (name[0] !== '#') return ENTITIES[name.toLowerCase()];
+  const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+  return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : m;
+}
+
+// An event's description → plain text for the event sheet. Google descriptions are HTML (<br>,
+// <p>, lists, links, entities): line breaks and block ends become new lines, list items bullets,
+// other tags are dropped (link text kept). ICS ones are plain text and keep their line breaks.
+// Only things that look like tags are dropped, so "3 < 4" survives; entities are decoded in one
+// pass after that, so "&lt;b&gt;" stays the literal text "<b>".
+export function plainNotes(description) {
+  return String(description || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/<br\s*\/?>|<\/(p|div|li)\s*>/gi, '\n')
+    .replace(/([^\n])<(p|div)\b[^>]*>/gi, '$1\n')
+    .replace(/<li\b[^>]*>/gi, '• ')
+    .replace(/<\/?[a-z][^>]*>|<!--[\s\S]*?-->/gi, '')
+    .replace(/&(#\d+|#x[0-9a-f]+|amp|lt|gt|quot|apos|nbsp);/gi, decodeEntity)
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const calKey = (cal) => (isReadOnly(cal) ? 'ics:' + cal.ics : cal.calendarId);
 
 function toEvent(item, cal) {
@@ -66,7 +92,8 @@ function toEvent(item, cal) {
   };
   if (allDay) e.allDay = true;
   if (item.location) e.loc = item.location;
-  if (item.description) e.notes = item.description;
+  const notes = plainNotes(item.description);
+  if (notes) e.notes = notes;
   e.deletable = !isReadOnly(cal);
   return e;
 }
