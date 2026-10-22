@@ -300,7 +300,7 @@
   var QUOTE_MAX = 140;
   function notesHtml(text) {
     if (!text) return '';
-    if (text.length > QUOTE_MAX || text.indexOf('\n') >= 0) return '<div class="evs-notes evs-notes--long">' + App.esc(text) + '</div>';
+    if (text.length > QUOTE_MAX || text.indexOf('\n') >= 0) return '<div class="evs-notes evs-notes--long serif">' + App.esc(text) + '</div>';
     return '<div class="evs-notes serif">“' + App.esc(text) + '”</div>';
   }
 
