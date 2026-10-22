@@ -12,9 +12,9 @@
   // How long each slideshow shows a photo, in milliseconds. Change a number here and rebuild;
   // no view keeps its own.
   Photos.INTERVAL = {
-    ambient: 60000, // ambient mode (the idle photo frame)
-    today: 60000,   // Today's photo card
-    photos: 30000   // the Photos page
+    ambient: 60 * 1000, // ambient mode (the idle photo frame)
+    today: 60 * 1000,   // Today's photo card
+    photos: 30 * 1000   // the Photos page
   };
 
   var DATE = /^\d{4}-\d{2}-\d{2}$/;
