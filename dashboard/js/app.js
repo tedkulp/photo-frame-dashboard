@@ -638,13 +638,28 @@
     if (App.mode === 'nightdash' && idleSec >= 20) { App.setMode('night'); return; }
     if (App.mode !== 'day' || blocked) return;
     if (idleSec === App.idle.home && App.current !== 'home') { App.closeSheet(); App.go('home'); }
-    if (idleSec >= App.idle.ambient) {
-      App.closeSheet();
-      App.go('home');
-      App.setMode(App.isNight() ? 'night' : 'ambient');
-    }
+    if (idleSec >= App.idle.ambient) App.rest();
   }
   App.resetIdle = function () { idleSec = 0; };
+  // The idle screen: close any sheet, back to Today, then night after dark or ambient. The idle
+  // tick and a tap on the rail clock both come here. Day mode only, never over a takeover or on a
+  // phone. A clock tap is deliberate, so a sheet, edit mode or unanswered tap doesn't hold it off.
+  App.rest = function () {
+    if (!idleAllowed() || App.mode !== 'day' || $('#takeover').classList.contains('is-open')) return;
+    App.closeSheet();
+    App.go('home');
+    App.setMode(App.isNight() ? 'night' : 'ambient');
+  };
+  // On click, not pointerdown: ambient/night leave on click, so the switch has to come after the
+  // tap's own click or that click would dismiss them again. An open sheet's scrim covers the rail,
+  // so a tap on the scrim over the clock counts as a tap on the clock.
+  function onClockClick(e) {
+    var t = e.target, r;
+    if (t.closest && t.closest('#railClock')) { App.rest(); return; }
+    if (!t.classList || !t.classList.contains('sheet-scrim')) return;
+    r = $('#railClock').getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom) App.rest();
+  }
 
   // ------------------------------------------------------------ stage size + scaling
   // Height is always 800 logical px; width follows the window's aspect (1280 at 16:10, 1422 at
@@ -756,6 +771,7 @@
       if (b && e.detail === 0) App.go(b.dataset.go);
     });
     document.addEventListener('pointerdown', App.resetIdle, true);
+    document.addEventListener('click', onClockClick, true);
     window.addEventListener('hashchange', function () { App.go(location.hash.slice(1)); });
     App.go(location.hash.slice(1) || 'home');
     tick();
