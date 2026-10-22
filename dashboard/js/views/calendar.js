@@ -1,4 +1,4 @@
-// Calendar: Today-by-person lanes (default; one list on a phone), 3-day, rolling week, month.
+// Calendar: Today-by-person lanes (default; one list on a phone), 3-day, Sun–Sat week, month.
 (function () {
   'use strict';
   var D = window.DATA;
@@ -171,11 +171,11 @@
     return '<div class="cal-day cal-3">' + head + ad + grid + '</div>';
   }
 
-  // ------------------------------------------------------------ rolling week
+  // ------------------------------------------------------------ week (the Sun–Sat week containing V.date)
   function weekView() {
-    var now = App.now();
+    var now = App.now(), start = CalNav.weekStart(V.date);
     return '<div class="week">' + [0, 1, 2, 3, 4, 5, 6].map(function (i) {
-      var d = App.addDays(V.date, i), today = App.sameDay(d, now);
+      var d = App.addDays(start, i), today = App.sameDay(d, now);
       var ad = App.allDayOn(d), list = App.timedOn(d), max = 7 - ad.length, more = list.length - max;
       return '<div class="wk-col' + (today ? ' is-today' : '') + '" data-day="' + (+d) + '">' +
         '<div class="wk-head"><b>' + App.fmt.dayShort(d) + '</b><span class="num">' + d.getDate() + '</span></div>' +
@@ -194,7 +194,7 @@
   function monthView() {
     var now = App.now();
     var first = new Date(V.date.getFullYear(), V.date.getMonth(), 1);
-    var start = App.addDays(first, -((first.getDay() + 6) % 7)); // Monday start
+    var start = CalNav.weekStart(first); // Sunday start
     var cells = '';
     for (var i = 0; i < 42; i++) {
       var d = App.addDays(start, i);
@@ -203,7 +203,7 @@
       cells += '<button class="mo-cell' + (d.getMonth() !== first.getMonth() ? ' is-out' : '') + (App.sameDay(d, now) ? ' is-today' : '') + '" data-day="' + (+d) + '">' +
         '<span class="num">' + d.getDate() + '</span><span class="mo-dots">' + dots + (evs.length > 5 ? '<em>+' + (evs.length - 5) + '</em>' : '') + '</span></button>';
     }
-    return '<div class="month"><div class="mo-dow">' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<span class="label">' + d + '</span>'; }).join('') + '</div>' +
+    return '<div class="month"><div class="mo-dow">' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(function (d) { return '<span class="label">' + d + '</span>'; }).join('') + '</div>' +
       '<div class="mo-grid">' + cells + '</div></div>';
   }
 
@@ -220,12 +220,15 @@
     var d = V.date, now = App.now();
     if (mode === 'day') return { k: App.fmt.month(d) + ' ' + d.getFullYear() + (App.sameDay(d, now) ? ' · Today' : ' · ' + App.fmt.rel(d)), t: App.fmt.day(d) + ' <i>' + d.getDate() + '</i>' };
     if (mode === '3day') { var e = App.addDays(d, 2); return { k: App.fmt.month(d) + ' ' + d.getFullYear(), t: App.fmt.dayShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.dayShort(e) + ' ' + e.getDate() }; }
-    if (mode === 'week') { var w = App.addDays(d, 6); return { k: 'Next 7 days', t: App.fmt.monthShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
+    if (mode === 'week') { var s = CalNav.weekStart(d), w = App.addDays(s, 6); return { k: CalNav.weekKicker(d, now), t: App.fmt.monthShort(s) + ' ' + s.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
     return { k: d.getFullYear(), t: App.fmt.month(d) };
   }
   function header(mode) {
     var t = title(mode);
-    var isToday = mode === 'month' ? (V.date.getMonth() === App.now().getMonth()) : App.sameDay(V.date, App.now());
+    var now = App.now();
+    var isToday = mode === 'month' ? (V.date.getMonth() === now.getMonth())
+      : mode === 'week' ? +CalNav.weekStart(V.date) === +CalNav.weekStart(now) // this week contains today
+      : App.sameDay(V.date, now);
     return '<header class="cal-head">' +
       '<button class="icon-btn" data-nav="-1" aria-label="Previous">' + App.icon('left', 24) + '</button>' +
       '<div class="cal-title"><div class="serif">' + t.t + '</div><div class="label">' + t.k + '</div></div>' +
@@ -253,7 +256,8 @@
   function nav(dir) {
     var mode = shown().mode;
     if (mode === 'month') V.date = new Date(V.date.getFullYear(), V.date.getMonth() + dir, 1);
-    else V.date = App.addDays(V.date, dir * ({ day: 1, '3day': 3, week: 7 }[mode]));
+    else if (mode === 'week') V.date = App.addDays(CalNav.weekStart(V.date), dir * 7); // Sunday to Sunday
+    else V.date = App.addDays(V.date, dir * (mode === '3day' ? 3 : 1));
     V.scroll = null;
     render();
   }
