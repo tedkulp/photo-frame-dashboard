@@ -33,3 +33,17 @@ test('a description that is only tags and whitespace gives no notes', () => {
   assert.equal(plainNotes(''), '');
   assert.equal(plainNotes(undefined), '');
 });
+
+test('angle-bracketed links and addresses in plain text survive', () => {
+  const text = 'Join: <https://zoom.us/j/123>\nOrganizer: Bob <bob@example.com>';
+  assert.equal(plainNotes(text), text);
+});
+
+test('a list right after text starts on its own line', () => {
+  assert.equal(plainNotes('Bring:<ul><li>a</li><li>b</li></ul>'), 'Bring:\n• a\n• b');
+});
+
+test('typographic entities are decoded and style/script contents dropped', () => {
+  assert.equal(plainNotes('<style>p{color:red}</style>It&rsquo;s &ldquo;on&rdquo; &mdash; 5&ndash;6&hellip;'),
+    'It’s “on” — 5–6…');
+});

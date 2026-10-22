@@ -53,27 +53,34 @@ function sortKey(e) {
   return Date.parse((e.allDay ? e.start + 'T00:00:00' : e.start.slice(0, 19)) + 'Z');
 }
 
-const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+// The entities a description is likely to hold, plus numeric ones; an unknown name or out-of-range
+// code point stays as written.
+const ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', ndash: '–', mdash: '—', hellip: '…',
+};
 
-function decodeEntity(m, name) {
-  if (name[0] !== '#') return ENTITIES[name.toLowerCase()];
+function decodeEntity(match, name) {
+  if (name[0] !== '#') return ENTITIES[name.toLowerCase()] || match;
   const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-  return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : m;
+  return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
 }
 
 // An event's description → plain text for the event sheet. Google descriptions are HTML (<br>,
 // <p>, lists, links, entities): line breaks and block ends become new lines, list items bullets,
 // other tags are dropped (link text kept). ICS ones are plain text and keep their line breaks.
-// Only things that look like tags are dropped, so "3 < 4" survives; entities are decoded in one
-// pass after that, so "&lt;b&gt;" stays the literal text "<b>".
+// Only things that look like tags (<name>, <name attrs>) are dropped, so "3 < 4", <https://…>
+// and <bob@example.com> survive; entities are decoded in one pass after that, so "&lt;b&gt;"
+// stays the literal text "<b>".
 export function plainNotes(description) {
   return String(description || '')
     .replace(/\r\n?/g, '\n')
+    .replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/<br\s*\/?>|<\/(p|div|li)\s*>/gi, '\n')
-    .replace(/([^\n])<(p|div)\b[^>]*>/gi, '$1\n')
+    .replace(/([^\n])<(p|div|ul|ol)\b[^>]*>/gi, '$1\n')
     .replace(/<li\b[^>]*>/gi, '• ')
-    .replace(/<\/?[a-z][^>]*>|<!--[\s\S]*?-->/gi, '')
-    .replace(/&(#\d+|#x[0-9a-f]+|amp|lt|gt|quot|apos|nbsp);/gi, decodeEntity)
+    .replace(/<\/?[a-z][a-z0-9]*(\s[^>]*)?\/?>|<!--[\s\S]*?-->/gi, '')
+    .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, decodeEntity)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

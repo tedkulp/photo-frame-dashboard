@@ -147,7 +147,8 @@
 .mo-dots em { font-style: normal; font-size: 13px; font-weight: 800; }
 
 /* ---- event sheet */
-/* The band stays put and the body scrolls when the sheet would pass its max height. */
+/* The band stays put and the body scrolls when the sheet would pass its max height. Notes keep
+   their line breaks; word-wrap, not overflow-wrap: anywhere, which Chrome 61 doesn't know. */
 .sheet--event { width: 640px; overflow: hidden; display: flex; flex-direction: column; }
 .evs { display: flex; flex-direction: column; min-height: 0; }
 .evs-band { flex: none; background: var(--c); color: var(--c-ink); padding: 34px 36px 30px; }
