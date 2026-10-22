@@ -77,14 +77,23 @@
   overflow: hidden; position: relative;
 }
 .h-hero-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.h-hero-title { font-size: 72px; line-height: .95; margin: 8px 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The tight line height puts the serif's descenders (g, y, p, q) below the title's box, and the
+   ellipsis needs overflow: hidden, which would cut them. Padding grows the clip box by the
+   overhang and the negative margin takes the same space back, so nothing around it moves. */
+.h-hero-title {
+  font-size: 72px; line-height: .95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: .16em 0; margin: calc(8px - .16em) 0;
+}
 .h-hero-meta { font-size: 19px; opacity: .88; }
 .h-hero-foot { margin-top: auto; display: flex; align-items: center; gap: 14px; }
 .h-hero-foot .dots i { box-shadow: 0 0 0 3px var(--c); }
 .h-hero-count { font-size: 150px; line-height: .78; letter-spacing: -.04em; text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
 .h-hero-count small { font-size: 22px; letter-spacing: .1em; text-transform: uppercase; font-stretch: 80%; margin-top: 10px; }
 .h-hero--empty { background: var(--ink); color: var(--paper); flex-direction: column; justify-content: center; }
-.h-hero--empty .h-hero-title { white-space: normal; font-size: 56px; }
+/* The empty card wraps instead of truncating, so it shows the whole title. With overflow: hidden
+   the flex column also shrank the title to fit the card and cut "Enjoy the quiet." at the bottom;
+   now the three lines run a few px into the card's padding, centred, and the card keeps its size. */
+.h-hero--empty .h-hero-title { white-space: normal; overflow: visible; text-overflow: clip; font-size: 56px; }
 
 .h-lanes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; min-height: 0; }
 .h-lane { display: flex; flex-direction: column; gap: 6px; min-width: 0; border-top: 6px solid var(--c); padding-top: 10px; }

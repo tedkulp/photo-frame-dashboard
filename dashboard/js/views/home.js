@@ -221,7 +221,7 @@
         });
         // the chips' widths change when the web fonts arrive, which can be long after boot
         if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', fitAllDay);
-        V.slides = new App.Slideshow(el.querySelector('.h-photo-stage'), { layout: 'cover', captions: false, interval: 12000, onChange: photoCaption });
+        V.slides = new App.Slideshow(el.querySelector('.h-photo-stage'), { layout: 'cover', captions: false, interval: window.Photos.INTERVAL.today, onChange: photoCaption });
       }
       paint();
       syncSlides();
