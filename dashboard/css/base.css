@@ -90,7 +90,9 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
   border-radius: 50%;
   background: var(--c); color: var(--c-ink);
   font-weight: 900; font-stretch: 70%; line-height: 1;
-  padding-top: .22em;
+  /* Archivo's caps sit a touch high in the line box. 1px centres them within half a pixel at
+     22–36px (Today's sizes) and 1px at 44–56px; the old .22em put them 1.5px low at 36px and 3px at 56px. */
+  padding-top: 1px;
 }
 /* Away (Home Assistant presence, Today and ambient "who" places only): hollow ring, coloured letter. */
 .avatar.is-away { background: transparent; color: var(--c); box-shadow: inset 0 0 0 3px var(--c); }
