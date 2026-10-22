@@ -69,7 +69,7 @@
   App.Slideshow = function (el, opts) {
     shows.push(this);
     this.el = el;
-    this.o = Object.assign({ layout: 'auto', interval: 15000, captions: true }, opts || {});
+    this.o = Object.assign({ layout: 'auto', interval: Photos.INTERVAL.photos, captions: true }, opts || {});
     this.queue = [];
     this.history = [];
     this.count = 0;
