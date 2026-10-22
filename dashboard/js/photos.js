@@ -9,6 +9,14 @@
   Photos.REFRESH = 5 * MIN; // the server caches the album listing for as long
   Photos.STALE = 60 * MIN;
 
+  // How long each slideshow shows a photo, in milliseconds. Change a number here and rebuild;
+  // no view keeps its own.
+  Photos.INTERVAL = {
+    ambient: 60000, // ambient mode (the idle photo frame)
+    today: 60000,   // Today's photo card
+    photos: 30000   // the Photos page
+  };
+
   var DATE = /^\d{4}-\d{2}-\d{2}$/;
   function str(v) { return typeof v === 'string' ? v : ''; }
 

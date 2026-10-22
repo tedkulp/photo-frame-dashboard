@@ -65,3 +65,8 @@ test('captions escape the place and name', () => {
   assert.equal(Photos.kickerLine(meta({ place: '<i>', from: { name: 'A&B' } })), '2 years ago · &lt;i&gt; · From A&amp;B');
   assert.equal(Photos.polaroidLine(meta({ place: '"x"' })), '&quot;x&quot;, May 2024');
 });
+
+// ------------------------------------------------------------ slideshow times
+test('slideshow times: 60 s ambient and Today, 30 s on the Photos page', () => {
+  assert.deepEqual(Photos.INTERVAL, { ambient: 60000, today: 60000, photos: 30000 });
+});
