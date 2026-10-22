@@ -13,8 +13,9 @@ RUN npm run build
 FROM node:24.22.0-alpine3.24
 ENV NODE_ENV=production PORT=8080
 WORKDIR /app
-# No runtime dependencies: the server uses Node built-ins only.
-COPY package.json ./
+# Production dependencies only (ical.js reads the read-only calendars' ICS links, ADR 0005).
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY server ./server
 COPY --from=build /src/dist ./dist
 RUN rm -rf server/test \

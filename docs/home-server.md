@@ -11,17 +11,20 @@ address on your LAN:
 - `GET /` and the built files from `dashboard/dist`. `index.html` is sent with
   `Cache-Control: no-cache`, so the frame picks up a new build on reload.
 - `GET /api/calendar` returns `{ people, events, updatedAt }`: every event in your configured Google
-  calendars from 7 days ago to 42 days ahead, recurring events expanded. If Google fails it answers
-  with a non-2xx status and a JSON `error`; it never pretends the calendar is empty.
+  calendars and [read-only calendars](#read-only-calendars-from-ics-links-optional) from 7 days ago
+  to 42 days ahead, recurring events expanded. Each event has `deletable`: `false` when it is only
+  on read-only calendars. If Google fails it answers with a non-2xx status and a JSON `error`; it
+  never pretends the calendar is empty. A read-only feed that fails doesn't fail the answer.
 - `POST /api/events` with a JSON body `{ title, start, end, people, allDay? }` creates the event
   and answers `201` with it in the same shape `GET /api/calendar` uses. `start`/`end` are times
   with an offset (`2026-10-20T15:30:00-04:00`), or dates (`2026-10-20`, end exclusive) with
   `allDay: true`; `people` lists person ids. It goes to that person's own calendar when exactly
-  one person with a calendar in `settings.calendars` is picked, otherwise to the Family calendar
+  one person with a Google calendar in `settings.calendars` is picked, otherwise to the Family calendar
   (so on the dashboard it then belongs to everyone). Bad input gets `400` and a JSON `error`, and
   nothing is written; the body must be sent as `application/json`.
 - `DELETE /api/events/:id` deletes an event by the `id` the API gave it (`204`). Only events in
-  the configured calendars can be deleted. The dashboard uses it for **Undo** right after adding.
+  the configured Google calendars can be deleted: an event only on read-only calendars gets `403`
+  and nothing is written. The dashboard uses it for **Undo** right after adding.
 - `GET /api/weather` returns `{ configured: true, now, hourly, daily, updatedAt }` from a Home
   Assistant weather entity, in whole °F (see [Weather](#weather-from-home-assistant-optional)), or
   `{ configured: false }` when Home Assistant isn't set up. If Home Assistant fails it answers
@@ -34,8 +37,9 @@ address on your LAN:
   served (`dist/version.json`), or `{ build: null }` without one. Sent `Cache-Control: no-store`.
   The dashboard uses it to [reload itself after an update](#updates-reload-the-dashboard).
 
-It has no npm runtime dependencies and no login of its own: it is meant for your LAN only, so do
-not expose its port to the internet.
+Its one npm runtime dependency is [`ical.js`](https://github.com/kewisch/ical.js), for the
+read-only calendars ([ADR 0005](adr/0005-read-only-calendars-from-ics-via-ical-js.md)). It has no
+login of its own: it is meant for your LAN only, so do not expose its port to the internet.
 
 ## 1. Google Cloud: a service account
 
@@ -81,6 +85,9 @@ Copy [`dashboard/settings.example.json`](../dashboard/settings.example.json) and
 - Exactly one calendar has `"person": "family"`. Its events belong to everyone.
 - Per-person calendars are optional. An event that appears in several of your calendars (say,
   an invite on two people's calendars) is shown once, with both people.
+- A calendar can also be read-only, from an ICS link: `{ "ics": "alex-work", "person": "alex" }`.
+  See [Read-only calendars](#read-only-calendars-from-ics-links-optional). The Family calendar
+  must be a Google calendar.
 - `people[].homeAssistant` (optional, needs `homeAssistant` below) links a person to their Home
   Assistant `person.*` entity, e.g. `"homeAssistant": "person.alex"`, so their avatar shows
   whether they are home (see [presence](#home-controls-from-home-assistant-optional)). Anything
@@ -98,6 +105,7 @@ the default file (relative to the folder it runs in; `/app` in Docker).
 | Service-account key | `GOOGLE_SERVICE_ACCOUNT_JSON` | `GOOGLE_SERVICE_ACCOUNT_FILE` | `config/service-account.json` |
 | Home Assistant token (only with `homeAssistant`) | `HOME_ASSISTANT_TOKEN` | `HOME_ASSISTANT_TOKEN_FILE` | `config/home-assistant-token` |
 | Immich API key (only with `immich`) | `IMMICH_API_KEY` | `IMMICH_API_KEY_FILE` | `config/immich-api-key` |
+| ICS links (only with `ics` calendars) | `CALENDAR_URLS_JSON` | `CALENDAR_URLS_FILE` | `config/calendar-urls.json` |
 | Port | `PORT` | | `8080` |
 | Time zone | `TZ` | | the Family calendar's time zone |
 | Data dir (chores) | | `DASHBOARD_DATA_DIR` | `data/` |
@@ -105,6 +113,61 @@ the default file (relative to the folder it runs in; `/app` in Docker).
 If anything is missing or wrong (no key, bad JSON, a calendar naming a person who isn't in
 `people`, no Family calendar), the server stops at startup and says which item.
 `dashboard/config/` is git-ignored.
+
+### Read-only calendars from ICS links (optional)
+
+Calendars that aren't on Google, like a Fastmail calendar or a work Outlook calendar, can be shown
+from their secret iCal (ICS) link. The dashboard shows their events but never adds to or deletes
+from them ([ADR 0005](adr/0005-read-only-calendars-from-ics-via-ical-js.md)). In
+`settings.calendars`, give each one a name instead of a `calendarId`:
+
+```json
+{ "calendarId": "alex@example.com", "person": "alex" },
+{ "ics": "alex-fastmail", "person": "alex" },
+{ "ics": "jordan-work", "person": "jordan" }
+```
+
+and put the links in `config/calendar-urls.json` (or `CALENDAR_URLS_JSON` /
+`CALENDAR_URLS_FILE`), by name:
+
+```json
+{
+  "alex-fastmail": "https://<your Fastmail calendar's ICS link>",
+  "jordan-work": "https://outlook.office365.com/owa/calendar/<…>/calendar.ics"
+}
+```
+
+**The link is a secret.** Anyone who has it can read that calendar, so it lives with the other
+secrets, never in `settings.json` or a commit. If one leaks, make a new link (and drop the old one)
+in Fastmail or Outlook.
+
+- Startup stops with a message if a name has no link, a link isn't `http://` or `https://` (for a
+  `webcal://` link, change `webcal` to `https`), or the Family calendar is an `ics` one.
+- A person can have a Google calendar and read-only calendars together. An event added on the
+  frame for one person goes to their own Google calendar, or to the Family calendar if all their
+  calendars are read-only.
+- The same event on a Google calendar and a feed (same UID and start) shows once, with both
+  people. It can be deleted through its Google copy; the feed's copy keeps showing.
+- Each link is read at most every 10 minutes. If one fails (the server logs why), its last good
+  copy keeps showing and the other calendars are unaffected; before it has ever worked it shows
+  nothing.
+- Times use the time zones the file defines (Outlook names them the Windows way, like "Eastern
+  Standard Time"). A time zone the file uses but doesn't define is read in the frame's time zone,
+  and the server logs a warning once.
+
+**Fastmail:** Settings → **Calendars**, open the calendar's sharing options and turn on sharing
+with anyone by a read-only link, then copy its **iCal (ICS)** link (the labels move between
+Fastmail versions; you want the subscription link, not the CalDAV account address).
+
+**Outlook (work or personal):** Outlook on the web → Settings → Calendar → **Shared calendars** →
+**Publish a calendar**: pick the calendar and **Can view all details** (or **Can view titles and
+locations**), **Publish**, and copy the **ICS** link (not the HTML one).
+
+If **Publish a calendar** isn't there, or the link doesn't work, your work tenant blocks
+publishing. The fallback is to share the Outlook calendar into Google: in Outlook, **Share** the
+calendar with your Google address; once it shows up in Google Calendar, share it with the service
+account (step 2) and add it as a normal `calendarId` calendar. Check that company policy allows
+it first.
 
 ### Weather from Home Assistant (optional)
 
@@ -304,8 +367,8 @@ curl http://localhost:8080/api/photos   # "configured": true and your album's ph
 From `dashboard/`, copy [`compose.example.yaml`](../dashboard/compose.example.yaml) to
 `compose.yaml` and keep the style you want:
 
-- **`dashboard`**: put `settings.json` and `service-account.json` in `dashboard/config/`; the
-  folder is mounted read-only.
+- **`dashboard`**: put `settings.json` and `service-account.json` (and `calendar-urls.json`, for
+  read-only calendars) in `dashboard/config/`; the folder is mounted read-only.
 - **`dashboard-env`**: settings inline in the compose file, the key passed as a compose secret
   and read through `GOOGLE_SERVICE_ACCOUNT_FILE`.
 

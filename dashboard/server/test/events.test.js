@@ -57,7 +57,7 @@ for (const [name, people, calendarId, shown] of [
       assert.deepEqual(JSON.parse(w.body), { summary: 'Dentist', start: { dateTime: '2026-10-20T15:30:00Z' }, end: { dateTime: '2026-10-20T16:30:00Z' } });
       // The same shape GET /api/calendar uses, with the people GET would give it.
       assert.deepEqual(Object.assign({}, body, { id: undefined }), {
-        id: undefined, title: 'Dentist', start: '2026-10-20T15:30:00Z', end: '2026-10-20T16:30:00Z', people: shown,
+        id: undefined, title: 'Dentist', start: '2026-10-20T15:30:00Z', end: '2026-10-20T16:30:00Z', people: shown, deletable: true,
       });
       assert.equal(decodeEventId(body.id).calendarId, calendarId);
     });

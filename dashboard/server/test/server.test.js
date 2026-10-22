@@ -59,10 +59,10 @@ test('maps Google events into the dashboard shape', async () => {
     const [dinner, garbage] = body.events;
     assert.deepEqual(Object.assign({}, dinner, { id: undefined }), {
       id: undefined, title: 'Dinner', start: '2026-10-20T18:30:00-04:00', end: '2026-10-20T19:30:00-04:00',
-      people: ['alex', 'sam'], loc: "Nonna's", notes: 'Bring cake',
+      people: ['alex', 'sam'], loc: "Nonna's", notes: 'Bring cake', deletable: true,
     });
     assert.deepEqual(Object.assign({}, garbage, { id: undefined }), {
-      id: undefined, title: 'Garbage night', start: '2026-10-21', end: '2026-10-22', people: ['alex', 'sam'], allDay: true,
+      id: undefined, title: 'Garbage night', start: '2026-10-21', end: '2026-10-22', people: ['alex', 'sam'], allDay: true, deletable: true,
     });
     assert.deepEqual(decodeEventId(dinner.id), { calendarId: FAMILY, eventId: 'dinner' });
     assert.equal(typeof garbage.id, 'string');

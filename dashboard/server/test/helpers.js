@@ -1,10 +1,12 @@
 // Shared fixtures for the server tests: a throwaway service-account key, sample settings, a temp
-// config folder, and a fake Google (OAuth token + Calendar events endpoints) on a local port.
+// config folder, and a fake Google (OAuth token + Calendar events endpoints) on a local port, plus
+// fake ICS links, Home Assistant and Immich.
 import { generateKeyPairSync, createHash, createPublicKey, verify } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' });
@@ -113,6 +115,36 @@ export async function fakeGoogle(calendars) {
     requests,
     get tokensIssued() { return tokensIssued; },
     close: () => new Promise((r) => server.close(r)),
+  };
+}
+
+// The fixture .ics files in test/fixtures (synthetic, no real calendars). Outlook writes CRLF.
+export function icsFixture(name) {
+  const text = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures', name), 'utf8');
+  return name.startsWith('outlook') ? text.replace(/\r?\n/g, '\r\n') : text;
+}
+
+// Fake ICS links. `feeds` maps a path name -> { body } (the .ics text), { status } to fail, or
+// { hang: true } to never answer. Entries can be changed between requests. `url(name)` is that
+// feed's link; `requests` lists the names fetched, in order.
+export async function fakeIcs(feeds) {
+  const requests = [];
+  const server = createServer((req, res) => {
+    const name = decodeURIComponent(new URL(req.url, 'http://x').pathname.slice(1));
+    requests.push(name);
+    const f = feeds[name];
+    if (!f) { res.writeHead(404); return res.end('Not found'); }
+    if (f.hang) return;
+    if (f.status) { res.writeHead(f.status); return res.end('boom'); }
+    res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8' });
+    res.end(f.body);
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = 'http://127.0.0.1:' + server.address().port + '/';
+  return {
+    url: (name) => base + encodeURIComponent(name),
+    requests,
+    close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
   };
 }
 

@@ -33,6 +33,9 @@
   }
   function toEvent(raw) {
     var e = { id: raw.id, title: raw.title, start: toDate(raw.start, raw.allDay), end: toDate(raw.end, raw.allDay), people: raw.people || [] };
+    // Only events with a Google copy can be deleted; one only on read-only calendars (ICS links)
+    // comes with deletable: false. A response cached before the flag existed was all Google.
+    e.deletable = raw.deletable !== false;
     if (raw.allDay) e.allDay = true;
     if (raw.loc) e.loc = raw.loc;
     if (raw.notes) e.notes = raw.notes;

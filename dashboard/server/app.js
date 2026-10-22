@@ -7,6 +7,7 @@ import { Readable } from 'node:stream';
 import { extname, join, resolve, sep } from 'node:path';
 import { createGoogle } from './google.js';
 import { createCalendar, InputError } from './calendar.js';
+import { createIcsFeeds } from './ics.js';
 import { createHomeAssistant } from './homeassistant.js';
 import { createWeather } from './weather.js';
 import { createHome } from './home.js';
@@ -257,10 +258,12 @@ async function routeHome(req, res, pathname, home) {
 }
 
 // config comes from loadConfig(), store from openStore() (without one, /api/chores answers 503);
-// tokenUrl/apiBase/now/homeRetryMs/log are overridable for tests.
-export async function startServer({ config, store, distDir, tokenUrl, apiBase, now = Date.now, homeRetryMs, log = console }) {
+// tokenUrl/apiBase/now/homeRetryMs/icsTimeoutMs/log are overridable for tests.
+export async function startServer({ config, store, distDir, tokenUrl, apiBase, now = Date.now, homeRetryMs, icsTimeoutMs, log = console }) {
   const google = createGoogle({ serviceAccount: config.serviceAccount, tokenUrl, apiBase, now });
-  const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now });
+  const feeds = config.settings.calendars.filter((c) => c.ics !== undefined);
+  const icsFeeds = feeds.length ? createIcsFeeds({ feeds, now, timeoutMs: icsTimeoutMs, log }) : null;
+  const calendar = createCalendar({ settings: config.settings, google, icsFeeds, timeZone: config.timeZone, now });
   const ha = config.homeAssistant;
   const weather = ha ? createWeather({ ha: createHomeAssistant(ha), entity: ha.weatherEntity, now }) : null;
   const home = ha ? createHome({ url: ha.url, token: ha.token, label: ha.label, rooms: ha.rooms, people: config.settings.people, retryMs: homeRetryMs, now, log }) : null;

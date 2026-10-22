@@ -44,6 +44,16 @@ test('all-day events land on that local date; timed events keep their instant', 
   assert.equal(d.people[1].ink, '#111111');
 });
 
+test('an event says whether it can be deleted; read-only ones (deletable: false) cannot', () => {
+  const d = Feed.parse(body({ events: [
+    { id: 'g', title: 'Google', start: '2026-10-19T09:30:00-04:00', end: '2026-10-19T10:00:00-04:00', people: [], deletable: true },
+    { id: 'r', title: 'Work', start: '2026-10-19T11:00:00-04:00', end: '2026-10-19T12:00:00-04:00', people: [], deletable: false },
+    // A response cached from a server before read-only calendars: every event was on Google.
+    { id: 'old', title: 'Old', start: '2026-10-19T13:00:00-04:00', end: '2026-10-19T14:00:00-04:00', people: [] },
+  ] }));
+  assert.deepEqual(d.events.map((e) => e.deletable), [true, false, true]);
+});
+
 test('rejects a response without people or events', () => {
   assert.throws(() => Feed.parse({ events: [] }));
   assert.throws(() => Feed.parse({ people: [], events: [] }));

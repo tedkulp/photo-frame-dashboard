@@ -5,7 +5,8 @@
 #   docker compose up -d dashboard-env        # style 2: everything from env + a compose secret
 
 services:
-  # Style 1: put settings.json and service-account.json in ./config next to this file.
+  # Style 1: put settings.json and service-account.json in ./config next to this file (and
+  # calendar-urls.json, the secret ICS links, if settings has read-only calendars).
   dashboard:
     build: .
     restart: unless-stopped
