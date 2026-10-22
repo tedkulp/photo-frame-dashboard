@@ -173,7 +173,7 @@
 
   // ------------------------------------------------------------ week (the Sun–Sat week containing V.date)
   function weekView() {
-    var now = App.now(), start = CalNav.weekStart(V.date);
+    var now = App.now(), start = window.CalNav.weekStart(V.date);
     return '<div class="week">' + [0, 1, 2, 3, 4, 5, 6].map(function (i) {
       var d = App.addDays(start, i), today = App.sameDay(d, now);
       var ad = App.allDayOn(d), list = App.timedOn(d), max = 7 - ad.length, more = list.length - max;
@@ -193,8 +193,8 @@
   // ------------------------------------------------------------ month (dots only)
   function monthView() {
     var now = App.now();
-    var first = new Date(V.date.getFullYear(), V.date.getMonth(), 1);
-    var start = CalNav.weekStart(first); // Sunday start
+    var first = window.CalNav.monthStart(V.date);
+    var start = window.CalNav.weekStart(first); // Sunday start
     var cells = '';
     for (var i = 0; i < 42; i++) {
       var d = App.addDays(start, i);
@@ -220,14 +220,14 @@
     var d = V.date, now = App.now();
     if (mode === 'day') return { k: App.fmt.month(d) + ' ' + d.getFullYear() + (App.sameDay(d, now) ? ' · Today' : ' · ' + App.fmt.rel(d)), t: App.fmt.day(d) + ' <i>' + d.getDate() + '</i>' };
     if (mode === '3day') { var e = App.addDays(d, 2); return { k: App.fmt.month(d) + ' ' + d.getFullYear(), t: App.fmt.dayShort(d) + ' ' + d.getDate() + ' <i>–</i> ' + App.fmt.dayShort(e) + ' ' + e.getDate() }; }
-    if (mode === 'week') { var s = CalNav.weekStart(d), w = App.addDays(s, 6); return { k: CalNav.weekKicker(d, now), t: App.fmt.monthShort(s) + ' ' + s.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
+    if (mode === 'week') { var s = window.CalNav.weekStart(d), w = App.addDays(s, 6); return { k: window.CalNav.weekKicker(d, now), t: App.fmt.monthShort(s) + ' ' + s.getDate() + ' <i>–</i> ' + App.fmt.monthShort(w) + ' ' + w.getDate() }; }
     return { k: d.getFullYear(), t: App.fmt.month(d) };
   }
   function header(mode) {
     var t = title(mode);
     var now = App.now();
-    var isToday = mode === 'month' ? (V.date.getMonth() === now.getMonth())
-      : mode === 'week' ? +CalNav.weekStart(V.date) === +CalNav.weekStart(now) // this week contains today
+    var isToday = mode === 'month' ? window.CalNav.sameMonth(V.date, now)
+      : mode === 'week' ? +window.CalNav.weekStart(V.date) === +window.CalNav.weekStart(now) // this week contains today
       : App.sameDay(V.date, now);
     return '<header class="cal-head">' +
       '<button class="icon-btn" data-nav="-1" aria-label="Previous">' + App.icon('left', 24) + '</button>' +
@@ -255,9 +255,11 @@
 
   function nav(dir) {
     var mode = shown().mode;
-    if (mode === 'month') V.date = new Date(V.date.getFullYear(), V.date.getMonth() + dir, 1);
-    else if (mode === 'week') V.date = App.addDays(CalNav.weekStart(V.date), dir * 7); // Sunday to Sunday
-    else V.date = App.addDays(V.date, dir * (mode === '3day' ? 3 : 1));
+    if (mode === 'month') V.date = window.CalNav.monthStart(V.date, dir);
+    else {
+      var from = mode === 'week' ? window.CalNav.weekStart(V.date) : V.date; // Week: Sunday to Sunday
+      V.date = App.addDays(from, dir * { day: 1, '3day': 3, week: 7 }[mode]);
+    }
     V.scroll = null;
     render();
   }
@@ -274,7 +276,7 @@
     // below it — month cells, week columns and the add button — and set V.mode from the
     // stage's attribute instead, which is why tapping any day in Month opened the 1st.
     if ((t = e.target.closest('button[data-mode]'))) {
-      V.date = CalNav.modeDate(V.mode, t.dataset.mode, V.date, App.now());
+      V.date = window.CalNav.modeDate(V.mode, t.dataset.mode, V.date, App.now());
       V.mode = t.dataset.mode;
       V.scroll = null;
       return render();

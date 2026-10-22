@@ -24,7 +24,7 @@
   function nightLock() {
     var line = window.House.nightLock(App.home(), App.homeNote());
     if (!line) return '';
-    return '<div class="nt-lock' + (line.warn ? ' nt-lock--warn' : '') + '">' +
+    return '<div class="nt-lock' + (line.warn ? ' is-warn' : '') + '">' +
       App.icon(line.warn ? 'unlock' : 'lock', 20) + ' ' + App.esc(line.text) + '</div>';
   }
 

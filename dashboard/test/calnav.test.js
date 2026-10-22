@@ -37,6 +37,21 @@ test('re-choosing Month keeps the month shown', () => {
   same(CalNav.modeDate('month', 'month', first(2026, 11), now), first(2026, 11));
 });
 
+test('monthStart is midnight on the 1st, optionally n months on', () => {
+  same(CalNav.monthStart(new Date(2026, 9, 22, 15, 40)), first(2026, 9));
+  same(CalNav.monthStart(first(2026, 9)), first(2026, 9));
+  same(CalNav.monthStart(new Date(2026, 11, 31), 1), first(2027, 0)); // into next year
+  same(CalNav.monthStart(new Date(2026, 0, 31), -1), first(2025, 11)); // back a year
+  same(CalNav.monthStart(new Date(2026, 0, 31), 1), first(2026, 1)); // no Jan 31 → Mar overflow
+});
+
+test('sameMonth needs the same month and year (Month\'s today state)', () => {
+  assert.equal(CalNav.sameMonth(first(2026, 9), now), true);
+  assert.equal(CalNav.sameMonth(first(2027, 9), now), false);
+  assert.equal(CalNav.sameMonth(first(2025, 9), now), false);
+  assert.equal(CalNav.sameMonth(first(2026, 10), now), false);
+});
+
 // ------------------------------------------------------------ Sun–Sat weeks (#30)
 const day = (y, m, d) => new Date(y, m, d);
 

@@ -26,4 +26,4 @@
 .nt-line { margin-top: 34px; font-size: 26px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #A02618; }
 .nt-line b { color: #C22C1C; }
 .nt-lock { margin-top: 18px; font-size: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #7A1D12; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.nt-lock--warn { margin-top: 22px; font-size: 22px; color: #C22C1C; padding: 8px 18px; border: 2px solid #8E2214; border-radius: 999px; display: inline-flex; }
+.nt-lock.is-warn { margin-top: 22px; font-size: 22px; color: #C22C1C; padding: 8px 18px; border: 2px solid #8E2214; border-radius: 999px; display: inline-flex; }

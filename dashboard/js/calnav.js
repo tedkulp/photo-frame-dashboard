@@ -8,12 +8,21 @@
   // App.dayStart's twin: this loads before app.js, and in Node.
   function dayStart(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 
+  // Midnight on the 1st of `d`'s month, or of the month `n` months later (n may be negative).
+  CalNav.monthStart = function (d, n) {
+    return new Date(d.getFullYear(), d.getMonth() + (n || 0), 1);
+  };
+
+  // Whether `a` and `b` fall in the same month of the same year.
+  CalNav.sameMonth = function (a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+  };
+
   // The date Today, 3 Day or Week starts on when you leave Month showing `shown` (the 1st of the
-  // month on screen): today when that's the current month (same month and year as `now`), else
-  // the 1st of the shown month.
+  // month on screen): today when that's the current month (sameMonth as `now`), else the 1st of
+  // the shown month.
   CalNav.leaveMonth = function (shown, now) {
-    var current = shown.getFullYear() === now.getFullYear() && shown.getMonth() === now.getMonth();
-    return current ? dayStart(now) : new Date(shown.getFullYear(), shown.getMonth(), 1);
+    return CalNav.sameMonth(shown, now) ? dayStart(now) : CalNav.monthStart(shown);
   };
 
   // Midnight on the Sunday of the Sun–Sat week containing `d`. Built from the calendar date, not
@@ -35,7 +44,7 @@
   // then shows the Sun–Sat week containing the date it gets (weekStart), so from Month that's the
   // week containing today on the current month, else the week containing the shown month's 1st.
   CalNav.modeDate = function (from, to, date, now) {
-    if (to === 'month') return new Date(date.getFullYear(), date.getMonth(), 1);
+    if (to === 'month') return CalNav.monthStart(date);
     if (from === 'month') return CalNav.leaveMonth(date, now);
     return date;
   };
