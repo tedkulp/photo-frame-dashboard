@@ -36,3 +36,41 @@ test('switching between Today, 3 Day and Week keeps the date', () => {
 test('re-choosing Month keeps the month shown', () => {
   same(CalNav.modeDate('month', 'month', first(2026, 11), now), first(2026, 11));
 });
+
+// ------------------------------------------------------------ Sun–Sat weeks (#30)
+const day = (y, m, d) => new Date(y, m, d);
+
+test('weekStart is the Sunday of the Sun–Sat week containing the date', () => {
+  same(CalNav.weekStart(new Date(2026, 9, 22, 15, 40)), day(2026, 9, 18)); // Thursday, mid-afternoon
+  same(CalNav.weekStart(day(2026, 9, 18)), day(2026, 9, 18)); // a Sunday is its own start
+  same(CalNav.weekStart(new Date(2026, 9, 24, 23, 59)), day(2026, 9, 18)); // Saturday, late
+});
+
+test('weekStart crosses a month and a year boundary', () => {
+  same(CalNav.weekStart(day(2026, 11, 1)), day(2026, 10, 29)); // Tue Dec 1 → Sun Nov 29
+  same(CalNav.weekStart(day(2027, 0, 1)), day(2026, 11, 27)); // Fri Jan 1, 2027 → Sun Dec 27, 2026
+});
+
+test('weekStart holds across a DST change', () => {
+  same(CalNav.weekStart(day(2026, 10, 7)), day(2026, 10, 1)); // US clocks fall back Sun Nov 1
+  same(CalNav.weekStart(day(2026, 2, 14)), day(2026, 2, 8)); // and spring forward Sun Mar 8
+});
+
+test('Month\'s grid starts on the Sunday on or before the 1st', () => {
+  same(CalNav.weekStart(first(2026, 9)), day(2026, 8, 27)); // October 2026 → Sun Sep 27
+  same(CalNav.weekStart(first(2026, 10)), day(2026, 10, 1)); // November 2026 starts on a Sunday
+});
+
+test('the week kicker names this, next and last week, else the year', () => {
+  assert.equal(CalNav.weekKicker(day(2026, 9, 18), now), 'This week');
+  assert.equal(CalNav.weekKicker(day(2026, 9, 25), now), 'Next week');
+  assert.equal(CalNav.weekKicker(day(2026, 10, 1), now), '2026');
+  assert.equal(CalNav.weekKicker(day(2026, 9, 11), now), 'Last week');
+  assert.equal(CalNav.weekKicker(day(2026, 9, 21), now), 'This week'); // any day in the week
+  assert.equal(CalNav.weekKicker(day(2027, 9, 21), now), '2027');
+});
+
+test('leaving Month for Week lands in the week containing today, or the shown month\'s 1st', () => {
+  same(CalNav.weekStart(CalNav.modeDate('month', 'week', first(2026, 9), now)), day(2026, 9, 18));
+  same(CalNav.weekStart(CalNav.modeDate('month', 'week', first(2026, 11), now)), day(2026, 10, 29));
+});
