@@ -8,7 +8,8 @@
 // optional too: settings.immich names the album the photos come from, and a person's optional
 // immich is their Immich user's email, which credits them with the photos they uploaded. A
 // calendar is a Google calendar ({ calendarId, person }) or a read-only one from an ICS link
-// ({ ics, person }, ADR 0005); the link is a secret, looked up by that name in the calendar URLs.
+// ({ ics, person }, ADR 0005); the link is a secret, read from the file config/<ics> (one per link,
+// like config/immich-api-key).
 import { createPrivateKey } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -84,18 +85,27 @@ function checkSettings(s) {
   };
 }
 
-// Adds each read-only calendar's link (from the calendar URLs: { name: url }) to its entry.
-function addIcsUrls(calendars, urls) {
-  if (!urls || typeof urls !== 'object' || Array.isArray(urls)) throw new ConfigError('The calendar URLs must be a JSON object of name → ICS link');
+// An ics name is also its link's file name in config/, so it can't leave config/ or be another
+// secret's file.
+const ICS_NAME = /^[a-z0-9][a-z0-9_-]*$/;
+const NOT_ICS_NAMES = ['home-assistant-token', 'immich-api-key'];
+
+// Adds each read-only calendar's link (the text of config/<ics>) to its entry.
+function addIcsUrls(calendars, cwd) {
   calendars.forEach((c, i) => {
     if (!isReadOnly(c)) return;
-    if (!Object.hasOwn(urls, c.ics)) throw new ConfigError(`settings.calendars[${i}] names the ICS link "${c.ics}", which has no URL in the calendar URLs`);
+    if (!ICS_NAME.test(c.ics) || NOT_ICS_NAMES.includes(c.ics)) {
+      throw new ConfigError(`settings.calendars[${i}].ics "${c.ics}" must be a file name like alex-fastmail (lowercase letters, digits, - and _), not ${NOT_ICS_NAMES.join(' or ')}`);
+    }
+    const file = resolve(cwd, 'config', c.ics);
+    if (!existsSync(file)) throw new ConfigError(`settings.calendars[${i}] names the ICS link "${c.ics}": create config/${c.ics} holding its URL`);
+    const text = readFileSync(file, 'utf8').trim();
     let url;
     try {
-      url = new URL(urls[c.ics]);
+      url = new URL(text);
     } catch {}
     if (!url || (url.protocol !== 'http:' && url.protocol !== 'https:')) {
-      throw new ConfigError(`The calendar URL for "${c.ics}" must start with http:// or https:// (for a webcal:// link, change webcal to https)`);
+      throw new ConfigError(`The ICS link in config/${c.ics} must start with http:// or https:// (for a webcal:// link, change webcal to https)`);
     }
     c.url = url.href;
   });
@@ -163,10 +173,7 @@ export function loadConfig({ env = process.env, cwd = process.cwd() } = {}) {
   const rawSettings = readJsonItem(env, cwd, 'settings',
     'DASHBOARD_SETTINGS_JSON', 'DASHBOARD_SETTINGS_FILE', 'config/settings.json');
   const settings = checkSettings(rawSettings);
-  if (settings.calendars.some(isReadOnly)) {
-    addIcsUrls(settings.calendars, readJsonItem(env, cwd, 'calendar URLs',
-      'CALENDAR_URLS_JSON', 'CALENDAR_URLS_FILE', 'config/calendar-urls.json'));
-  }
+  addIcsUrls(settings.calendars, cwd);
   let homeAssistant = checkHomeAssistant(rawSettings.homeAssistant);
   if (homeAssistant) {
     const token = readItem(env, cwd, 'Home Assistant token',

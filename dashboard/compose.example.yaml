@@ -6,7 +6,7 @@
 
 services:
   # Style 1: put settings.json and service-account.json in ./config next to this file (and
-  # calendar-urls.json, the secret ICS links, if settings has read-only calendars).
+  # one file per read-only calendar, named after its ics, holding its secret ICS link).
   dashboard:
     build: .
     restart: unless-stopped

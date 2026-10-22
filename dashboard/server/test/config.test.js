@@ -274,9 +274,11 @@ const withIcs = () => settings({
   ),
 });
 const urls = { 'alex-fastmail': 'https://caldav.example.com/alex.ics', 'sam-work': 'http://outlook.example.com/sam/calendar.ics' };
+const urlFiles = (u) => Object.fromEntries(Object.entries(u || urls).map(([name, url]) => ['config/' + name, url + '\n']));
+const icsDir = (s, u) => Object.assign({ 'config/settings.json': s || withIcs(), 'config/service-account.json': serviceAccount() }, urlFiles(u));
 
-test('read-only calendars take their ICS link by name from config/calendar-urls.json', () => {
-  withDir({ 'config/settings.json': withIcs(), 'config/service-account.json': serviceAccount(), 'config/calendar-urls.json': urls }, (t) => {
+test('read-only calendars take their ICS link from the file config/<ics>', () => {
+  withDir(icsDir(), (t) => {
     const c = loadConfig({ env: {}, cwd: t.dir });
     assert.deepEqual(c.settings.calendars.slice(3), [
       { ics: 'alex-fastmail', url: 'https://caldav.example.com/alex.ics', person: 'alex' },
@@ -286,52 +288,39 @@ test('read-only calendars take their ICS link by name from config/calendar-urls.
   });
 });
 
-test('ICS links come from CALENDAR_URLS_JSON, else CALENDAR_URLS_FILE, else the default file', () => {
-  const other = { 'alex-fastmail': 'https://a.example/x.ics', 'sam-work': 'https://a.example/y.ics' };
-  const inline = { 'alex-fastmail': 'https://b.example/x.ics', 'sam-work': 'https://b.example/y.ics' };
-  withDir({ 'config/settings.json': withIcs(), 'config/service-account.json': serviceAccount(), 'config/calendar-urls.json': urls, 'other/urls.json': other }, (t) => {
-    const url = (env) => loadConfig({ env, cwd: t.dir }).settings.calendars[3].url;
-    assert.equal(url({}), urls['alex-fastmail']);
-    assert.equal(url({ CALENDAR_URLS_FILE: t.path('other/urls.json') }), 'https://a.example/x.ics');
-    assert.equal(url({ CALENDAR_URLS_FILE: t.path('other/urls.json'), CALENDAR_URLS_JSON: JSON.stringify(inline) }), 'https://b.example/x.ics');
-  });
-});
-
 test('without read-only calendars no ICS links are needed', () => {
   withDir({ 'config/settings.json': settings(), 'config/service-account.json': serviceAccount() }, (t) => {
     assert.equal(loadConfig({ env: {}, cwd: t.dir }).settings.calendars.length, 3);
   });
 });
 
-test('read-only calendars without an ICS links file are named', () => {
-  withDir({ 'config/settings.json': withIcs(), 'config/service-account.json': serviceAccount() }, (t) => {
-    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/calendar URLs.*CALENDAR_URLS_JSON.*calendar-urls\.json/));
-  });
-});
-
-test('an ICS name with no link is named', () => {
-  withDir({ 'config/settings.json': withIcs(), 'config/service-account.json': serviceAccount(), 'config/calendar-urls.json': { 'alex-fastmail': urls['alex-fastmail'] } }, (t) => {
-    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/calendars\[4\].*"sam-work".*no URL/));
+test('an ICS name with no link file is named', () => {
+  withDir(icsDir(null, { 'alex-fastmail': urls['alex-fastmail'] }), (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/calendars\[4\].*"sam-work".*create config\/sam-work/));
   });
 });
 
 test('an ICS link that is not http(s) is named', () => {
-  for (const bad of ['webcal://outlook.example.com/sam.ics', 'not a url', 42]) {
-    withDir({ 'config/settings.json': withIcs(), 'config/service-account.json': serviceAccount(), 'config/calendar-urls.json': Object.assign({}, urls, { 'sam-work': bad }) }, (t) => {
-      assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/"sam-work".*http:\/\/ or https:\/\//), String(bad));
+  for (const bad of ['webcal://outlook.example.com/sam.ics', 'not a url', '']) {
+    withDir(icsDir(null, Object.assign({}, urls, { 'sam-work': bad })), (t) => {
+      assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/config\/sam-work.*http:\/\/ or https:\/\//), String(bad));
     });
   }
 });
 
-test('the ICS links must be a JSON object of names', () => {
-  withDir({ 'config/settings.json': withIcs(), 'config/service-account.json': serviceAccount(), 'config/calendar-urls.json': ['https://a.example/x.ics'] }, (t) => {
-    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/calendar URLs.*JSON object/));
-  });
+test('an ICS name must be a plain file name that is not another secret', () => {
+  for (const name of ['../settings.json', 'Alex', 'a b', 'settings.json', 'home-assistant-token', 'immich-api-key']) {
+    const s = settings();
+    s.calendars.push({ ics: name, person: 'alex' });
+    withDir(icsDir(s), (t) => {
+      assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/calendars\[3\]\.ics.*file name/), name);
+    });
+  }
 });
 
 test('a read-only Family calendar is refused', () => {
   const s = settings({ calendars: [{ ics: 'family-feed', person: 'family' }, { calendarId: 'alex@example.com', person: 'alex' }] });
-  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount(), 'config/calendar-urls.json': { 'family-feed': 'https://a.example/f.ics' } }, (t) => {
+  withDir(icsDir(s, { 'family-feed': 'https://a.example/f.ics' }), (t) => {
     assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/Family calendar must be a Google calendar/));
   });
 });
@@ -340,7 +329,7 @@ test('a calendar needs exactly one of calendarId and ics', () => {
   for (const c of [{ person: 'alex' }, { calendarId: 'x@example.com', ics: 'alex-fastmail', person: 'alex' }, { ics: '  ', person: 'alex' }]) {
     const s = settings();
     s.calendars.push(c);
-    withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount(), 'config/calendar-urls.json': urls }, (t) => {
+    withDir(icsDir(s), (t) => {
       assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/calendars\[3\].*calendarId.*ics/), JSON.stringify(c));
     });
   }

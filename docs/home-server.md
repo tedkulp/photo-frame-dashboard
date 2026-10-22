@@ -105,7 +105,7 @@ the default file (relative to the folder it runs in; `/app` in Docker).
 | Service-account key | `GOOGLE_SERVICE_ACCOUNT_JSON` | `GOOGLE_SERVICE_ACCOUNT_FILE` | `config/service-account.json` |
 | Home Assistant token (only with `homeAssistant`) | `HOME_ASSISTANT_TOKEN` | `HOME_ASSISTANT_TOKEN_FILE` | `config/home-assistant-token` |
 | Immich API key (only with `immich`) | `IMMICH_API_KEY` | `IMMICH_API_KEY_FILE` | `config/immich-api-key` |
-| ICS links (only with `ics` calendars) | `CALENDAR_URLS_JSON` | `CALENDAR_URLS_FILE` | `config/calendar-urls.json` |
+| ICS link (one per `ics` calendar) | | | `config/<ics name>` |
 | Port | `PORT` | | `8080` |
 | Time zone | `TZ` | | the Family calendar's time zone |
 | Data dir (chores) | | `DASHBOARD_DATA_DIR` | `data/` |
@@ -127,21 +127,23 @@ from them ([ADR 0005](adr/0005-read-only-calendars-from-ics-via-ical-js.md)). In
 { "ics": "jordan-work", "person": "jordan" }
 ```
 
-and put the links in `config/calendar-urls.json` (or `CALENDAR_URLS_JSON` /
-`CALENDAR_URLS_FILE`), by name:
+and put each link in a file in `config/` named after it, holding just the URL (like
+`config/immich-api-key`):
 
-```json
-{
-  "alex-fastmail": "https://<your Fastmail calendar's ICS link>",
-  "jordan-work": "https://outlook.office365.com/owa/calendar/<…>/calendar.ics"
-}
+```sh
+echo 'https://<your Fastmail ICS link>' > config/alex-fastmail
+echo 'https://outlook.office365.com/owa/calendar/<…>/calendar.ics' > config/jordan-work
 ```
+
+A name is lowercase letters, digits, `-` and `_` (it can't be `home-assistant-token` or
+`immich-api-key`). There's no env variable for these links, so with the env-only Docker style,
+mount the link files into `/app/config/`.
 
 **The link is a secret.** Anyone who has it can read that calendar, so it lives with the other
 secrets, never in `settings.json` or a commit. If one leaks, make a new link (and drop the old one)
 in Fastmail or Outlook.
 
-- Startup stops with a message if a name has no link, a link isn't `http://` or `https://` (for a
+- Startup stops with a message if a name has no link file, a link isn't `http://` or `https://` (for a
   `webcal://` link, change `webcal` to `https`), or the Family calendar is an `ics` one.
 - A person can have a Google calendar and read-only calendars together. An event added on the
   frame for one person goes to their own Google calendar, or to the Family calendar if all their
@@ -367,8 +369,8 @@ curl http://localhost:8080/api/photos   # "configured": true and your album's ph
 From `dashboard/`, copy [`compose.example.yaml`](../dashboard/compose.example.yaml) to
 `compose.yaml` and keep the style you want:
 
-- **`dashboard`**: put `settings.json` and `service-account.json` (and `calendar-urls.json`, for
-  read-only calendars) in `dashboard/config/`; the folder is mounted read-only.
+- **`dashboard`**: put `settings.json` and `service-account.json` (and one link file per
+  read-only calendar) in `dashboard/config/`; the folder is mounted read-only.
 - **`dashboard-env`**: settings inline in the compose file, the key passed as a compose secret
   and read through `GOOGLE_SERVICE_ACCOUNT_FILE`.
 
