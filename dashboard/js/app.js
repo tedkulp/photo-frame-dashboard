@@ -634,18 +634,19 @@
   function onIdleTick() {
     if (!idleAllowed()) return;
     idleSec++;
-    var blocked = $('#takeover').classList.contains('is-open');
+    var blocked = takeoverOpen();
     if (App.mode === 'nightdash' && idleSec >= 20) { App.setMode('night'); return; }
     if (App.mode !== 'day' || blocked) return;
     if (idleSec === App.idle.home && App.current !== 'home') { App.closeSheet(); App.go('home'); }
-    if (idleSec >= App.idle.ambient) App.rest();
+    if (idleSec >= App.idle.ambient) App.goIdle();
   }
   App.resetIdle = function () { idleSec = 0; };
   // The idle screen: close any sheet, back to Today, then night after dark or ambient. The idle
   // tick and a tap on the rail clock both come here. Day mode only, never over a takeover or on a
   // phone. A clock tap is deliberate, so a sheet, edit mode or unanswered tap doesn't hold it off.
-  App.rest = function () {
-    if (!idleAllowed() || App.mode !== 'day' || $('#takeover').classList.contains('is-open')) return;
+  function takeoverOpen() { return $('#takeover').classList.contains('is-open'); }
+  App.goIdle = function () {
+    if (!idleAllowed() || App.mode !== 'day' || takeoverOpen()) return;
     App.closeSheet();
     App.go('home');
     App.setMode(App.isNight() ? 'night' : 'ambient');
@@ -655,10 +656,10 @@
   // so a tap on the scrim over the clock counts as a tap on the clock.
   function onClockClick(e) {
     var t = e.target, r;
-    if (t.closest && t.closest('#railClock')) { App.rest(); return; }
-    if (!t.classList || !t.classList.contains('sheet-scrim')) return;
+    if (t.closest('#railClock')) { App.goIdle(); return; }
+    if (!t.classList.contains('sheet-scrim')) return;
     r = $('#railClock').getBoundingClientRect();
-    if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom) App.rest();
+    if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom) App.goIdle();
   }
 
   // ------------------------------------------------------------ stage size + scaling
@@ -674,7 +675,7 @@
   // re-applies them when the layout flips mid-session.
   function viewAllowed(name) { return !(name === 'photos' && App.isPhone()); } // no Photos on a phone
   function modeAllowed(m) { return m === 'day' || !App.isPhone(); }               // a phone is always 'day'
-  function idleAllowed() { return !App.isPhone(); } // a phone never goes back to Today or into ambient/night on its own
+  function idleAllowed() { return !App.isPhone(); } // a phone never goes back to Today or into ambient/night (idle or clock tap)
   function fit() {
     var next = window.Stage.fit(window.innerWidth, window.innerHeight, App.stage), el = $('#stage');
     var prevLayout = App.stage.layout;
