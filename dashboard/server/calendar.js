@@ -7,19 +7,12 @@
 // calendar when exactly one person with one is picked, otherwise to the Family calendar.
 import { isReadOnly } from './config.js';
 import { createIcsFeeds } from './ics.js';
+import { HttpError } from './errors.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const DAYS_BACK = 7;
 export const DAYS_AHEAD = 42;
 export const TITLE_MAX = 200;
-
-// Bad input from the dashboard; `status` is the HTTP status to answer with. Nothing was written.
-export class InputError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
 
 // Opaque to the dashboard; the server maps it back to the calendar and Google event id. A read-only
 // event's id names its feed instead: ['ics', name, occurrence key].
@@ -116,9 +109,9 @@ function isDate(s) {
 }
 const isDateTime = (s) => typeof s === 'string' && DATE_TIME.test(s) && !isNaN(Date.parse(s));
 
-// { title, start, end, people, allDay? } → the checked fields, or an InputError.
+// { title, start, end, people, allDay? } → the checked fields, or an HttpError.
 function checkInput(input, allIds) {
-  const bad = (msg) => new InputError(400, msg);
+  const bad = (msg) => new HttpError(400, msg);
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw bad('Expected a JSON object');
   if (typeof input.title !== 'string' || !input.title.trim()) throw bad('title is missing');
   const title = input.title.trim();
@@ -203,9 +196,9 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
   async function remove(id) {
     const ref = decodeEventId(id);
     if (ref && ref.ics !== undefined && readOnly.some((c) => c.ics === ref.ics)) {
-      throw new InputError(403, 'This event is on a read-only calendar and can’t be deleted here');
+      throw new HttpError(403, 'This event is on a read-only calendar and can’t be deleted here');
     }
-    if (!ref || ref.calendarId === undefined || !settings.calendars.some((c) => c.calendarId === ref.calendarId)) throw new InputError(404, 'No such event');
+    if (!ref || ref.calendarId === undefined || !settings.calendars.some((c) => c.calendarId === ref.calendarId)) throw new HttpError(404, 'No such event');
     await google.deleteEvent(ref.calendarId, ref.eventId);
   }
 
