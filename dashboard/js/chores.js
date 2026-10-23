@@ -62,6 +62,30 @@
     });
   };
 
+  // Ticks and unticks sent but not answered yet: the `pending` Chores.today takes. o: { send(method,
+  // path) → Promise } (the chores feed's). tick(id, done) shows at once and resolves once the server
+  // has it: true while it's still the chore's latest tick (the caller applies it to the data),
+  // false when a later tick owns the chore now. A failed send is put back (unless a later tick owns
+  // it) and rejects with the reason.
+  Chores.ticks = function (o) {
+    var pending = {}; // { choreId: done }
+    return {
+      tick: function (id, done) {
+        pending[id] = done;
+        function settle() {
+          if (pending[id] !== done) return false; // a later tap on the same chore owns it now
+          delete pending[id];
+          return true;
+        }
+        var p;
+        try { p = Promise.resolve(o.send(done ? 'PUT' : 'DELETE', '/api/chores/' + encodeURIComponent(id) + '/done')); } catch (e) { p = Promise.reject(e); }
+        return p.then(settle, function (e) { settle(); throw e; });
+      },
+      pending: function () { return pending; },
+      busy: function () { return Object.keys(pending).length > 0; }
+    };
+  };
+
   // A person's "This week" grid: { today: Mon-first index of the server's date, days: Mon..Sun
   // 'hit' | 'miss' | 'due' (still to come, with a chore) | 'none' (nothing scheduled, the server's null) },
   // or null when the person isn't in the week.

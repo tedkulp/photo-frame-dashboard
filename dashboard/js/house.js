@@ -145,6 +145,67 @@
     return out;
   };
 
+  // A pending change for `target` ({ id, name }: a tile, the climate or a player) from
+  // House.expect, not sent yet (at: null). null for an action with nothing to show.
+  House.entry = function (target, action, value) {
+    var ex = House.expect(action, value);
+    return ex && { id: target.id, name: target.name, show: ex.show, match: ex.match, at: null };
+  };
+
+  // The pending changes of one frame: what's shown before the house confirms it, debounced sends
+  // and confirm-or-expire. o: { send(method, path, body) → Promise, now, setTimeout, clearTimeout },
+  // injected for tests.
+  //   act(entries, req, { key, delay }): shows `entries` (House.entry's; [] for nothing to show) at
+  //     once and sends req ({ method, path, body }) once for all of them. Each entry is kept under
+  //     its id, or under opts.key for a single entry (climate keeps one per action). With
+  //     opts.delay (needs a key) the send waits that many ms; another act on the key restarts the
+  //     wait and replaces the entry. Returns a Promise: true once the server took it; undefined if
+  //     a later act on the key replaced it before it was sent; rejects with the reason after
+  //     taking out every entry it added (unless a later act owns that key now).
+  //   view(data): House.view with the pending changes. settle(data): House.settle at now(),
+  //   { confirmed, expired }. busy(): something is pending or waiting to be sent.
+  House.store = function (o) {
+    var now = o.now || function () { return Date.now(); };
+    var setT = o.setTimeout || function (fn, ms) { return setTimeout(fn, ms); };
+    var clearT = o.clearTimeout || function (id) { clearTimeout(id); };
+    var pending = {}; // { key: { id, name, show, match, at } }, see House.view / House.settle
+    var timers = {};  // { key: { id, done, drop } } for debounced sends not out yet
+
+    function act(entries, req, opts) {
+      opts = opts || {};
+      entries = entries.filter(Boolean);
+      var single = entries.length === 1 && opts.key;
+      var keyed = entries.map(function (e) { return { key: single ? opts.key : e.id, entry: e }; });
+      function drop() { keyed.forEach(function (k) { if (pending[k.key] === k.entry) delete pending[k.key]; }); }
+      var key = opts.key || (entries[0] && entries[0].id);
+      var waiting = key != null && timers[key];
+      // A send still waiting on this key is replaced: never sent, its entries taken out.
+      if (waiting) { clearT(waiting.id); delete timers[key]; waiting.drop(); waiting.done(undefined); }
+      keyed.forEach(function (k) { pending[k.key] = k.entry; });
+      function send() {
+        var at = now();
+        entries.forEach(function (e) { e.at = at; });
+        var p;
+        try { p = Promise.resolve(o.send(req.method, req.path, req.body)); } catch (e) { p = Promise.reject(e); }
+        return p.then(function () { return true; }, function (e) { drop(); throw e; }); // drop: unless a later act owns it
+      }
+      if (!opts.delay || key == null) return send();
+      return new Promise(function (ok, no) {
+        var t = timers[key] = { done: ok, drop: drop };
+        t.id = setT(function () {
+          if (timers[key] === t) delete timers[key];
+          send().then(ok, no);
+        }, opts.delay);
+      });
+    }
+    return {
+      act: act,
+      view: function (data) { return House.view(data, pending); },
+      settle: function (data) { return House.settle(data, pending, now()); },
+      busy: function () { return Object.keys(pending).length > 0 || Object.keys(timers).length > 0; }
+    };
+  };
+
   // ------------------------------------------------------------ what the views show
   // Whether a room's "All off" turns this tile off (the server's: available lights, switches and
   // fans; only the ones on are shown going off).
