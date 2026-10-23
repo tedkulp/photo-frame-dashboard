@@ -635,7 +635,7 @@
     if (!idleAllowed()) return;
     idleSec++;
     var blocked = takeoverOpen();
-    if (App.mode === 'nightdash' && idleSec >= 20) { App.setMode('night'); return; }
+    if (App.mode === 'nightdash' && idleSec >= 20) { App.setMode(window.DisplayMode.idle(App.isNight())); return; }
     if (App.mode !== 'day' || blocked) return;
     if (idleSec === App.idle.home && App.current !== 'home') { App.closeSheet(); App.go('home'); }
     if (idleSec >= App.idle.ambient) App.goIdle();
@@ -649,8 +649,19 @@
     if (!idleAllowed() || App.mode !== 'day' || takeoverOpen()) return;
     App.closeSheet();
     App.go('home');
-    App.setMode(App.isNight() ? 'night' : 'ambient');
+    App.setMode(window.DisplayMode.idle(App.isNight()));
   };
+  // Ambient and night swap over when the clock crosses 22:00 or 06:00 (DisplayMode.atBoundary).
+  // Only the crossing counts, so a mode picked with A/N holds until the next boundary.
+  var wasNight = null;
+  function onNightTick() {
+    var night = App.isNight(), next;
+    if (wasNight !== null && night !== wasNight) {
+      next = window.DisplayMode.atBoundary(App.mode, wasNight, night);
+      if (next !== App.mode) App.setMode(next);
+    }
+    wasNight = night;
+  }
   // On click, not pointerdown: ambient/night leave on click, so the switch has to come after the
   // tap's own click or that click would dismiss them again. An open sheet's scrim covers the rail,
   // so a tap on the scrim over the clock counts as a tap on the clock.
@@ -702,6 +713,7 @@
       $('#railClock').innerHTML = '<b>' + App.fmt.time(n, false) + '</b><span>' + App.fmt.ampm(n) + '</span>';
       App.emit('minute', n);
     }
+    onNightTick();
     onIdleTick();
   }
 

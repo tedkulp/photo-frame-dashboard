@@ -11,6 +11,7 @@ import './version.js';
 import './photos.js';
 import './allday.js';
 import './calnav.js';
+import './displaymode.js';
 import './app.js';
 import './system.js';
 import './slideshow.js';
