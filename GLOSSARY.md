@@ -75,12 +75,12 @@ _Avoid_: In, present
 A family member Home Assistant knows is somewhere other than home. When Home Assistant doesn't know, the person is neither home nor away.
 _Avoid_: Out, absent, not home
 
-**Day mode**:
-The frame's normal, lit dashboard with the rail and the pages. After 300 s with no touch it goes to Ambient by day or Night after dark.
+**Day**:
+The frame's normal, lit dashboard with the rail and the pages. After 300 s with no touch it goes to Ambient by day or Night from 10 pm to 6 am.
 _Avoid_: Normal mode, active mode
 
 **Ambient**:
-The idle screen in the daytime: a full-screen photo slideshow with the clock, the weather, the next event and who's home. A tap goes back to Today in Day mode.
+The idle screen in the daytime: a full-screen photo slideshow with the clock, the weather, the next event and who's home. A tap goes back to Today in Day.
 _Avoid_: Screensaver, idle mode, photo mode
 
 **Night**:

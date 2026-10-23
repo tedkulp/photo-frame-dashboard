@@ -34,8 +34,8 @@ test('a forced night in the day stays through 22:00 and becomes ambient at 06:00
 });
 
 test('the idle screen is night during night hours, else ambient', () => {
-  assert.equal(DisplayMode.idle(true), 'night');
-  assert.equal(DisplayMode.idle(false), 'ambient');
+  assert.equal(DisplayMode.idleScreen(true), 'night');
+  assert.equal(DisplayMode.idleScreen(false), 'ambient');
 });
 
 // ------------------------------------------------------------ the state machine: next(state, input)
@@ -171,7 +171,7 @@ test('a mode change starts idle from 0', () => {
   const f = frame({ hour: 23 });
   f.tick(IDLE.ambient);
   assert.equal(f.mode, NIGHT);
-  assert.equal(f.state.idle, 0);
+  assert.equal(f.state.idleSec, 0);
 });
 
 test('phone layout stays day for every input and never counts idle', () => {
@@ -189,7 +189,7 @@ test('phone layout stays day for every input and never counts idle', () => {
   f.sheet = true;
   f.tick(IDLE.ambient * 2);
   assert.equal(f.mode, DAY);
-  assert.equal(f.state.idle, 0);
+  assert.equal(f.state.idleSec, 0);
   assert.equal(f.page, 'calendar');
   assert.equal(f.sheet, true);
 });
@@ -209,6 +209,16 @@ test('set (App.setMode) applies the phone rule', () => {
   assert.equal(f.send({ type: 'set', mode: NIGHT }).mode, undefined); // no change, nothing to apply
   const p = frame({ phone: true });
   assert.equal(p.send({ type: 'set', mode: AMBIENT }).mode, undefined);
+});
+
+test('set to a non-day mode does nothing under a takeover; day still applies', () => {
+  const f = frame();
+  f.send({ type: 'takeoverOpen' });
+  for (const m of [AMBIENT, NIGHT, NIGHTDASH]) assert.equal(f.send({ type: 'set', mode: m }).mode, undefined);
+  assert.equal(f.mode, DAY);
+  assert.equal(f.send({ type: 'set', mode: DAY }).mode, undefined);
+  f.send({ type: 'takeoverClose' });
+  assert.equal(f.send({ type: 'set', mode: NIGHT }).mode, NIGHT);
 });
 
 // #31's boundary cases, through the state machine
@@ -283,7 +293,7 @@ test('idle does not count under a takeover; closing it by code starts idle from 
   f.tick(600); // 10 minutes
   assert.equal(f.mode, DAY);
   assert.equal(f.page, 'calendar');
-  assert.equal(f.state.idle, 0);
+  assert.equal(f.state.idleSec, 0);
   f.send({ type: 'takeoverClose' });
   f.tick(IDLE.ambient - 1);
   assert.equal(f.mode, DAY);

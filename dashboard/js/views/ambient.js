@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var D = window.DATA, $ = App.$;
-  var amb = { show: null }, shiftTimer = null;
+  var amb = { show: null }, shiftTimer = null, MODES = window.DisplayMode.MODES;
 
   function ambientInfo() {
     var n = App.now(), w = App.weatherNow(), next = App.nextEvent();
@@ -29,8 +29,8 @@
   }
 
   function paint() {
-    if (App.mode === 'ambient') $('#ambient .amb-info').innerHTML = ambientInfo();
-    if (App.mode === 'night') $('#night .nt-inner').innerHTML = nightInfo();
+    if (App.mode === MODES.AMBIENT) $('#ambient .amb-info').innerHTML = ambientInfo();
+    if (App.mode === MODES.NIGHT) $('#night .nt-inner').innerHTML = nightInfo();
   }
 
   // Nudge static content a few px every minute so nothing sits still for hours (image retention)
@@ -49,10 +49,10 @@
 
   App.on('mode', function (m) {
     clearInterval(shiftTimer);
-    if (m === 'ambient') { amb.show.start(); paint(); shiftTimer = setInterval(pixelShift, 60000); }
+    if (m === MODES.AMBIENT) { amb.show.start(); paint(); shiftTimer = setInterval(pixelShift, 60000); }
     else amb.show.stop();
-    if (m === 'night') { paint(); shiftTimer = setInterval(pixelShift, 60000); }
+    if (m === MODES.NIGHT) { paint(); shiftTimer = setInterval(pixelShift, 60000); }
   });
   App.on('minute', paint);
-  App.on('home', function () { if (App.mode === 'night') paint(); });
+  App.on('home', function () { if (App.mode === MODES.NIGHT) paint(); });
 })();
