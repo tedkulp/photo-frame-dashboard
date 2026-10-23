@@ -3,7 +3,7 @@
 // an effective date: a version applies from its date until the next one, a change made today
 // replaces any other change made today, and nothing is ever removed. "Today" is a local date
 // (YYYY-MM-DD) from `today()`; weekdays are JS numbering, 0 = Sunday.
-import { InputError } from './calendar.js';
+import { HttpError } from './errors.js';
 
 export const TITLE_MAX = 60;
 export const EMOJI_MAX = 16;
@@ -69,13 +69,13 @@ export function createChores({ db, settings, today, now = Date.now }) {
   function find(id, date) {
     const n = /^[1-9]\d*$/.test(String(id)) ? Number(id) : NaN;
     const chore = readAll().find((c) => c.id === n);
-    if (!chore || !shown(chore, date)) throw new InputError(404, 'No such chore');
+    if (!chore || !shown(chore, date)) throw new HttpError(404, 'No such chore');
     return chore;
   }
 
   // Checks the fields present in `input`; with `all`, every field is required.
   function check(input, all) {
-    const bad = (msg) => new InputError(400, msg);
+    const bad = (msg) => new HttpError(400, msg);
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw bad('Expected a JSON object');
     const out = {};
     const has = (k) => all || input[k] !== undefined;
@@ -188,7 +188,7 @@ export function createChores({ db, settings, today, now = Date.now }) {
     const date = await today();
     const chore = find(id, date);
     if (!done) return void q.clearDone.run(chore.id, date);
-    if (!scheduledOn(chore, date)) throw new InputError(409, 'That chore is not scheduled today');
+    if (!scheduledOn(chore, date)) throw new HttpError(409, 'That chore is not scheduled today');
     q.setDone.run(chore.id, date);
   }
 

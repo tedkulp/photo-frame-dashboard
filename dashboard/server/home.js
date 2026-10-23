@@ -14,7 +14,7 @@
 //     light: on, dimmable, level (1–100, null when off, not dimmable or on at brightness 0)
 //     switch, fan, toggle (input_boolean): on
 //     lock: locked, state (HA's: locked, unlocked, locking, unlocking, jammed, open)
-import { InputError } from './calendar.js';
+import { HttpError } from './errors.js';
 import { createSocket, NotConnectedError } from './hasocket.js';
 import { HomeAssistantError } from './homeassistant.js';
 
@@ -163,9 +163,9 @@ export function mapPresence(people, states) {
   return out;
 }
 
-// { action, value? } for an entity → the service call, or an InputError(400). The allowlist.
+// { action, value? } for an entity → the service call, or an HttpError(400). The allowlist.
 export function serviceCall(sel, body, st, unit) {
-  const bad = (msg) => new InputError(400, msg);
+  const bad = (msg) => new HttpError(400, msg);
   if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.action !== 'string') throw bad('Send { action, value? }');
   const { action, value } = body;
   const d = sel.domain;
@@ -296,7 +296,7 @@ export function createHome({ url, token, label = 'frame', rooms = [], people = [
 
   function find(entityId) {
     const sel = selected.get(entityId);
-    if (!sel) throw new InputError(404, `${entityId} is not on the frame (no "${label}" label in Home Assistant)`);
+    if (!sel) throw new HttpError(404, `${entityId} is not on the frame (no "${label}" label in Home Assistant)`);
     return sel;
   }
 
@@ -304,13 +304,13 @@ export function createHome({ url, token, label = 'frame', rooms = [], people = [
     try {
       await socket.command(Object.assign({ type: 'call_service' }, call));
     } catch (e) {
-      if (e instanceof NotConnectedError) throw new InputError(503, 'Home Assistant is not connected');
+      if (e instanceof NotConnectedError) throw new HttpError(503, 'Home Assistant is not connected');
       throw e;
     }
   }
 
   function requireConnected() {
-    if (!socket.connected) throw new InputError(503, 'Home Assistant is not connected');
+    if (!socket.connected) throw new HttpError(503, 'Home Assistant is not connected');
   }
 
   // Fetches an image from HA (path on HA, with the token) → { type, body }.
@@ -321,7 +321,7 @@ export function createHome({ url, token, label = 'frame', rooms = [], people = [
     } catch (e) {
       throw new HomeAssistantError(`Home Assistant: ${e.message}`);
     }
-    if (res.status === 404) throw new InputError(404, 'No picture');
+    if (res.status === 404) throw new HttpError(404, 'No picture');
     if (!res.ok) throw new HomeAssistantError(`Home Assistant ${path.split('?')[0]}: ${res.status}`);
     return { type: res.headers.get('content-type') || 'image/jpeg', body: Buffer.from(await res.arrayBuffer()) };
   }
@@ -342,7 +342,7 @@ export function createHome({ url, token, label = 'frame', rooms = [], people = [
     async roomOff(name) {
       const key = roomKey(name);
       const ids = [...selected.values()].filter((s) => ROOM_OFF.includes(s.domain) && (s.room ? roomKey(s.room) === key : key === roomKey(OTHER_ROOM)));
-      if (!ids.length) throw new InputError(404, `No room "${name}" with lights, switches or fans`);
+      if (!ids.length) throw new HttpError(404, `No room "${name}" with lights, switches or fans`);
       requireConnected();
       for (const domain of ROOM_OFF) {
         const entity_id = ids.filter((s) => s.domain === domain && available(states.get(s.id))).map((s) => s.id);
@@ -351,17 +351,17 @@ export function createHome({ url, token, label = 'frame', rooms = [], people = [
     },
     camera(entityId) {
       const sel = find(entityId);
-      if (sel.domain !== 'camera') throw new InputError(404, `${entityId} is not a camera`);
+      if (sel.domain !== 'camera') throw new HttpError(404, `${entityId} is not a camera`);
       return image('/api/camera_proxy/' + encodeURIComponent(entityId));
     },
     // Media art: the player's entity_picture, which HA serves (with its own token in the query).
     // Only paths on HA are fetched, so the token is never sent anywhere else.
     mediaArt(entityId) {
       const sel = find(entityId);
-      if (sel.domain !== 'media_player') throw new InputError(404, `${entityId} is not a media player`);
+      if (sel.domain !== 'media_player') throw new HttpError(404, `${entityId} is not a media player`);
       const st = states.get(entityId);
       const pic = st && st.attributes && st.attributes.entity_picture;
-      if (typeof pic !== 'string' || !pic.startsWith('/')) throw new InputError(404, 'No picture');
+      if (typeof pic !== 'string' || !pic.startsWith('/')) throw new HttpError(404, 'No picture');
       return image(pic);
     },
     close: () => socket.close(),
