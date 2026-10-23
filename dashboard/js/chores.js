@@ -65,21 +65,26 @@
   // Ticks and unticks sent but not answered yet: the `pending` Chores.today takes. o: { send(method,
   // path) → Promise } (the chores feed's). tick(id, done) shows at once and resolves once the server
   // has it: true while it's still the chore's latest tick (the caller applies it to the data),
-  // false when a later tick owns the chore now. A failed send is put back (unless a later tick owns
-  // it) and rejects with the reason.
+  // false when a later tick owns the chore now, whether this one was taken or failed (the later
+  // one's answer is what counts). A failed send of the latest tick is put back and rejects with
+  // the reason. Each tick owns the chore by its own token, not by its done value, so
+  // tick/untick/tick can't mistake the first answer for the third tap's.
   Chores.ticks = function (o) {
     var pending = {}; // { choreId: done }
+    var owner = {};   // { choreId: the latest tick's token }
     return {
       tick: function (id, done) {
+        var token = {};
         pending[id] = done;
+        owner[id] = token;
         function settle() {
-          if (pending[id] !== done) return false; // a later tap on the same chore owns it now
+          if (owner[id] !== token) return false; // a later tap on the same chore owns it now
           delete pending[id];
+          delete owner[id];
           return true;
         }
-        var p;
-        try { p = Promise.resolve(o.send(done ? 'PUT' : 'DELETE', '/api/chores/' + encodeURIComponent(id) + '/done')); } catch (e) { p = Promise.reject(e); }
-        return p.then(settle, function (e) { settle(); throw e; });
+        return new Promise(function (ok) { ok(o.send(done ? 'PUT' : 'DELETE', '/api/chores/' + encodeURIComponent(id) + '/done')); })
+          .then(settle, function (e) { if (!settle()) return false; throw e; });
       },
       pending: function () { return pending; },
       busy: function () { return Object.keys(pending).length > 0; }

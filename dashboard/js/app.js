@@ -231,8 +231,9 @@
     if (s.failed || s.stale) return window.Feed.UNREACHABLE + ' · ' + (s.age ? 'chores from ' + App.fmt.mins(s.age) + ' ago' : 'retrying');
     return '';
   };
-  // Tick (done = true) or untick a chore. Shows at once; resolves when the server has it, or
-  // rejects with the reason after putting it back. The feed refetches after every write.
+  // Tick (done = true) or untick a chore. Shows at once; resolves when the server has it (or when
+  // a later tap on the chore owns it now, whatever this one's answer), or rejects with the reason
+  // after putting it back. The feed refetches after every write.
   App.tickChore = function (id, done) {
     var p = ticks.tick(id, done);
     App.emit('chores');

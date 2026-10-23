@@ -113,7 +113,7 @@ test('ticks: a later tick on the same chore owns it, whatever the earlier one an
   const first = ticks.tick('1', true);
   const second = ticks.tick('1', false);
   sent[0].no(new Error('HTTP 500'));
-  await assert.rejects(first);
+  assert.equal(await first, false, 'failed, but superseded: no error to show');
   assert.deepEqual(ticks.pending(), { 1: false });
   assert.equal(ticks.busy(), true);
   const third = ticks.tick('1', true);
@@ -122,6 +122,40 @@ test('ticks: a later tick on the same chore owns it, whatever the earlier one an
   assert.deepEqual(ticks.pending(), { 1: true });
   sent[2].ok({});
   assert.equal(await third, true);
+  assert.equal(ticks.busy(), false);
+});
+
+test('ticks: tick, untick, tick: the first answer does not settle the third tap', async () => {
+  const { ticks, sent } = ticker();
+  const first = ticks.tick('1', true);
+  const second = ticks.tick('1', false);
+  const third = ticks.tick('1', true);
+  sent[0].ok({});
+  assert.equal(await first, false, 'same done value as the third, but not its tick');
+  assert.equal(ticks.busy(), true, 'the third is still out');
+  assert.deepEqual(ticks.pending(), { 1: true });
+  sent[1].ok({});
+  assert.equal(await second, false);
+  sent[2].no(new Error('HTTP 500'));
+  await assert.rejects(third, /HTTP 500/);
+  assert.deepEqual(ticks.pending(), {}, 'the failed latest tick is put back');
+  assert.equal(ticks.busy(), false);
+});
+
+test('ticks: an earlier tick failing after a later one resolves false, so no stale error shows', async () => {
+  const { ticks, sent } = ticker();
+  const first = ticks.tick('1', true);
+  const second = ticks.tick('1', false);
+  sent[1].ok({});
+  assert.equal(await second, true);
+  sent[0].no(new Error('Can’t reach the home server'));
+  assert.equal(await first, false);
+  assert.deepEqual(ticks.pending(), {});
+});
+
+test('ticks: a send that throws at once is put back and rejects', async () => {
+  const ticks = Chores.ticks({ send: () => { throw new Error('boom'); } });
+  await assert.rejects(ticks.tick('1', true), /boom/);
   assert.equal(ticks.busy(), false);
 });
 
