@@ -150,20 +150,31 @@
       });
     }
 
+    // Calendar adds and removes sent but not settled yet (busy()). Each one counts from when it is
+    // sent until it resolves or rejects; send() always settles (it times out), so the count clears.
+    var writes = 0;
+    function counted(p) {
+      writes++;
+      function done() { writes--; }
+      return p.then(function (v) { done(); return v; }, function (e) { done(); throw e; });
+    }
+
     return {
       // Any write: (method, url, body?) → the JSON answer (null for 204). See send() above.
       send: send,
       // { title, start, end, people, allDay? } with ISO strings → the created event, parsed.
       add: function (input) {
-        return send('POST', '/api/events', input).then(function (raw) {
+        return counted(send('POST', '/api/events', input).then(function (raw) {
           var e = raw && toEvent(raw);
           if (!e || isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response from the home server');
           return e;
-        });
+        }));
       },
       remove: function (id) {
-        return send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {});
+        return counted(send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {}));
       },
+      // An add or remove is unanswered: its toast (and undo) would be lost by a reload.
+      busy: function () { return writes > 0; },
       // A new refresh interval (Home controls polls faster while it's open). With `now`, fetches
       // straight away. A fetch in flight or a failure backoff is left alone; the interval applies
       // from the next good fetch.
