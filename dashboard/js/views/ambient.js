@@ -43,8 +43,8 @@
     $('#ambient').innerHTML = '<div class="amb-stage"></div><div class="amb-scrim"></div><div class="amb-info"></div>';
     $('#night').innerHTML = '<div class="nt-inner"></div>';
     amb.show = new App.Slideshow($('#ambient .amb-stage'), { layout: 'cover', captions: false, interval: window.Photos.INTERVAL.ambient });
-    $('#ambient').addEventListener('click', function () { App.setMode('day'); App.go('home'); });
-    $('#night').addEventListener('click', function () { App.setMode('nightdash'); });
+    $('#ambient').addEventListener('click', function () { App.modeInput({ type: 'tapAmbient' }); });
+    $('#night').addEventListener('click', function () { App.modeInput({ type: 'tapNight' }); });
   });
 
   App.on('mode', function (m) {
@@ -52,7 +52,6 @@
     if (m === 'ambient') { amb.show.start(); paint(); shiftTimer = setInterval(pixelShift, 60000); }
     else amb.show.stop();
     if (m === 'night') { paint(); shiftTimer = setInterval(pixelShift, 60000); }
-    App.resetIdle();
   });
   App.on('minute', paint);
   App.on('home', function () { if (App.mode === 'night') paint(); });

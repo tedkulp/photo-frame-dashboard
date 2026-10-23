@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var D = window.DATA;
-  var App = window.App = { state: D, views: {}, current: null, mode: 'day' };
+  var App = window.App = { state: D, views: {}, current: null, mode: window.DisplayMode.MODES.DAY };
   var $ = App.$ = function (s, r) { return (r || document).querySelector(s); };
   App.$$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
@@ -16,7 +16,7 @@
   App.dayStart = function (d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
   App.addDays = function (d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; };
   App.sameDay = function (a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); };
-  App.isNight = function () { var h = App.now().getHours(); return h >= 22 || h < 6; };
+  App.isNight = function () { return window.DisplayMode.isNight(App.now().getHours()); };
 
   var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -619,49 +619,32 @@
     el.addEventListener('pointercancel', cancel);
   };
 
-  // ------------------------------------------------------------ modes: day / ambient / night
-  App.setMode = function (m) {
-    var stage = $('#stage');
-    if (!modeAllowed(m)) return;
-    App.mode = m;
-    stage.dataset.mode = m;
-    App.emit('mode', m);
+  // ------------------------------------------------------------ modes: day / ambient / night / nightdash
+  // DisplayMode (displaymode.js) decides every mode change and the idle counter; this only feeds it
+  // inputs and applies its answer: effects (close the sheet, go to Today), then the mode on the
+  // stage, App.mode and the 'mode' event. The overlays, the takeover and the A/N keys send inputs
+  // with App.modeInput rather than setting a mode themselves.
+  var modeState = window.DisplayMode.initial(false);
+  App.modeInput = function (input) {
+    var out = window.DisplayMode.next(modeState, input);
+    modeState = out.state;
+    out.effects.forEach(function (e) {
+      if (e === window.DisplayMode.CLOSE_SHEET) App.closeSheet();
+      if (e === window.DisplayMode.TODAY) App.go('home');
+    });
+    if (!out.mode) return;
+    App.mode = out.mode;
+    $('#stage').dataset.mode = out.mode;
+    App.emit('mode', out.mode);
   };
-
-  // ------------------------------------------------------------ idle
-  App.idle = { home: 120, ambient: 300 };
-  var idleSec = 0;
-  function onIdleTick() {
-    if (!idleAllowed()) return;
-    idleSec++;
-    var blocked = takeoverOpen();
-    if (App.mode === 'nightdash' && idleSec >= 20) { App.setMode(window.DisplayMode.idle(App.isNight())); return; }
-    if (App.mode !== 'day' || blocked) return;
-    if (idleSec === App.idle.home && App.current !== 'home') { App.closeSheet(); App.go('home'); }
-    if (idleSec >= App.idle.ambient) App.goIdle();
-  }
-  App.resetIdle = function () { idleSec = 0; };
-  // The idle screen: close any sheet, back to Today, then night after dark or ambient. The idle
-  // tick and a tap on the rail clock both come here. Day mode only, never over a takeover or on a
-  // phone. A clock tap is deliberate, so a sheet, edit mode or unanswered tap doesn't hold it off.
-  function takeoverOpen() { return $('#takeover').classList.contains('is-open'); }
-  App.goIdle = function () {
-    if (!idleAllowed() || App.mode !== 'day' || takeoverOpen()) return;
-    App.closeSheet();
-    App.go('home');
-    App.setMode(window.DisplayMode.idle(App.isNight()));
-  };
-  // Ambient and night swap over when the clock crosses 22:00 or 06:00 (DisplayMode.atBoundary).
-  // Only the crossing counts, so a mode picked with A/N holds until the next boundary.
-  var wasNight = null;
-  function onNightTick() {
-    var night = App.isNight(), next;
-    if (wasNight !== null && night !== wasNight) {
-      next = window.DisplayMode.atBoundary(App.mode, wasNight, night);
-      if (next !== App.mode) App.setMode(next);
-    }
-    wasNight = night;
-  }
+  // For other code; a phone stays in day.
+  App.setMode = function (m) { App.modeInput({ type: 'set', mode: m }); };
+  App.idle = window.DisplayMode.IDLE; // { home: 120, ambient: 300, nightdash: 20 } seconds
+  App.resetIdle = function () { App.modeInput({ type: 'input' }); };
+  // The idle screen: close any sheet, back to Today, then night after dark or ambient. Day mode
+  // only, never over a takeover or on a phone. A clock tap is deliberate, so a sheet, edit mode or
+  // unanswered tap doesn't hold it off.
+  App.goIdle = function () { App.modeInput({ type: 'clock', hour: App.now().getHours() }); };
   // On click, not pointerdown: ambient/night leave on click, so the switch has to come after the
   // tap's own click or that click would dismiss them again. An open sheet's scrim covers the rail,
   // so a tap on the scrim over the clock counts as a tap on the clock.
@@ -682,11 +665,9 @@
   // and no Photos/ambient/night. Switching layout (rotating a tablet, resizing) rebuilds the views.
   App.stage = window.Stage.fit(0, 0);
   App.isPhone = function () { return App.stage.layout === 'phone'; };
-  // The phone policy, in one place: App.go, App.setMode and the idle tick ask these, and fit()
-  // re-applies them when the layout flips mid-session.
+  // The phone policy: App.go asks viewAllowed; the mode side (a phone is always day and never counts
+  // idle) is DisplayMode's, told by fit() whenever the layout is known.
   function viewAllowed(name) { return !(name === 'photos' && App.isPhone()); } // no Photos on a phone
-  function modeAllowed(m) { return m === 'day' || !App.isPhone(); }               // a phone is always 'day'
-  function idleAllowed() { return !App.isPhone(); } // a phone never goes back to Today or into ambient/night (idle or clock tap)
   function fit() {
     var next = window.Stage.fit(window.innerWidth, window.innerHeight, App.stage), el = $('#stage');
     var prevLayout = App.stage.layout;
@@ -697,8 +678,8 @@
     el.style.transform = (next.x || next.y ? 'translate(' + next.x + 'px,' + next.y + 'px) ' : '') +
       (Math.abs(next.scale - 1) < 0.001 ? '' : 'scale(' + next.scale + ')');
     App.emit('stage', next);
+    App.modeInput({ type: 'layout', phone: App.isPhone() }); // a phone drops to day mode
     if (next.layout === prevLayout || !App.current) return;
-    if (!modeAllowed(App.mode)) App.setMode('day');
     App.go(App.current, { rerender: true }); // rebuilt for the new layout; go's guard leaves Photos on a phone
     markStale(); // every other view, rebuilt in the background
   }
@@ -713,8 +694,7 @@
       $('#railClock').innerHTML = '<b>' + App.fmt.time(n, false) + '</b><span>' + App.fmt.ampm(n) + '</span>';
       App.emit('minute', n);
     }
-    onNightTick();
-    onIdleTick();
+    App.modeInput({ type: 'tick', hour: n.getHours(), today: App.current === 'home' });
   }
 
   // ------------------------------------------------------------ boot

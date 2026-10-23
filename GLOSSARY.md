@@ -75,6 +75,22 @@ _Avoid_: In, present
 A family member Home Assistant knows is somewhere other than home. When Home Assistant doesn't know, the person is neither home nor away.
 _Avoid_: Out, absent, not home
 
+**Day mode**:
+The frame's normal, lit dashboard with the rail and the pages. After 300 s with no touch it goes to Ambient by day or Night after dark.
+_Avoid_: Normal mode, active mode
+
+**Ambient**:
+The idle screen in the daytime: a full-screen photo slideshow with the clock, the weather, the next event and who's home. A tap goes back to Today in Day mode.
+_Avoid_: Screensaver, idle mode, photo mode
+
+**Night**:
+The idle screen from 10 pm to 6 am: a dim red clock with the house's lock state on black. A tap shows Nightdash. Ambient and Night swap over at 10 pm and 6 am.
+_Avoid_: Sleep mode, dark mode
+
+**Nightdash**:
+The dimmed, red-tinted dashboard shown after tapping Night, so the family can check something without full brightness. It goes back to Night after 20 s with no touch.
+_Avoid_: Night dashboard, dim mode
+
 **Phone layout**:
 How the dashboard arranges itself on a phone held upright: one scrolling column per page and a tab bar at the bottom, with no Photos, ambient or night mode. Everywhere else it shows the frame's landscape layout, scaled to fit.
 _Avoid_: Mobile view, responsive mode
