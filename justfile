@@ -1,6 +1,7 @@
 # Everyday tasks for the dashboard, the kiosk APK and the repo checks.
 # Device and flashing scripts are left out on purpose: run those by hand, one step at a time
 # (README.md -> "For agents: start here").
+import? 'local.just'
 
 set positional-arguments
 
