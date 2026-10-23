@@ -113,9 +113,8 @@
       });
     }
     function load() {
-      var p;
       inFlight = true;
-      try { p = Promise.resolve(o.fetch(o.url, { cache: 'no-store' })); } catch (e) { p = Promise.reject(e); }
+      var p = new Promise(function (ok) { ok(o.fetch(o.url, { cache: 'no-store' })); });
       return withTimeout(p.then(function (res) {
         if (!res.ok) { var e = new Error('HTTP ' + res.status); e.answered = true; throw e; }
         return res.json();
@@ -129,15 +128,22 @@
       }).catch(function (e) { answered = !!(e && e.answered); fail(); }).then(function () { inFlight = false; if (o.onState) o.onState(); });
     }
 
-    // An add or delete. Resolves with the JSON body (null for 204); rejects with the server's error,
+    // A write: a calendar add or delete, a chore save or tick, a Home controls tap. Resolves with the JSON body (null for 204); rejects with the server's error,
     // UNREACHABLE when the request failed outright, or NO_ANSWER when it timed out (the server may
     // still have done it). No answer or a 5xx counts as a failed fetch, so adding turns off and the
-    // calendar is retried soon. On success the calendar is refreshed right away.
+    // calendar is retried soon. On success the calendar is refreshed right away. Counted in
+    // busy() from when it is sent until it settles, and it always settles (body included, it
+    // times out).
+    var unanswered = 0;
     function send(method, url, body) {
+      unanswered++;
+      return request(method, url, body).then(function (v) { unanswered--; return v; }, function (e) { unanswered--; throw e; });
+    }
+    function request(method, url, body) {
       function failNow(e) { fail(); if (o.onState) o.onState(); return e; }
-      var init = { method: method, cache: 'no-store' }, p;
+      var init = { method: method, cache: 'no-store' };
       if (body !== undefined) { init.headers = { 'content-type': 'application/json' }; init.body = JSON.stringify(body); }
-      try { p = Promise.resolve(o.fetch(url, init)); } catch (e) { p = Promise.reject(e); }
+      var p = new Promise(function (ok) { ok(o.fetch(url, init)); });
       // The timeout covers reading the body too: a body that stalls after the headers counts as no answer.
       return withTimeout(p.then(function (res) {
         return (res.status === 204 ? Promise.resolve(null) : res.json()).catch(function () { return null; }).then(function (out) {
@@ -154,30 +160,21 @@
       });
     }
 
-    // Calendar adds and removes not settled yet (busy()): each counts from when it is sent until it
-    // resolves or rejects, and send() always settles (body included, it times out). Counted here, not
-    // in send(): chore ticks and Home controls taps go through send() and their stores count them.
-    var unanswered = 0;
-    function countUntilSettled(p) {
-      unanswered++;
-      return p.then(function (v) { unanswered--; return v; }, function (e) { unanswered--; throw e; });
-    }
-
     return {
       // Any write: (method, url, body?) → the JSON answer (null for 204). See send() above.
       send: send,
       // { title, start, end, people, allDay? } with ISO strings → the created event, parsed.
       add: function (input) {
-        return countUntilSettled(send('POST', '/api/events', input).then(function (raw) {
+        return send('POST', '/api/events', input).then(function (raw) {
           var e = raw && toEvent(raw);
           if (!e || isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response from the home server');
           return e;
-        }));
+        });
       },
       remove: function (id) {
-        return countUntilSettled(send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {}));
+        return send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {});
       },
-      // An add or remove is unanswered: a reload would lose its toast (and undo).
+      // A write (an add, a remove, any send) is unanswered: a reload would lose its result.
       busy: function () { return unanswered > 0; },
       // A new refresh interval (Home controls polls faster while it's open). With `now`, fetches
       // straight away. A fetch in flight or a failure backoff is left alone; the interval applies

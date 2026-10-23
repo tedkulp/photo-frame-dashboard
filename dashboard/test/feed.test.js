@@ -475,6 +475,38 @@ test('an answer whose body never arrives times out and clears busy', async () =>
   assert.equal(h.feed.busy(), false);
 });
 
+test('any send counts as busy until it settles, not only calendar adds and removes', async () => {
+  const w = heldWrites();
+  const h = harness({ respond: w.respond });
+  h.feed.start();
+  await h.settle();
+  const a = h.feed.send('PATCH', '/api/chores/7', { title: 'x' });
+  const b = h.feed.send('DELETE', '/api/chores/8').catch(() => {});
+  assert.equal(h.feed.busy(), true);
+  await h.settle();
+  w.held[0].ok(json(200, { id: 7 }));
+  await a;
+  assert.equal(h.feed.busy(), true, 'the delete is still out');
+  w.held[1].no(new TypeError('Failed to fetch'));
+  await b;
+  assert.equal(h.feed.busy(), false);
+});
+
+test('a fetch that throws at once rejects as unreachable and clears busy', async () => {
+  const h = harness();
+  h.feed = Feed.create({
+    url: '/api/calendar', storage: { getItem: () => null, setItem: () => {} }, now: () => h.t,
+    setTimeout: (fn, ms) => { const t = { fn, ms }; h.timers.push(t); return t; }, clearTimeout: () => {},
+    fetch: (url, init) => { if (init.method) throw new TypeError('bad'); return Promise.resolve(json(200, body())); },
+    onChange: () => {},
+  });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.send('PUT', '/api/chores/7/done').then(() => null, (e) => e);
+  assert.match(err.message, /Can’t reach the home server/);
+  assert.equal(h.feed.busy(), false);
+});
+
 // ------------------------------------------------------------ other writes (chores ticks)
 test('send makes any write without a body, resolves with null on 204, then refreshes', async () => {
   const h = harness({ respond: routes(() => ({ ok: true, status: 204, json: () => Promise.reject(new Error('no body')) })) });

@@ -456,13 +456,15 @@
   // serverBuild is the id from the last fetch, null once one fails (no answer, 404, no id):
   // only what the server says right now counts. heard is the last id that parsed.
   var serverBuild = null, heard = null;
-  // Something a reload would lose: an open sheet, an edit mode, a chore tick or Home controls
-  // change not answered (or not sent) yet, or a calendar add/remove not answered yet (even with
-  // its sheet closed: the result toast and its undo would be lost).
+  // Something a reload would lose: an open sheet, an edit mode, a toast with Undo, any write to
+  // the home server not answered yet (a calendar add/remove even with its sheet closed, a chore
+  // save, delete or tick, a Home controls change), or a chore tick or Home controls change still
+  // pending (not sent yet, or not confirmed).
   App.busy = function () {
     return $('#sheetLayer').classList.contains('is-open') ||
-      editors.some(function (ed) { return ed.on; }) ||
-      ticks.busy() || homeStore.busy() || !!(App.feed && App.feed.busy());
+      editors.some(function (ed) { return ed.on; }) || !!undoToast ||
+      [App.feed, App.choresFeed, App.homeFeed].some(function (f) { return f && f.busy(); }) ||
+      ticks.busy() || homeStore.busy();
   };
   function reloadIfDue() {
     var storage = null;
@@ -535,8 +537,9 @@
   };
 
   // ------------------------------------------------------------ toasts (single, with undo)
-  // A new toast replaces the one showing. Returns { dismiss }.
-  var toastTimer;
+  // A new toast replaces the one showing. Returns { dismiss }. undoToast: the toast showing has
+  // an Undo (App.busy(): a reload would take it away).
+  var toastTimer, undoToast = null;
   App.toast = function (html, opts) {
     opts = opts || {};
     var box = $('#toasts');
@@ -550,7 +553,8 @@
       (opts.undo ? '<button class="toast-undo">' + App.icon('undo', 22) + 'Undo</button>' : '');
     box.appendChild(t);
     t.classList.add('is-in');
-    function kill() { t.remove(); }
+    undoToast = opts.undo ? t : null;
+    function kill() { t.remove(); if (undoToast === t) undoToast = null; }
     toastTimer = setTimeout(kill, ms);
     if (opts.undo) t.querySelector('.toast-undo').addEventListener('click', function () { clearTimeout(toastTimer); opts.undo(); kill(); });
     // dismiss() takes this toast away if it is still showing (a later toast already replaced it).
