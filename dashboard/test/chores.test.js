@@ -76,6 +76,55 @@ test('nothing to show without data', () => {
   assert.deepEqual(Chores.today(null, 'morning'), []);
 });
 
+// ------------------------------------------------------------ ticks (pending changes)
+function ticker() {
+  const sent = [];
+  const ticks = Chores.ticks({ send: (method, path) => new Promise((ok, no) => { sent.push({ method, path, ok, no }); }) });
+  return { ticks, sent };
+}
+
+test('ticks: a tick shows at once in today, and is cleared once the server has it', async () => {
+  const { ticks, sent } = ticker();
+  const d = Chores.parse(body());
+  const p = ticks.tick('1', true);
+  assert.deepEqual(sent.map((s) => [s.method, s.path]), [['PUT', '/api/chores/1/done']]);
+  assert.equal(Chores.today(d, 'evening', ticks.pending())[0].done, true);
+  assert.equal(ticks.busy(), true);
+  sent[0].ok({});
+  assert.equal(await p, true, 'still its own, so the caller applies it');
+  assert.deepEqual(ticks.pending(), {});
+  assert.equal(ticks.busy(), false);
+});
+
+test('ticks: an untick that fails is put back and rejects with the reason', async () => {
+  const { ticks, sent } = ticker();
+  const d = Chores.parse(body());
+  const p = ticks.tick('2', false);
+  assert.equal(sent[0].method, 'DELETE');
+  assert.equal(Chores.today(d, 'morning', ticks.pending())[0].done, false);
+  sent[0].no(new Error('HTTP 500'));
+  await assert.rejects(p, /HTTP 500/);
+  assert.equal(Chores.today(d, 'morning', ticks.pending())[0].done, true, 'back to the server state');
+  assert.equal(ticks.busy(), false);
+});
+
+test('ticks: a later tick on the same chore owns it, whatever the earlier one answers', async () => {
+  const { ticks, sent } = ticker();
+  const first = ticks.tick('1', true);
+  const second = ticks.tick('1', false);
+  sent[0].no(new Error('HTTP 500'));
+  await assert.rejects(first);
+  assert.deepEqual(ticks.pending(), { 1: false });
+  assert.equal(ticks.busy(), true);
+  const third = ticks.tick('1', true);
+  sent[1].ok({});
+  assert.equal(await second, false, 'answered, but no longer its own');
+  assert.deepEqual(ticks.pending(), { 1: true });
+  sent[2].ok({});
+  assert.equal(await third, true);
+  assert.equal(ticks.busy(), false);
+});
+
 // ------------------------------------------------------------ this week
 test('week grid: hit, miss, due and null map to hit, miss, due and none; today is the server weekday', () => {
   const d = Chores.parse(body({ week: { maya: ['hit', 'miss', 'hit', null, 'due', null, 'bogus'] } }));

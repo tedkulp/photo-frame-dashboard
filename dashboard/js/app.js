@@ -204,11 +204,12 @@
     for (var i = 0; i < D.routines.length; i++) if (h >= D.routines[i].from && h < D.routines[i].to) return D.routines[i];
     return D.routines[D.routines.length - 1];
   };
-  var pendingTicks = {}; // { choreId: done } sent but not answered yet
+  // Ticks sent but not answered yet (Chores.ticks), through the chores feed.
+  var ticks = window.Chores.ticks({ send: function (method, path) { return App.choresFeed.send(method, path); } });
   function onChores(d) { D.chores = d; App.emit('chores'); }
   // Today's chores (the server's weekday) in a routine, with done; the one selection the Chores
   // view and the home screen's rings both use.
-  App.choresToday = function (routineId) { return window.Chores.today(D.chores, routineId, pendingTicks); };
+  App.choresToday = function (routineId) { return window.Chores.today(D.chores, routineId, ticks.pending()); };
   App.choresWeek = function (personId) { return window.Chores.week(D.chores, personId); };
   // Who a chore can belong to, in lane order: each person, then Anyone.
   App.choreOwners = function () { return App.peopleIds().concat([window.Chores.ANYONE]); };
@@ -233,16 +234,13 @@
   // Tick (done = true) or untick a chore. Shows at once; resolves when the server has it, or
   // rejects with the reason after putting it back. The feed refetches after every write.
   App.tickChore = function (id, done) {
-    pendingTicks[id] = done;
+    var p = ticks.tick(id, done);
     App.emit('chores');
-    function settle(ok) {
-      if (pendingTicks[id] !== done) return; // a later tap on the same chore owns it now
-      delete pendingTicks[id];
-      if (ok && D.chores) { if (done) D.chores.done[id] = true; else delete D.chores.done[id]; }
+    return p.then(function (mine) {
+      if (!mine) return; // a later tap on the same chore owns it now
+      if (D.chores) { if (done) D.chores.done[id] = true; else delete D.chores.done[id]; }
       App.emit('chores');
-    }
-    return App.choresFeed.send(done ? 'PUT' : 'DELETE', '/api/chores/' + encodeURIComponent(id) + '/done')
-      .then(function () { settle(true); }, function (e) { settle(false); throw e; });
+    }, function (e) { App.emit('chores'); throw e; });
   };
   // Add (no id) or change a chore: input is Chores.toInput's body. Resolves with the saved chore
   // once the server has it (shown straight away, before the refetch); rejects with the reason.
@@ -264,19 +262,19 @@
   // Home Assistant's labelled entities from GET /api/home (house.js), on the calendar feed's loop:
   // every 3 s while Home controls is open (views/control.js sets it), 60 s otherwise. Taps are
   // optimistic: shown at once with a pending mark, confirmed by a later poll or put back after 5 s.
-  var pendingHome = {}; // { key: { id, name, show, match, at } }, see House.view / House.settle
-  var homeTimers = {};  // debounced changes not sent yet, by key
+  // Pending taps (House.store), sent through the home feed.
+  var homeStore = window.House.store({ send: function (method, path, body) { return App.homeFeed.send(method, path, body); } });
   function onHome(d) { D.home = d; settleHome(); App.emit('home'); }
   function homeState() { return App.homeFeed ? App.homeFeed.state() : { status: 'loading' }; }
   function settleHome() {
-    var r = window.House.settle(D.home, pendingHome, Date.now());
+    var r = homeStore.settle(D.home);
     r.expired.forEach(function (p) { App.toast('Couldn’t reach <b>' + App.esc(p.name) + '</b>', { tone: 'error', icon: 'bolt' }); });
     return r.confirmed.length + r.expired.length > 0;
   }
   App.on('second', function () { if (settleHome()) App.emit('home'); });
   // What Home controls and the Today card show: the data with pending taps over it (null before
   // anything has loaded; { configured: false } without Home Assistant).
-  App.home = function () { return window.House.view(D.home, pendingHome); };
+  App.home = function () { return homeStore.view(D.home); };
   // Why the house can't be shown or changed right now ('' when it can). While set, taps toast it
   // (App.homeBlocked: toasts it and says true).
   App.homeNote = function () { return window.House.note(homeState(), D.home, Date.now()); };
@@ -298,10 +296,10 @@
     if (why) App.toast(why, { tone: 'error', icon: 'bolt' });
     return !!why;
   };
-  function homeFailed(key, entry) {
+  // A send that failed (the store has already put its entries back): toast it under `name`.
+  function homeFailed(name) {
     return function (e) {
-      if (pendingHome[key] === entry) delete pendingHome[key]; // else a later tap owns it now
-      App.toast('<b>' + App.esc(entry.name) + '</b> · ' + App.esc(e.message), { tone: 'error', icon: 'bolt' });
+      App.toast('<b>' + App.esc(name) + '</b> · ' + App.esc(e.message), { tone: 'error', icon: 'bolt' });
       App.emit('home');
       return false;
     };
@@ -314,36 +312,20 @@
   App.homeAct = function (target, action, value, opts) {
     opts = opts || {};
     if (homeBlocked()) return;
-    var key = opts.key || target.id, ex = window.House.expect(action, value);
-    var entry = ex && { id: target.id, name: target.name, show: ex.show, match: ex.match, at: null };
-    function send() {
-      delete homeTimers[key];
-      if (entry) entry.at = Date.now();
-      var body = value === undefined ? { action: action } : { action: action, value: value };
-      return App.homeFeed.send('POST', '/api/home/' + encodeURIComponent(target.id), body)
-        .then(function () { return true; }, homeFailed(key, entry || { name: target.name }));
-    }
-    if (entry) { pendingHome[key] = entry; App.emit('home'); }
-    clearTimeout(homeTimers[key]);
-    if (opts.delay) homeTimers[key] = setTimeout(send, opts.delay);
-    else return send();
+    var entry = window.House.entry(target, action, value);
+    var body = value === undefined ? { action: action } : { action: action, value: value };
+    var p = homeStore.act(entry ? [entry] : [], { method: 'POST', path: '/api/home/' + encodeURIComponent(target.id), body: body },
+      { key: opts.key || target.id, delay: opts.delay }).then(null, homeFailed(target.name));
+    if (entry) App.emit('home');
+    if (!opts.delay) return p;
   };
   // A room's "All off": its lights, switches and fans that are on go off at once.
   App.homeRoomOff = function (room) {
     if (homeBlocked()) return;
-    var off = window.House.expect('off'), entries = [];
-    room.tiles.forEach(function (t) {
-      if (!window.House.turnsOff(t)) return;
-      var entry = { id: t.id, name: t.name, show: off.show, match: off.match, at: Date.now() };
-      pendingHome[t.id] = entry;
-      entries.push(entry);
-    });
+    var entries = room.tiles.filter(window.House.turnsOff).map(function (t) { return window.House.entry(t, 'off'); });
+    homeStore.act(entries, { method: 'POST', path: '/api/home/rooms/' + encodeURIComponent(room.name) + '/off' })
+      .then(null, homeFailed(room.name));
     App.emit('home');
-    App.homeFeed.send('POST', '/api/home/rooms/' + encodeURIComponent(room.name) + '/off').then(null, function (e) {
-      entries.forEach(function (entry) { if (pendingHome[entry.id] === entry) delete pendingHome[entry.id]; });
-      App.toast('<b>' + App.esc(room.name) + '</b> · ' + App.esc(e.message), { tone: 'error', icon: 'bolt' });
-      App.emit('home');
-    });
   };
 
   // ------------------------------------------------------------ edit mode (reusable)
@@ -477,7 +459,7 @@
   App.busy = function () {
     return $('#sheetLayer').classList.contains('is-open') ||
       editors.some(function (ed) { return ed.on; }) ||
-      Object.keys(pendingTicks).length > 0 || Object.keys(pendingHome).length > 0 || Object.keys(homeTimers).length > 0;
+      ticks.busy() || homeStore.busy();
   };
   function reloadIfDue() {
     var storage = null;

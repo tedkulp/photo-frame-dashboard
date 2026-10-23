@@ -295,3 +295,152 @@ test('a missing or malformed presence, or no data, is unknown for everyone', () 
   assert.equal(House.presence(House.parse(body({ connected: false, presence: { alex: 'away' } })), 'alex'), 'unknown');
   assert.equal(House.presence(House.view(House.parse(body({ presence: { alex: 'away' } })), { k: { id: 'light.lamp', show: { on: false }, match: { on: false }, at: 1 } }), 'alex'), 'away');
 });
+
+// ------------------------------------------------------------ store (pending changes)
+// A fake clock and timers, and a send whose answers the test gives one by one.
+function rig() {
+  let now = T, seq = 0;
+  const timers = new Map(), sent = [];
+  const store = House.store({
+    send: (method, path, body) => new Promise((ok, no) => { sent.push({ method, path, body, ok, no }); }),
+    now: () => now,
+    setTimeout: (fn, ms) => { const id = ++seq; timers.set(id, { fn, at: now + ms }); return id; },
+    clearTimeout: (id) => { timers.delete(id); },
+  });
+  return {
+    store, sent, timers,
+    // Moves the clock on, firing timers that come due.
+    advance(ms) {
+      now += ms;
+      for (const [id, t] of [...timers]) if (t.at <= now) { timers.delete(id); t.fn(); }
+    },
+  };
+}
+const req = (id, b) => ({ method: 'POST', path: '/api/home/' + id, body: b });
+
+test('entry: a pending change built from expect, not sent yet; null for an action with nothing to show', () => {
+  assert.deepEqual(House.entry(lamp, 'off'), { id: 'light.lamp', name: 'Lamp', show: { on: false, level: null }, match: { on: false }, at: null });
+  assert.equal(House.entry({ id: 'scene.goodnight', name: 'Goodnight' }, 'run'), null);
+});
+
+test('store: a tap shows at once, is sent once, and resolves true when the server takes it', async () => {
+  const r = rig();
+  const p = r.store.act([House.entry(lamp, 'off')], req('light.lamp', { action: 'off' }));
+  assert.equal(r.sent.length, 1);
+  assert.deepEqual([r.sent[0].method, r.sent[0].path, r.sent[0].body], ['POST', '/api/home/light.lamp', { action: 'off' }]);
+  const v = r.store.view(House.parse(body()));
+  assert.equal(v.rooms[0].tiles[1].on, false);
+  assert.equal(v.rooms[0].tiles[1].pending, true);
+  assert.equal(r.store.busy(), true);
+  r.sent[0].ok({});
+  assert.equal(await p, true);
+  assert.equal(r.store.busy(), true, 'still pending until a poll confirms it');
+});
+
+test('store: a matching poll confirms an entry; an unconfirmed one expires after CONFIRM_MS', () => {
+  const r = rig();
+  r.store.act([House.entry(lamp, 'off')], req('light.lamp'));
+  r.store.act([House.entry(door, 'unlock')], req('lock.front'));
+  const off = House.parse(body({ rooms: [{ name: 'Living Room', tiles: [Object.assign({}, lamp, { on: false, level: null })] }, { name: 'Entry', tiles: [door] }] }));
+  r.advance(1000);
+  assert.deepEqual(r.store.settle(off), { confirmed: ['light.lamp'], expired: [] });
+  r.advance(House.CONFIRM_MS - 1001);
+  assert.deepEqual(r.store.settle(off), { confirmed: [], expired: [] });
+  r.advance(1);
+  const s = r.store.settle(off);
+  assert.deepEqual(s.confirmed, []);
+  assert.deepEqual(s.expired.map((e) => e.id), ['lock.front']);
+  assert.equal(r.store.busy(), false);
+  assert.equal(r.store.view(off), off, 'nothing pending: the data itself');
+});
+
+test('store: a failed send puts the entry back and rejects with the reason', async () => {
+  const r = rig();
+  const p = r.store.act([House.entry(lamp, 'off')], req('light.lamp'));
+  r.sent[0].no(new Error('HTTP 502'));
+  await assert.rejects(p, /HTTP 502/);
+  assert.equal(r.store.busy(), false);
+  assert.equal(r.store.view(House.parse(body())).rooms[0].tiles[1].pending, undefined);
+});
+
+test('store: a later tap owns the key, so an earlier send failing or answering late leaves it alone', async () => {
+  const r = rig();
+  const first = r.store.act([House.entry(lamp, 'off')], req('light.lamp'));
+  const second = r.store.act([House.entry(lamp, 'on')], req('light.lamp'));
+  r.sent[0].no(new Error('HTTP 502'));
+  await assert.rejects(first);
+  let v = r.store.view(House.parse(body({ rooms: [{ name: 'Living Room', tiles: [Object.assign({}, lamp, { on: false })] }] })));
+  assert.equal(v.rooms[0].tiles[0].on, true, 'the newer tap still shows');
+  assert.equal(v.rooms[0].tiles[0].pending, true);
+  // A late success for an earlier send changes nothing either.
+  const third = r.store.act([House.entry(lamp, 'off')], req('light.lamp'));
+  r.sent[1].ok({});
+  assert.equal(await second, true);
+  v = r.store.view(House.parse(body()));
+  assert.equal(v.rooms[0].tiles[1].on, false);
+  assert.equal(v.rooms[0].tiles[1].pending, true);
+  r.sent[2].ok({});
+  assert.equal(await third, true);
+});
+
+test('store: debounce shows the entry with at null, restarts on each tap and sends once', async () => {
+  const r = rig();
+  const c = House.parse(body()).climate, key = c.id + ':target';
+  const first = r.store.act([House.entry(c, 'target', 71)], req(c.id, { action: 'target', value: 71 }), { key, delay: 1000 });
+  assert.equal(r.sent.length, 0);
+  assert.equal(r.store.view(House.parse(body())).climate.target, 71);
+  // Not sent yet: settling leaves it alone however long it waits.
+  assert.deepEqual(r.store.settle(House.parse(body())), { confirmed: [], expired: [] });
+  assert.equal(r.store.busy(), true);
+  r.advance(900);
+  const second = r.store.act([House.entry(c, 'target', 72)], req(c.id, { action: 'target', value: 72 }), { key, delay: 1000 });
+  r.advance(900);
+  assert.equal(r.sent.length, 0, 'the second tap restarted the timer');
+  assert.equal(r.store.view(House.parse(body())).climate.target, 72);
+  r.advance(100);
+  assert.equal(r.sent.length, 1);
+  assert.deepEqual(r.sent[0].body, { action: 'target', value: 72 });
+  assert.equal(r.timers.size, 0);
+  assert.equal(await first, undefined, 'the replaced tap was never sent');
+  // at is set when it goes out: CONFIRM_MS from the send, not from the tap.
+  r.advance(House.CONFIRM_MS - 1);
+  assert.deepEqual(r.store.settle(House.parse(body())).expired, []);
+  r.advance(1);
+  assert.equal(r.store.settle(House.parse(body())).expired.length, 1);
+  r.sent[0].ok({});
+  assert.equal(await second, true);
+  assert.equal(r.store.busy(), false);
+});
+
+test('store: a debounced act with nothing to show is busy while it waits to be sent', () => {
+  const r = rig();
+  r.store.act([], req('scene.x'), { key: 'scene.x', delay: 500 });
+  assert.equal(r.store.busy(), true);
+  r.advance(500);
+  assert.equal(r.sent.length, 1);
+  assert.equal(r.store.busy(), false);
+});
+
+test('store: one failed Room all-off send rolls back every entry it added', async () => {
+  const r = rig();
+  const tiles = House.parse(body({ rooms: [{ name: 'Living Room', tiles: [lamp, Object.assign({}, fanBulbs, { on: true })] }] })).rooms[0].tiles;
+  const p = r.store.act(tiles.map((t) => House.entry(t, 'off')), { method: 'POST', path: '/api/home/rooms/Living%20Room/off' });
+  assert.equal(r.sent.length, 1, 'one send for the room');
+  assert.deepEqual(r.store.view(House.parse(body())).rooms[0].tiles.map((t) => [t.on, t.pending]), [[false, true], [false, true]]);
+  r.sent[0].no(new Error('HTTP 502'));
+  await assert.rejects(p, /HTTP 502/);
+  assert.equal(r.store.busy(), false);
+  assert.deepEqual(r.store.view(House.parse(body())).rooms[0].tiles.map((t) => t.pending), [undefined, undefined]);
+});
+
+test('store: a tap after a Room all-off owns its tile when the all-off fails', async () => {
+  const r = rig();
+  const tiles = House.parse(body({ rooms: [{ name: 'Living Room', tiles: [lamp, Object.assign({}, fanBulbs, { on: true })] }] })).rooms[0].tiles;
+  const p = r.store.act(tiles.map((t) => House.entry(t, 'off')), { method: 'POST', path: '/api/home/rooms/Living%20Room/off' });
+  r.store.act([House.entry(lamp, 'on')], req('light.lamp'));
+  r.sent[0].no(new Error('HTTP 502'));
+  await assert.rejects(p);
+  const after = r.store.view(House.parse(body({ rooms: [{ name: 'Living Room', tiles: [Object.assign({}, lamp, { on: false }), fanBulbs] }] }))).rooms[0].tiles;
+  assert.deepEqual([after[0].on, after[0].pending], [true, true], 'the lamp keeps the later tap');
+  assert.equal(after[1].pending, undefined, 'the fan bulbs are put back');
+});
