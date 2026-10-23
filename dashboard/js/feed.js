@@ -138,25 +138,29 @@
       var init = { method: method, cache: 'no-store' }, p;
       if (body !== undefined) { init.headers = { 'content-type': 'application/json' }; init.body = JSON.stringify(body); }
       try { p = Promise.resolve(o.fetch(url, init)); } catch (e) { p = Promise.reject(e); }
-      return withTimeout(p).then(function (res) {
+      // The timeout covers reading the body too: a body that stalls after the headers counts as no answer.
+      return withTimeout(p.then(function (res) {
         return (res.status === 204 ? Promise.resolve(null) : res.json()).catch(function () { return null; }).then(function (out) {
-          var err = !res.ok && new Error((out && out.error) || 'HTTP ' + res.status);
-          if (err) throw res.status >= 500 ? failNow(err) : err;
-          schedule(0);
-          return out;
+          return { res: res, out: out };
         });
+      })).then(function (r) {
+        var res = r.res, out = r.out;
+        var err = !res.ok && new Error((out && out.error) || 'HTTP ' + res.status);
+        if (err) throw res.status >= 500 ? failNow(err) : err;
+        schedule(0);
+        return out;
       }, function (e) {
         throw failNow(new Error(e && e.timedOut ? noAnswer : UNREACHABLE));
       });
     }
 
-    // Calendar adds and removes sent but not settled yet (busy()). Each one counts from when it is
-    // sent until it resolves or rejects; send() always settles (it times out), so the count clears.
-    var writes = 0;
-    function counted(p) {
-      writes++;
-      function done() { writes--; }
-      return p.then(function (v) { done(); return v; }, function (e) { done(); throw e; });
+    // Calendar adds and removes not settled yet (busy()): each counts from when it is sent until it
+    // resolves or rejects, and send() always settles (body included, it times out). Counted here, not
+    // in send(): chore ticks and Home controls taps go through send() and their stores count them.
+    var unanswered = 0;
+    function countUntilSettled(p) {
+      unanswered++;
+      return p.then(function (v) { unanswered--; return v; }, function (e) { unanswered--; throw e; });
     }
 
     return {
@@ -164,17 +168,17 @@
       send: send,
       // { title, start, end, people, allDay? } with ISO strings → the created event, parsed.
       add: function (input) {
-        return counted(send('POST', '/api/events', input).then(function (raw) {
+        return countUntilSettled(send('POST', '/api/events', input).then(function (raw) {
           var e = raw && toEvent(raw);
           if (!e || isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response from the home server');
           return e;
         }));
       },
       remove: function (id) {
-        return counted(send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {}));
+        return countUntilSettled(send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {}));
       },
-      // An add or remove is unanswered: its toast (and undo) would be lost by a reload.
-      busy: function () { return writes > 0; },
+      // An add or remove is unanswered: a reload would lose its toast (and undo).
+      busy: function () { return unanswered > 0; },
       // A new refresh interval (Home controls polls faster while it's open). With `now`, fetches
       // straight away. A fetch in flight or a failure backoff is left alone; the interval applies
       // from the next good fetch.

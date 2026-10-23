@@ -459,6 +459,22 @@ test('an add answered with a bad body still clears busy', async () => {
   assert.equal(h.feed.busy(), false);
 });
 
+test('an answer whose body never arrives times out and clears busy', async () => {
+  const h = harness({ respond: routes(() => ({ ok: true, status: 201, json: () => new Promise(() => {}) })) });
+  h.feed.start();
+  await h.settle();
+  let err;
+  h.feed.add(input).catch((e) => { err = e; });
+  await h.settle();
+  assert.equal(h.feed.busy(), true);
+  const timeout = h.timers.find((t) => t.ms === 30000);
+  h.timers = h.timers.filter((t) => t !== timeout);
+  timeout.fn();
+  await h.settle();
+  assert.match(err.message, /No answer from the home server/);
+  assert.equal(h.feed.busy(), false);
+});
+
 // ------------------------------------------------------------ other writes (chores ticks)
 test('send makes any write without a body, resolves with null on 204, then refreshes', async () => {
   const h = harness({ respond: routes(() => ({ ok: true, status: 204, json: () => Promise.reject(new Error('no body')) })) });
