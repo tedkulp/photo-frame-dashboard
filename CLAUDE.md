@@ -10,6 +10,8 @@ Mostly a field manual, not an app: per-device notes (`docs/`) and helper scripts
 
 ## Commands
 
+A root `justfile` wraps the everyday commands below (`just` lists them; `just dev-all`, `just test-all`, `just check`). It leaves out the device and flashing scripts on purpose.
+
 Dashboard (Vite, plain JS, deployed to Cloudflare as static assets):
 
 ```sh
