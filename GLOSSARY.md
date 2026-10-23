@@ -67,6 +67,10 @@ _Avoid_: Preset, mode
 Indoor temperature, humidity and thermostat setting. Always in Fahrenheit.
 _Avoid_: Weather, inside weather
 
+**Pending change**:
+A tap on Home controls, or a chore checked or unchecked, that the frame already shows but the house or home server hasn't confirmed yet. If it isn't confirmed, the frame puts it back and says why. A later tap on the same thing replaces it.
+_Avoid_: Pending tap, optimistic update, pending write
+
 **Home** (of a person):
 A family member is home when Home Assistant places them in the home zone. Being at another zone, such as School, is away.
 _Avoid_: In, present
