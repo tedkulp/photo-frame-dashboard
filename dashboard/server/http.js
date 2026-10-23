@@ -1,4 +1,4 @@
-// The home server's shared HTTP mechanics: the error type features throw, JSON bodies and answers,
+// The home server's shared HTTP mechanics (HttpError is re-exported from errors.js): JSON bodies and answers,
 // the one error → status map, the one image responder, and the request handler that runs the
 // route modules (routes/*.js) and then serves GET /api/version and the built dashboard (dist).
 // What each feature mounts, its method checks and its "not set up" answer live in its route module.

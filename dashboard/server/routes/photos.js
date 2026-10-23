@@ -1,7 +1,8 @@
 // GET /api/photos and GET /api/photos/:id.jpg (an album photo's preview, streamed from Immich as it
 // arrives). The method is checked first; then, without Immich, the listing is 200
 // { configured: false } and an image 404.
-import { apiCall, sendImage, sendJson, notAllowed, HttpError } from '../http.js';
+import { apiCall, sendImage, sendJson, notAllowed } from '../http.js';
+import { HttpError } from '../errors.js';
 
 export function photosRoutes(photos) {
   return {
