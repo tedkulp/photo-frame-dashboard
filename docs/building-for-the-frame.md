@@ -239,8 +239,8 @@ do nothing while you type in a text box.
 
 | Key | Does |
 | --- | --- |
-| `A` | Ambient screen |
-| `N` | Night screen (tap it to leave) |
+| `A` | Ambient screen: closes any sheet and goes to Today first, like the idle switch. Holds until the next 10 pm or 6 am. |
+| `N` | Night screen, the same way (tap it for the dimmed dashboard). Neither key does anything over a takeover or on a phone. |
 | `1`–`9` | The rail's tabs in order: Today, Weather, Calendar, Chores, Shopping, Photos, Home controls. A tab hidden from the rail has no number. |
 | `Esc` | Close the open sheet |
 

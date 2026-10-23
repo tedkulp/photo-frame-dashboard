@@ -17,14 +17,14 @@
     el.className = 'takeover ' + (cls || '');
     el.innerHTML = html;
     el.classList.add('is-open');
-    App.closeSheet();
-    if (App.mode !== 'day') App.setMode('day');
+    App.modeInput({ type: 'takeoverOpen' }); // closes the sheet, day mode, idle paused
     return el;
   }
   function closeTakeover() {
     var el = $('#takeover');
     el.classList.remove('is-open');
     el.innerHTML = '';
+    App.modeInput({ type: 'takeoverClose' }); // idle starts again from 0
   }
   App.takeover = takeover;
   App.closeTakeover = closeTakeover;
@@ -52,8 +52,10 @@
     document.addEventListener('keydown', function (e) {
       if (e.target.tagName === 'INPUT') return;
       var k = e.key.toLowerCase();
-      if (k === 'a') App.setMode('ambient');
-      if (k === 'n') App.setMode('night');
+      // A and N do what the idle switch does (close the sheet, Today, then ambient or night) and
+      // hold until the next 22:00/06:00; nothing over a takeover or on a phone
+      if (k === 'a') App.modeInput({ type: 'key', mode: window.DisplayMode.MODES.AMBIENT });
+      if (k === 'n') App.modeInput({ type: 'key', mode: window.DisplayMode.MODES.NIGHT });
       if (k === 'escape') App.closeSheet();
       // 1–9 follow the rail's tabs in order, so a hidden tab drops out
       var tab = App.$$('.rail-item')[+k - 1];
