@@ -156,12 +156,15 @@
   // and confirm-or-expire. o: { send(method, path, body) → Promise, now, setTimeout, clearTimeout },
   // injected for tests.
   //   act(entries, req, { key, delay }): shows `entries` (House.entry's; [] for nothing to show) at
-  //     once and sends req ({ method, path, body }) once for all of them. Each entry is kept under
-  //     its id, or under opts.key for a single entry (climate keeps one per action). With
-  //     opts.delay (needs a key) the send waits that many ms; another act on the key restarts the
-  //     wait and replaces the entry. Returns a Promise: true once the server took it; undefined if
-  //     a later act on the key replaced it before it was sent; rejects with the reason after
-  //     taking out every entry it added (unless a later act owns that key now).
+  //     once and sends req ({ method, path, body }) once for all of them. One keying rule: an act's
+  //     keys are opts.key when given (then it holds one entry at most; climate keeps one per
+  //     action), else its entries' ids, and each entry is kept under its key. An act replaces a
+  //     send still waiting on any of its keys. With opts.delay (needs exactly one key) the send
+  //     waits that many ms; another act on the key restarts the wait and replaces the entry.
+  //     Returns a Promise: true once the server took it; undefined if a later act replaced it
+  //     before it was sent; false if it failed after every entry it added had settled already
+  //     (confirmed, expired, which settle reports, or owned by a later act): nothing to put back
+  //     or say. Otherwise a failure takes out the entries it still owns and rejects with the reason.
   //   view(data): House.view with the pending changes. settle(data): House.settle at now(),
   //   { confirmed, expired }. busy(): something is pending or waiting to be sent.
   House.store = function (o) {
@@ -174,22 +177,30 @@
     function act(entries, req, opts) {
       opts = opts || {};
       entries = entries.filter(Boolean);
-      var single = entries.length === 1 && opts.key;
-      var keyed = entries.map(function (e) { return { key: single ? opts.key : e.id, entry: e }; });
-      function drop() { keyed.forEach(function (k) { if (pending[k.key] === k.entry) delete pending[k.key]; }); }
-      var key = opts.key || (entries[0] && entries[0].id);
-      var waiting = key != null && timers[key];
-      // A send still waiting on this key is replaced: never sent, its entries taken out.
-      if (waiting) { clearT(waiting.id); delete timers[key]; waiting.drop(); waiting.done(undefined); }
+      var hasKey = opts.key != null;
+      if (hasKey && entries.length > 1) throw new Error('A keyed act holds one entry at most');
+      var keyed = entries.map(function (e) { return { key: hasKey ? opts.key : e.id, entry: e }; });
+      var keys = hasKey ? [opts.key] : keyed.map(function (k) { return k.key; });
+      function owned() { return keyed.filter(function (k) { return pending[k.key] === k.entry; }); }
+      // A send still waiting on one of these keys is replaced: never sent, its entries taken out.
+      keys.forEach(function (k) {
+        var waiting = timers[k];
+        if (!waiting) return;
+        clearT(waiting.id); delete timers[k]; waiting.drop(); waiting.done(undefined);
+      });
       keyed.forEach(function (k) { pending[k.key] = k.entry; });
+      function drop() { owned().forEach(function (k) { delete pending[k.key]; }); }
       function send() {
         var at = now();
         entries.forEach(function (e) { e.at = at; });
-        var p;
-        try { p = Promise.resolve(o.send(req.method, req.path, req.body)); } catch (e) { p = Promise.reject(e); }
-        return p.then(function () { return true; }, function (e) { drop(); throw e; }); // drop: unless a later act owns it
+        return new Promise(function (ok) { ok(o.send(req.method, req.path, req.body)); }).then(function () { return true; }, function (e) {
+          if (keyed.length && !owned().length) return false; // all settled already: nothing to put back or say
+          drop();
+          throw e;
+        });
       }
-      if (!opts.delay || key == null) return send();
+      if (!opts.delay || keys.length !== 1) return send();
+      var key = keys[0];
       return new Promise(function (ok, no) {
         var t = timers[key] = { done: ok, drop: drop };
         t.id = setT(function () {

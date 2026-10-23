@@ -368,7 +368,7 @@ test('store: a later tap owns the key, so an earlier send failing or answering l
   const first = r.store.act([House.entry(lamp, 'off')], req('light.lamp'));
   const second = r.store.act([House.entry(lamp, 'on')], req('light.lamp'));
   r.sent[0].no(new Error('HTTP 502'));
-  await assert.rejects(first);
+  assert.equal(await first, false, 'failed, but the later tap owns the lamp: nothing to say');
   let v = r.store.view(House.parse(body({ rooms: [{ name: 'Living Room', tiles: [Object.assign({}, lamp, { on: false })] }] })));
   assert.equal(v.rooms[0].tiles[0].on, true, 'the newer tap still shows');
   assert.equal(v.rooms[0].tiles[0].pending, true);
@@ -443,4 +443,47 @@ test('store: a tap after a Room all-off owns its tile when the all-off fails', a
   const after = r.store.view(House.parse(body({ rooms: [{ name: 'Living Room', tiles: [Object.assign({}, lamp, { on: false }), fanBulbs] }] }))).rooms[0].tiles;
   assert.deepEqual([after[0].on, after[0].pending], [true, true], 'the lamp keeps the later tap');
   assert.equal(after[1].pending, undefined, 'the fan bulbs are put back');
+});
+
+test('store: a send failing after settle expired its entry resolves false (one toast, not two)', async () => {
+  const r = rig();
+  const p = r.store.act([House.entry(lamp, 'off')], req('light.lamp'));
+  r.advance(House.CONFIRM_MS);
+  assert.equal(r.store.settle(House.parse(body())).expired.length, 1, 'settle reports it (the "Couldn’t reach" toast)');
+  r.sent[0].no(new Error('No answer'));
+  assert.equal(await p, false);
+  assert.equal(r.store.busy(), false);
+});
+
+test('store: a send failing after a poll confirmed its entry resolves false', async () => {
+  const r = rig();
+  const p = r.store.act([House.entry(lamp, 'off')], req('light.lamp'));
+  const off = House.parse(body({ rooms: [{ name: 'Living Room', tiles: [Object.assign({}, lamp, { on: false })] }] }));
+  assert.deepEqual(r.store.settle(off).confirmed, ['light.lamp']);
+  r.sent[0].no(new Error('No answer'));
+  assert.equal(await p, false);
+});
+
+test('store: an act with nothing to show always rejects a failure', async () => {
+  const r = rig();
+  const p = r.store.act([], req('scene.x'));
+  r.sent[0].no(new Error('HTTP 502'));
+  await assert.rejects(p, /HTTP 502/);
+});
+
+test('store: Room all-off replaces a waiting send on any of its tiles, not just the first', async () => {
+  const r = rig();
+  const tiles = House.parse(body({ rooms: [{ name: 'Living Room', tiles: [lamp, Object.assign({}, fanBulbs, { on: true })] }] })).rooms[0].tiles;
+  const waiting = r.store.act([House.entry(tiles[1], 'level', 40)], req(tiles[1].id, { action: 'level', value: 40 }), { delay: 1000 });
+  r.store.act(tiles.map((t) => House.entry(t, 'off')), { method: 'POST', path: '/api/home/rooms/Living%20Room/off' });
+  assert.equal(await waiting, undefined, 'replaced before it was sent');
+  r.advance(1000);
+  assert.deepEqual(r.sent.map((s) => s.path), ['/api/home/rooms/Living%20Room/off'], 'only the room-off goes out');
+  assert.equal(r.timers.size, 0);
+});
+
+test('store: a keyed act holds one entry at most', () => {
+  const r = rig();
+  const tiles = House.parse(body({ rooms: [{ name: 'Living Room', tiles: [lamp, Object.assign({}, fanBulbs, { on: true })] }] })).rooms[0].tiles;
+  assert.throws(() => r.store.act(tiles.map((t) => House.entry(t, 'off')), req('x'), { key: 'room' }), /one entry at most/);
 });

@@ -308,8 +308,9 @@
   // POST /api/home/:id { action, value }. `target` is the tile, climate or player ({ id, name }).
   // opts.key: what a later change replaces (default the entity; climate uses one per action) and
   // opts.delay: send only after this many ms without another change to the same key (−/+ taps).
-  // Without a delay, returns a Promise of true once the server took it (false after a failure,
-  // which has been toasted and put back); undefined when refused (blocked, or debouncing).
+  // Without a delay, returns a Promise of true once the server took it, false after a failure
+  // (toasted and put back, or nothing to say: its change had settled already, see House.store);
+  // undefined when refused (blocked, or debouncing).
   App.homeAct = function (target, action, value, opts) {
     opts = opts || {};
     if (homeBlocked()) return;
