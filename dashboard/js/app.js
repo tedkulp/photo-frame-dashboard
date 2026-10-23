@@ -641,7 +641,7 @@
   App.setMode = function (m) { App.modeInput({ type: 'set', mode: m }); };
   App.idle = window.DisplayMode.IDLE; // { home: 120, ambient: 300, nightdash: 20 } seconds
   App.resetIdle = function () { App.modeInput({ type: 'input' }); };
-  // The idle screen: close any sheet, back to Today, then night after dark or ambient. Day mode
+  // The idle screen: close any sheet, back to Today, then night (10 pm–6 am) or ambient. Day
   // only, never over a takeover or on a phone. A clock tap is deliberate, so a sheet, edit mode or
   // unanswered tap doesn't hold it off.
   App.goIdle = function () { App.modeInput({ type: 'clock', hour: App.now().getHours() }); };
