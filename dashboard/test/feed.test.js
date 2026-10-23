@@ -382,6 +382,99 @@ test('remove rejects with the server error', async () => {
   assert.match(err.message, /boom/);
 });
 
+// Calendar writes in flight (feed.busy): App.busy() holds a reload off until each one settles.
+// Answers every write with a promise the test settles by hand, in any order.
+function heldWrites() {
+  const held = [];
+  const respond = routes(() => new Promise((ok, no) => { held.push({ ok, no }); }));
+  return { held, respond };
+}
+
+test('busy while an add is unanswered, not before or after', async () => {
+  const w = heldWrites();
+  const h = harness({ respond: w.respond });
+  h.feed.start();
+  await h.settle();
+  assert.equal(h.feed.busy(), false);
+  const p = h.feed.add(input);
+  assert.equal(h.feed.busy(), true, 'from the moment it is sent');
+  await h.settle();
+  assert.equal(h.feed.busy(), true, 'still unanswered');
+  w.held[0].ok(json(201, added));
+  await p;
+  assert.equal(h.feed.busy(), false);
+});
+
+test('busy while a remove is unanswered', async () => {
+  const w = heldWrites();
+  const h = harness({ respond: w.respond });
+  h.feed.start();
+  await h.settle();
+  const p = h.feed.remove('x');
+  assert.equal(h.feed.busy(), true);
+  await h.settle();
+  w.held[0].ok({ ok: true, status: 204, json: () => Promise.reject(new Error('no body')) });
+  await p;
+  assert.equal(h.feed.busy(), false);
+});
+
+test('several writes in flight: busy clears only when the last one settles', async () => {
+  const w = heldWrites();
+  const h = harness({ respond: w.respond });
+  h.feed.start();
+  await h.settle();
+  const a = h.feed.add(input).catch(() => {});
+  const r = h.feed.remove('x').catch(() => {});
+  await h.settle();
+  w.held[1].ok({ ok: true, status: 204, json: () => Promise.resolve(null) });
+  await r;
+  assert.equal(h.feed.busy(), true, 'the add is still out');
+  w.held[0].ok(json(201, added));
+  await a;
+  assert.equal(h.feed.busy(), false);
+});
+
+test('a failed add or remove clears its share of busy', async () => {
+  const w = heldWrites();
+  const h = harness({ respond: w.respond });
+  h.feed.start();
+  await h.settle();
+  const a = h.feed.add(input).then(() => null, (e) => e);
+  const r = h.feed.remove('x').then(() => null, (e) => e);
+  await h.settle();
+  w.held[0].ok(json(502, { error: 'boom' }));
+  assert.ok(await a);
+  assert.equal(h.feed.busy(), true);
+  w.held[1].no(new TypeError('Failed to fetch'));
+  assert.ok(await r);
+  assert.equal(h.feed.busy(), false);
+});
+
+test('an add answered with a bad body still clears busy', async () => {
+  const h = harness({ respond: routes(() => json(201, null)) });
+  h.feed.start();
+  await h.settle();
+  const err = await h.feed.add(input).then(() => null, (e) => e);
+  assert.match(err.message, /Unexpected response/);
+  assert.equal(h.feed.busy(), false);
+});
+
+test('an answer whose body never arrives times out and clears busy', async () => {
+  const h = harness({ respond: routes(() => ({ ok: true, status: 201, json: () => new Promise(() => {}) })) });
+  h.feed.start();
+  await h.settle();
+  let err;
+  h.feed.add(input).catch((e) => { err = e; });
+  await h.settle();
+  assert.equal(h.feed.busy(), true);
+  const timeout = h.timers.find((t) => t.ms === 30000);
+  h.timers = h.timers.filter((t) => t !== timeout);
+  timeout.fn();
+  await h.settle();
+  assert.match(err.message, /No answer from the home server/);
+  assert.equal(h.feed.busy(), false);
+});
+
 // ------------------------------------------------------------ other writes (chores ticks)
 test('send makes any write without a body, resolves with null on 204, then refreshes', async () => {
   const h = harness({ respond: routes(() => ({ ok: true, status: 204, json: () => Promise.reject(new Error('no body')) })) });

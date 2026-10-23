@@ -454,12 +454,13 @@
   // serverBuild is the id from the last fetch, null once one fails (no answer, 404, no id):
   // only what the server says right now counts. heard is the last id that parsed.
   var serverBuild = null, heard = null;
-  // Something a reload would lose: an open sheet, an edit mode, or a chore tick or Home controls
-  // change not answered (or not sent) yet.
+  // Something a reload would lose: an open sheet, an edit mode, a chore tick or Home controls
+  // change not answered (or not sent) yet, or a calendar add/remove not answered yet (even with
+  // its sheet closed: the result toast and its undo would be lost).
   App.busy = function () {
     return $('#sheetLayer').classList.contains('is-open') ||
       editors.some(function (ed) { return ed.on; }) ||
-      ticks.busy() || homeStore.busy();
+      ticks.busy() || homeStore.busy() || !!(App.feed && App.feed.busy());
   };
   function reloadIfDue() {
     var storage = null;
