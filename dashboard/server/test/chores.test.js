@@ -1,8 +1,15 @@
 // /api/chores against a store on a temp data dir. The clock is a variable so a test can move
 // from one day to the next; "today" is in the configured TZ (America/Toronto unless a test says).
+// Most tests mount the chores routes alone, with "today" from a frame zone fixed by TZ: no Google.
+// The last few go through startServer and a fake Google for the Family calendar's zone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { startServer } from '../app.js';
+import { createHandler } from '../http.js';
+import { createChores } from '../chores.js';
+import { createFrameZone } from '../framezone.js';
+import { choresRoutes } from '../routes/chores.js';
 import { openStore } from '../store.js';
 import { fakeGoogle, serviceAccount, settings, tempDir } from './helpers.js';
 
@@ -13,30 +20,56 @@ const DAY = 24 * 60 * 60 * 1000;
 // A week row with nothing scheduled: every person in settings gets one.
 const EMPTY = [null, null, null, null, null, null, null];
 
+// The chores routes alone on a temp store, "today" in opts.timeZone (default America/Toronto).
 async function withServer(fn, opts) {
   opts = opts || {};
   const t = tempDir();
   const clock = { now: opts.now || TUE };
-  const calendars = { [FAMILY]: Object.assign({ timeZone: opts.familyZone || 'America/Toronto', pages: [[]] }, opts.family), 'alex@example.com': {}, 'sam@example.com': {} };
-  const google = await fakeGoogle(calendars);
+  const now = () => clock.now;
+  const frameZone = createFrameZone({ timeZone: opts.timeZone || 'America/Toronto', lookup: async () => { throw new Error('no lookup with TZ'); }, now });
   let store = openStore(t.path('data'));
-  const start = (s) => startServer({
-    config: { settings: s || settings(), serviceAccount: serviceAccount(), port: 0, timeZone: 'timeZone' in opts ? opts.timeZone : 'America/Toronto' },
-    store, distDir: '/nonexistent', tokenUrl: google.tokenUrl, apiBase: google.apiBase, now: () => clock.now,
-  });
-  let srv = await start();
+  let srv;
+  const start = async (s) => {
+    const chores = createChores({ db: store.db, settings: s || settings(), now, today: frameZone.today });
+    const server = createServer(createHandler({ routes: [choresRoutes(chores)], distDir: '/nonexistent' }));
+    await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
+    srv = {
+      url: 'http://127.0.0.1:' + server.address().port,
+      close: () => new Promise((ok) => { server.closeAllConnections(); server.close(ok); }),
+    };
+  };
+  await start();
   const ctx = {
     clock,
-    calendars,
     get url() { return srv.url; },
     call: (method, path, body) => call(srv.url, method, path, body),
     // Restarts the server with other settings on the same store.
-    restart: async (s) => { await srv.close(); srv = await start(s); },
+    restart: async (s) => { await srv.close(); await start(s); },
     // Closes and reopens the database too, like a container restart.
-    reopen: async () => { await srv.close(); store.close(); store = openStore(t.path('data')); srv = await start(); },
+    reopen: async () => { await srv.close(); store.close(); store = openStore(t.path('data')); await start(); },
   };
   try {
     await fn(ctx);
+  } finally {
+    await srv.close();
+    store.close();
+    t.cleanup();
+  }
+}
+
+// End to end through startServer without TZ: the Family calendar (fake Google) gives the zone.
+async function withFullServer(fn, { now, familyZone, family }) {
+  const t = tempDir();
+  const calendars = { [FAMILY]: Object.assign({ timeZone: familyZone, pages: [[]] }, family), 'alex@example.com': {}, 'sam@example.com': {} };
+  const google = await fakeGoogle(calendars);
+  const store = openStore(t.path('data'));
+  const log = { error() {}, warn() {}, log() {} };
+  const srv = await startServer({
+    config: { settings: settings(), serviceAccount: serviceAccount(), port: 0, timeZone: null },
+    store, distDir: '/nonexistent', tokenUrl: google.tokenUrl, apiBase: google.apiBase, now: () => now, log,
+  });
+  try {
+    await fn({ calendars, call: (method, path, body) => call(srv.url, method, path, body) });
   } finally {
     await srv.close();
     store.close();
@@ -342,23 +375,33 @@ test('"today" follows TZ across midnight', async () => {
 
 test('without TZ, "today" is in the Family calendar\'s time zone', async () => {
   const t = Date.parse('2026-10-20T03:30:00Z');
-  await withServer(async ({ call }) => {
+  await withFullServer(async ({ call }) => {
     assert.equal((await call('GET', '/api/chores')).body.date, '2026-10-19');
-  }, { now: t, timeZone: null, familyZone: 'America/Vancouver' });
-  await withServer(async ({ call }) => {
+  }, { now: t, familyZone: 'America/Vancouver' });
+  await withFullServer(async ({ call }) => {
     assert.equal((await call('GET', '/api/chores')).body.date, '2026-10-20');
-  }, { now: t, timeZone: null, familyZone: 'Asia/Tokyo' });
+  }, { now: t, familyZone: 'Asia/Tokyo' });
 });
 
 test('without TZ, chores still load while Google is down, and pick up the Family zone later', async () => {
   const t = Date.parse('2026-10-20T03:30:00Z');
   const d = new Date(t);
   const local = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  await withServer(async ({ call, calendars }) => {
+  await withFullServer(async ({ call, calendars }) => {
     const down = await call('GET', '/api/chores');
     assert.equal(down.status, 200);
     assert.equal(down.body.date, local);
     delete calendars[FAMILY].status;
     assert.equal((await call('GET', '/api/chores')).body.date, '2026-10-20');
-  }, { now: t, timeZone: null, familyZone: 'Asia/Tokyo', family: { status: 500 } });
+  }, { now: t, familyZone: 'Asia/Tokyo', family: { status: 500 } });
+});
+
+test('without TZ, a calendar load teaches chores the Family zone', async () => {
+  const t = Date.parse('2026-10-20T03:30:00Z');
+  await withFullServer(async ({ call, calendars }) => {
+    assert.equal((await call('GET', '/api/chores')).body.date, '2026-10-20');
+    calendars[FAMILY].timeZone = 'America/Vancouver';
+    assert.equal((await call('GET', '/api/calendar')).status, 200);
+    assert.equal((await call('GET', '/api/chores')).body.date, '2026-10-19');
+  }, { now: t, familyZone: 'Asia/Tokyo' });
 });

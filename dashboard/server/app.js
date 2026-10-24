@@ -6,11 +6,12 @@
 import { createServer } from 'node:http';
 import { createHandler } from './http.js';
 import { createGoogle } from './google.js';
-import { createCalendar } from './calendar.js';
+import { createCalendar, familyZoneLookup } from './calendar.js';
+import { createFrameZone } from './framezone.js';
 import { createHomeAssistant } from './homeassistant.js';
 import { createWeather } from './weather.js';
 import { createHome } from './home.js';
-import { createChores, localDate } from './chores.js';
+import { createChores } from './chores.js';
 import { createImmich } from './immich.js';
 import { createPhotos } from './photos.js';
 import { calendarRoutes } from './routes/calendar.js';
@@ -22,19 +23,14 @@ import { photosRoutes } from './routes/photos.js';
 // Each feature from config, or null when it isn't set up (the calendar and chores always are).
 function createFeatures({ config, store, tokenUrl, apiBase, now, homeRetryMs, icsTimeoutMs, log }) {
   const google = createGoogle({ serviceAccount: config.serviceAccount, tokenUrl, apiBase, now });
-  const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now, icsTimeoutMs, log });
+  const frameZone = createFrameZone({ timeZone: config.timeZone, lookup: familyZoneLookup({ settings: config.settings, google, now }), now, log });
+  const calendar = createCalendar({ settings: config.settings, google, frameZone, now, icsTimeoutMs, log });
   const ha = config.homeAssistant;
   const weather = ha ? createWeather({ ha: createHomeAssistant(ha), entity: ha.weatherEntity, now }) : null;
   const home = ha ? createHome({ url: ha.url, token: ha.token, label: ha.label, rooms: ha.rooms, people: config.settings.people, retryMs: homeRetryMs, now, log }) : null;
-  // Chores must not depend on Google being up: until the Family zone has been read once, a failed
-  // lookup falls back to this process's own zone for that request (not cached, so it retries).
-  const choreZone = () => calendar.zone().catch((e) => {
-    console.error(`chores: using the server's local time zone, could not read the Family calendar's: ${e.message}`);
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  });
   const im = config.immich;
   const photos = im ? createPhotos({ immich: createImmich(im), albumId: im.albumId, people: config.settings.people, now }) : null;
-  const chores = createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await choreZone()) });
+  const chores = createChores({ db: store.db, settings: config.settings, now, today: frameZone.today });
   return { calendar, weather, chores, home, photos };
 }
 

@@ -13,13 +13,6 @@ const ANYONE = 'any';
 const weekday = (date) => new Date(date + 'T00:00:00Z').getUTCDay();
 const addDays = (date, n) => new Date(Date.parse(date + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 
-// The local date at instant `t` in `timeZone`.
-export function localDate(t, timeZone) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(t));
-  const get = (type) => parts.find((p) => p.type === type).value;
-  return get('year') + '-' + get('month') + '-' + get('day');
-}
-
 export function createChores({ db, settings, today, now = Date.now }) {
   const people = settings.people.map((p) => p.id);
   const known = (owner) => owner === ANYONE || people.includes(owner);
