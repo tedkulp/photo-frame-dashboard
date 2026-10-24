@@ -374,6 +374,37 @@ test('remove sends DELETE for the encoded id, then refreshes the calendar', asyn
   assert.deepEqual(h.timers.map((t) => t.ms), [0]);
 });
 
+// The calendar feed owns the events list (window.DATA.events in the page): the only writer of it.
+test('with a data object, the feed keeps its events: fetched, added, then removed', async () => {
+  const data = { events: [] };
+  let added2 = false;
+  const h = harness({
+    create: { data },
+    respond: routes((url, init) => (init.method === 'POST' ? json(201, added) : { ok: true, status: 204, json: () => Promise.reject(new Error('no body')) })),
+  });
+  h.feed.start();
+  await h.settle();
+  assert.deepEqual(data.events.map((e) => e.id), ['a', 'b']);
+  const fetched = data.events;
+  await h.feed.add(input).then((e) => { added2 = data.events.indexOf(e) > -1; });
+  assert.equal(added2, true, 'in the list by the time add resolves');
+  assert.deepEqual(data.events.map((e) => e.id), ['a', 'b', 'new1']);
+  assert.deepEqual(fetched.map((e) => e.id), ['a', 'b'], 'a new list, the old one left alone');
+  await h.feed.remove('new1');
+  assert.deepEqual(data.events.map((e) => e.id), ['a', 'b'], 'gone by the time remove resolves');
+});
+
+test('a failed add or remove leaves the data’s events alone', async () => {
+  const data = { events: [] };
+  const h = harness({ create: { data }, respond: routes(() => json(502, { error: 'boom' })) });
+  h.feed.start();
+  await h.settle();
+  const before = data.events;
+  await h.feed.add(input).catch(() => {});
+  await h.feed.remove('a').catch(() => {});
+  assert.equal(data.events, before);
+});
+
 test('remove rejects with the server error', async () => {
   const h = harness({ respond: routes(() => json(502, { error: 'Google Calendar x: 500 boom' })) });
   h.feed.start();

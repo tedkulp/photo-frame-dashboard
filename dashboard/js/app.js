@@ -13,7 +13,7 @@
 
   // ------------------------------------------------------------ time
   App.now = function () { return new Date(); };
-  App.dayStart = function (d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+  App.dayStart = window.CalEvents.dayStart;
   App.addDays = function (d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; };
   App.sameDay = function (a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); };
   App.isNight = function () { return window.DisplayMode.isNight(App.now().getHours()); };
@@ -101,25 +101,17 @@
   App.allDayOn = function (day, pid) { return window.CalEvents.allDayOn(App.events(), day, pid); };
   // Timed events on `day` that belong to someone: what "Next up" and "First up" pick from.
   App.someonesTimedOn = function (day) { return window.CalEvents.someones(App.timedOn(day)); };
-  App.leaveBy = function (e) { return e.travel ? new Date(+e.start - e.travel * 60000) : e.start; };
-  // The next thing someone needs to act on: earliest upcoming "leave by" today (someone's event,
-  // not one that belongs to no one).
-  App.nextEvent = function () {
-    var now = App.now();
-    var list = App.someonesTimedOn(now).filter(function (e) { return e.start > now; });
-    list.sort(function (a, b) { return App.leaveBy(a) - App.leaveBy(b); });
-    return list[0] || null;
-  };
-  App.findEvent = function (id) {
-    return App.events().filter(function (e) { return e.id === id; })[0];
-  };
+  App.leaveBy = window.CalEvents.leaveBy;
+  // The next thing someone needs to act on now (CalEvents.next): earliest upcoming "leave by" today.
+  App.nextEvent = function () { return window.CalEvents.next(App.events(), App.now()); };
+  App.findEvent = function (id) { return window.CalEvents.find(App.events(), id); };
 
   // ------------------------------------------------------------ calendar feed (home server)
-  // People + events from GET /api/calendar (feed.js). The real people list also hands the mock
-  // photos to them by position, while those are the ones showing (see usePhotos).
+  // People + events from GET /api/calendar (feed.js; the feed writes D.events itself, as the only
+  // writer of it). The real people list also hands the mock photos to them by position, while
+  // those are the ones showing (see usePhotos).
   function onFeed(d) {
     D.people = d.people;
-    D.events = d.events;
     usePhotos();
     App.emit('feed');
   }
@@ -684,7 +676,7 @@
     var storage = null;
     try { storage = window.localStorage; } catch (e) {}
     App.feed = window.Feed.create({
-      url: '/api/calendar', fetch: window.fetch.bind(window), storage: storage,
+      url: '/api/calendar', data: D, fetch: window.fetch.bind(window), storage: storage,
       now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
       onChange: onFeed, onState: onFeedState, onError: function (e) { console.error('[feed]', e); }
     });

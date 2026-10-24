@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import '../js/calevents.js'; // calnav.js uses CalEvents.dayStart; same order as main.js
 import '../js/calnav.js';
 
 const CalNav = globalThis.CalNav;

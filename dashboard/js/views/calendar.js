@@ -1,8 +1,8 @@
 // Calendar: Today-by-person lanes (default; one list on a phone), 3-day, Sun–Sat week, month.
 (function () {
   'use strict';
-  var D = window.DATA;
-  var PX = 72, START = 6, END = 23; // 72px per hour, 6 AM → 11 PM
+  var D = window.DATA, CE = window.CalEvents;
+  var PX = 72, START = CE.START, END = CE.END; // 72px per hour, 6 AM → 11 PM
   var V = { mode: 'day', date: null, el: null, scroll: null, adding: false, addBox: null };
   var SAVE = 'Add to calendar';
   var MODES = [['day', 'Today'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']];
@@ -11,38 +11,10 @@
   function cols() { return 'grid-template-columns:' + App.cols(D.people.length); }
 
   function y(d) { return ((d.getHours() + d.getMinutes() / 60) - START) * PX; }
+  // A timed event's top and height on `day`'s grid, clamped to its visible hours (CalEvents.clamp).
   function clampTop(e, day) {
-    var s = App.dayStart(day);
-    var a = e.start < s ? new Date(+s + START * 36e5) : e.start;
-    var endOfDay = new Date(+s + END * 36e5);
-    var b = e.end > endOfDay ? endOfDay : e.end;
-    return { top: Math.max(0, y(a)), h: Math.max(24, y(b) - Math.max(0, y(a)) - 3) };
-  }
-
-  // Overlap layout → [{e, col, cols}] (cols capped at 2, extra returned as overflow groups)
-  function layout(evs) {
-    var out = [], clusters = [], cur = null, curEnd = 0;
-    evs.forEach(function (e) {
-      if (!cur || +e.start >= curEnd) { cur = []; clusters.push(cur); curEnd = 0; }
-      cur.push(e); curEnd = Math.max(curEnd, +e.end);
-    });
-    clusters.forEach(function (c) {
-      var cols = [], placed = [];
-      c.forEach(function (e) {
-        var i = cols.findIndex(function (end) { return end <= +e.start; });
-        if (i < 0) { i = cols.length; cols.push(0); }
-        cols[i] = +e.end;
-        placed.push({ e: e, col: i });
-      });
-      var n = cols.length;
-      if (n <= 2) placed.forEach(function (p) { out.push({ e: p.e, col: p.col, cols: n }); });
-      else {
-        var extra = placed.filter(function (p) { return p.col > 0; }).map(function (p) { return p.e; });
-        placed.filter(function (p) { return p.col === 0; }).forEach(function (p) { out.push({ e: p.e, col: 0, cols: 2 }); });
-        out.push({ more: extra, col: 1, cols: 2, start: new Date(Math.min.apply(null, extra.map(function (e) { return +e.start; }))), end: new Date(Math.max.apply(null, extra.map(function (e) { return +e.end; }))) });
-      }
-    });
-    return out;
+    var c = CE.clamp(e, day), top = Math.max(0, y(c.start));
+    return { top: top, h: Math.max(24, y(c.end) - top - 3) };
   }
 
   function evBlock(e, style, opts) {
@@ -61,14 +33,15 @@
       '</button>';
   }
 
-  function placeBlocks(list, colorFn, laneId) {
-    return layout(list).map(function (it) {
+  // A lane of `day`'s timed events, laid out side by side where they overlap (CalEvents.layout).
+  function placeBlocks(list, day, colorFn, laneId) {
+    return CE.layout(list).map(function (it) {
       var w = 100 / it.cols, left = it.col * w;
       if (it.more) {
         var t = y(it.start), h = Math.max(30, y(it.end) - t - 3);
         return '<button class="ev ev--more" data-more="' + it.more.map(function (e) { return e.id; }).join(',') + '" style="top:' + t + 'px;height:' + h + 'px;left:calc(' + left + '% + 2px);width:calc(' + w + '% - 4px)">+' + it.more.length + '<small>more</small></button>';
       }
-      var b = clampTop(it.e, V.date);
+      var b = clampTop(it.e, day);
       return evBlock(it.e, 'top:' + b.top + 'px;height:' + b.h + 'px;left:calc(' + left + '% + 2px);width:calc(' + w + '% - 4px)', { lane: laneId, color: colorFn ? colorFn(it.e) : null, half: it.cols > 1 });
     }).join('');
   }
@@ -96,16 +69,16 @@
       var fam2 = App.isFamily(e);
       var idx = ids().indexOf(e.people[0]);
       // Everyone's, no one's (a holiday) or a removed person's: all lanes.
-      var col = fam2 || window.CalEvents.noOne(e) || idx < 0 ? '1 / -1' : (idx + 1) + ' / span 1';
-      var s = App.dayStart(day), spanDays = Math.round((e.end - e.start) / 864e5), dayN = Math.round((s - e.start) / 864e5) + 1;
+      var col = fam2 || CE.noOne(e) || idx < 0 ? '1 / -1' : (idx + 1) + ' / span 1';
+      var s = App.dayStart(day), span = CE.spanDay(e, day);
       return '<button class="ad' + (e.start < s ? ' ad--cont' : '') + '" data-ev="' + e.id + '" style="grid-column:' + col + ';' + App.pstyle(App.evColor(e)) + '">' +
-        (e.start < s ? App.icon('left', 16) : '') + App.esc(e.title) + (spanDays > 1 ? ' <small>Day ' + dayN + ' of ' + spanDays + '</small>' : '') + '</button>';
+        (e.start < s ? App.icon('left', 16) : '') + App.esc(e.title) + (span.of > 1 ? ' <small>Day ' + span.n + ' of ' + span.of + '</small>' : '') + '</button>';
     }).join('') + '</div></div>' : '';
     var grid = '<div class="grid-scroll"><div class="grid" style="height:' + (END - START) * PX + 'px">' +
       '<div class="hours">' + hoursCol() + '</div>' +
       '<div class="lanes" style="' + cols() + '">' + D.people.map(function (p) {
         var list = App.timedOn(day, p.id).filter(function (e) { return !App.isFamily(e); });
-        return '<div class="lane" style="' + App.pstyle(p) + '">' + placeBlocks(list, null, p.id) + '</div>';
+        return '<div class="lane" style="' + App.pstyle(p) + '">' + placeBlocks(list, day, null, p.id) + '</div>';
       }).join('') +
       '<div class="lane-fam">' + fam.map(function (e) {
         var b = clampTop(e, day);
@@ -152,7 +125,7 @@
     var ad = '';
     if (anyAllDay) {
       var s0 = App.dayStart(days[0]), s3 = App.addDays(s0, 3);
-      var list = App.events().filter(function (e) { return e.allDay && e.start < s3 && e.end > s0; });
+      var list = CE.allDayIn(App.events(), s0, s3);
       ad = '<div class="allday"><div class="gutter label">All day</div><div class="allday-grid allday-grid--3">' + list.map(function (e) {
         var a = Math.max(0, Math.round((e.start - s0) / 864e5)), b = Math.min(3, Math.round((e.end - s0) / 864e5));
         return '<button class="ad' + (e.start < s0 ? ' ad--cont' : '') + '" data-ev="' + e.id + '" style="grid-column:' + (a + 1) + ' / ' + (b + 1) + ';' + App.pstyle(App.evColor(e)) + '">' +
@@ -162,10 +135,7 @@
     var grid = '<div class="grid-scroll"><div class="grid" style="height:' + (END - START) * PX + 'px">' +
       '<div class="hours">' + hoursCol() + '</div>' +
       '<div class="lanes lanes--3">' + days.map(function (d) {
-        var save = V.date; V.date = d;
-        var html = '<div class="lane' + (App.sameDay(d, now) ? ' is-today' : '') + '">' + placeBlocks(App.timedOn(d)) + '</div>';
-        V.date = save;
-        return html;
+        return '<div class="lane' + (App.sameDay(d, now) ? ' is-today' : '') + '">' + placeBlocks(App.timedOn(d), d) + '</div>';
       }).join('') + '</div>' +
       nowLine(days).replace('now-line', 'now-line now-line--' + days.findIndex(function (d) { return App.sameDay(d, now); })) +
       '</div></div>';
@@ -385,8 +355,9 @@
       }
     });
 
-    // Written to Google through the home server; shown only once the server confirms it. On a
-    // failure the sheet stays open with what was typed.
+    // Written to Google through the home server; shown only once the server confirms it (the feed
+    // puts it in the events list before add resolves). On a failure the sheet stays open with
+    // what was typed.
     function save(btn, title, close) {
       if (V.adding || App.addBlocked()) return;
       var start = App.addDays(App.dayStart(now), st.day), p = st.time.split(':');
@@ -397,7 +368,6 @@
       btn.textContent = 'Adding…';
       App.feed.add({ title: title, start: start.toISOString(), end: end.toISOString(), people: st.who.slice() }).then(function (e) {
         V.adding = false;
-        D.events.push(e);
         if (!st.closed) close();
         V.date = App.dayStart(e.start); V.mode = V.mode === 'month' ? 'day' : V.mode; V.scroll = null;
         render();
@@ -414,11 +384,10 @@
     }
   }
 
-  // Undo right after adding: deleted from Google first, removed here once that worked.
+  // Undo right after adding: deleted from Google first, gone from the feed's events once that worked.
   function undoAdd(e) {
     App.toast('Removing <b>' + App.esc(e.title) + '</b>…', { icon: 'calendar', ms: 30000 });
     App.feed.remove(e.id).then(function () {
-      D.events = D.events.filter(function (x) { return x.id !== e.id; });
       render();
       App.emit('data');
       App.toast('Removed <b>' + App.esc(e.title) + '</b>', { icon: 'calendar', ms: 2500 });

@@ -1,12 +1,10 @@
 // The Calendar view's date rules (views/calendar.js): which date a mode starts on when you switch
 // to it, and its Sun–Sat weeks (Week shows the week containing the date; Month's grid starts on a
-// Sunday). Also loads in Node for dashboard/test/calnav.test.js.
+// Sunday). Loads after calevents.js (its dayStart). Also loads in Node for
+// dashboard/test/calnav.test.js.
 (function (root) {
   'use strict';
   var CalNav = root.CalNav = {};
-
-  // App.dayStart's twin: this loads before app.js, and in Node.
-  function dayStart(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 
   // Midnight on the 1st of `d`'s month, or of the month `n` months later (n may be negative).
   CalNav.monthStart = function (d, n) {
@@ -22,7 +20,7 @@
   // month on screen): today when that's the current month (sameMonth as `now`), else the 1st of
   // the shown month.
   CalNav.leaveMonth = function (shown, now) {
-    return CalNav.sameMonth(shown, now) ? dayStart(now) : CalNav.monthStart(shown);
+    return CalNav.sameMonth(shown, now) ? root.CalEvents.dayStart(now) : CalNav.monthStart(shown);
   };
 
   // Midnight on the Sunday of the Sun–Sat week containing `d`. Built from the calendar date, not
