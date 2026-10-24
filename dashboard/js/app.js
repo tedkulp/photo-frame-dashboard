@@ -99,12 +99,14 @@
   App.evColor = function (e) { return window.CalEvents.color(e, D.people, D.family); };
   App.timedOn = function (day, pid) { return window.CalEvents.timedOn(App.events(), day, pid); };
   App.allDayOn = function (day, pid) { return window.CalEvents.allDayOn(App.events(), day, pid); };
+  // Timed events on `day` that belong to someone: what "Next up" and "First up" pick from.
+  App.someonesTimedOn = function (day) { return window.CalEvents.someones(App.timedOn(day)); };
   App.leaveBy = function (e) { return e.travel ? new Date(+e.start - e.travel * 60000) : e.start; };
   // The next thing someone needs to act on: earliest upcoming "leave by" today (someone's event,
   // not one that belongs to no one).
   App.nextEvent = function () {
     var now = App.now();
-    var list = window.CalEvents.assigned(App.timedOn(now)).filter(function (e) { return e.start > now; });
+    var list = App.someonesTimedOn(now).filter(function (e) { return e.start > now; });
     list.sort(function (a, b) { return App.leaveBy(a) - App.leaveBy(b); });
     return list[0] || null;
   };

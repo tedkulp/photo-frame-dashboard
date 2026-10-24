@@ -8,10 +8,12 @@
   var CalEvents = root.CalEvents = {};
 
   // The colour of an event that belongs to no one, from css/tokens.css (--none*).
-  CalEvents.NONE = { id: 'none', name: '', color: 'var(--none)', rgb: 'var(--none-rgb)', ink: 'var(--none-ink)' };
+  CalEvents.NONE = { color: 'var(--none)', rgb: 'var(--none-rgb)', ink: 'var(--none-ink)' };
 
-  CalEvents.unassigned = function (e) { return !e.people.length; };
-  CalEvents.assigned = function (list) { return list.filter(function (e) { return e.people.length > 0; }); };
+  // The event belongs to no one (a holiday calendar's).
+  CalEvents.noOne = function (e) { return !e.people.length; };
+  // Only the events that belong to someone (or everyone).
+  CalEvents.someones = function (list) { return list.filter(function (e) { return !CalEvents.noOne(e); }); };
 
   // Everyone in the family is on it (with one person, nothing is a family event).
   CalEvents.isFamily = function (e, people) {
@@ -21,7 +23,7 @@
   // The colour (a person-shaped { color, rgb, ink }) an event is drawn in: NONE for no one, family
   // for everyone, else its first person's (family if they are gone).
   CalEvents.color = function (e, people, family) {
-    if (CalEvents.unassigned(e)) return CalEvents.NONE;
+    if (CalEvents.noOne(e)) return CalEvents.NONE;
     if (CalEvents.isFamily(e, people)) return family;
     for (var i = 0; i < people.length; i++) if (people[i].id === e.people[0]) return people[i];
     return family;

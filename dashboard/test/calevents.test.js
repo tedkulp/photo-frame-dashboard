@@ -45,8 +45,8 @@ test('an event with no people is not a family event, even with one person', () =
 });
 
 test('"First up" and "Next up" skip events with no people', () => {
-  assert.equal(CalEvents.unassigned(parade), true);
-  assert.equal(CalEvents.unassigned(dinner), false);
-  assert.deepEqual(CalEvents.assigned([parade, dinner]).map((e) => e.id), ['d']);
-  assert.deepEqual(CalEvents.assigned([parade]), []);
+  assert.equal(CalEvents.noOne(parade), true);
+  assert.equal(CalEvents.noOne(dinner), false);
+  assert.deepEqual(CalEvents.someones([parade, dinner]).map((e) => e.id), ['d']);
+  assert.deepEqual(CalEvents.someones([parade]), []);
 });

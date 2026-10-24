@@ -95,8 +95,11 @@ function midnightDates(item) {
   return s && e && s[1] < e[1] ? { start: s[1], end: e[1] } : null;
 }
 
+// An all-day item (dates, or midnight to midnight) → its start and end dates; a timed one → null.
+const allDayDates = (item) => (item.start.date ? { start: item.start.date, end: item.end.date } : midnightDates(item));
+
 function toEvent(item, cal) {
-  const dates = item.start.date ? { start: item.start.date, end: item.end.date } : midnightDates(item);
+  const dates = allDayDates(item);
   const allDay = Boolean(dates);
   const e = {
     id: isReadOnly(cal) ? encodeReadOnlyId(cal.ics, item.id) : encodeEventId(cal.calendarId, item.id),
@@ -151,9 +154,9 @@ function checkInput(input, allIds) {
 export function createCalendar({ settings, google, timeZone = null, now = Date.now, icsTimeoutMs, log = console }) {
   const allIds = settings.people.map((p) => p.id);
   const family = settings.calendars.find((c) => c.person === 'family');
-  const assigned = settings.calendars.filter((c) => !isHoliday(c));
-  const others = assigned.filter((c) => c !== family && !isReadOnly(c)); // per-person Google calendars
-  const readOnly = assigned.filter(isReadOnly);
+  const peopleCals = settings.calendars.filter((c) => !isHoliday(c)); // everyone's or someone's
+  const others = peopleCals.filter((c) => c !== family && !isReadOnly(c)); // per-person Google calendars
+  const readOnly = peopleCals.filter(isReadOnly);
   const holidays = settings.calendars.filter(isHoliday);
   const allIcs = settings.calendars.filter(isReadOnly); // readOnly plus the holiday ICS links
   const icsFeeds = allIcs.length ? createIcsFeeds({ feeds: allIcs, now, timeoutMs: icsTimeoutMs, log }) : null;
@@ -194,7 +197,7 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     // After every Google calendar, so a merged event keeps its Google copy's id and can be deleted.
     readOnly.forEach((c, i) => add(c, readOnlyItems[i]));
     // Last, so a holiday also on someone's calendar is theirs (id, people, deletable). Timed ones are dropped.
-    holidays.forEach((c, i) => add(c, holidayItems[i].filter((item) => item.start && item.end && (item.start.date || midnightDates(item)))));
+    holidays.forEach((c, i) => add(c, holidayItems[i].filter((item) => item.start && item.end && allDayDates(item))));
 
     const events = [...byKey.values()];
     for (const e of events) e.people.sort((a, b) => allIds.indexOf(a) - allIds.indexOf(b));
@@ -220,10 +223,10 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     if (ref && ref.ics !== undefined && allIcs.some((c) => c.ics === ref.ics)) {
       throw new HttpError(403, 'This event is on a read-only calendar and can’t be deleted here');
     }
-    if (ref && ref.calendarId !== undefined && !assigned.some((c) => c.calendarId === ref.calendarId) && holidays.some((c) => c.calendarId === ref.calendarId)) {
-      throw new HttpError(403, 'This event is on a holiday calendar and can’t be deleted here');
-    }
-    if (!ref || ref.calendarId === undefined || !assigned.some((c) => c.calendarId === ref.calendarId)) throw new HttpError(404, 'No such event');
+    // A Google calendar that is also a holiday calendar counts as its people's.
+    const cal = ref && ref.calendarId !== undefined && peopleCals.concat(holidays).find((c) => c.calendarId === ref.calendarId);
+    if (!cal) throw new HttpError(404, 'No such event');
+    if (isHoliday(cal)) throw new HttpError(403, 'This event is on a holiday calendar and can’t be deleted here');
     await google.deleteEvent(ref.calendarId, ref.eventId);
   }
 

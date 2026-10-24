@@ -16,7 +16,7 @@
   }
   function nightInfo() {
     var n = App.now(), tomorrow = App.addDays(n, n.getHours() < 6 ? 0 : 1);
-    var first = window.CalEvents.assigned(App.timedOn(tomorrow))[0], w = App.weatherNow();
+    var first = App.someonesTimedOn(tomorrow)[0], w = App.weatherNow();
     return '<div class="nt-time num">' + App.fmt.time(n, false) + '</div>' +
       '<div class="nt-line">' + (w ? App.icon(w.cond, 26) + ' ' + w.temp + '° · ' : '') + (!App.hasCalendar() ? App.feedNote() : first ? 'First up ' + App.fmt.rel(first.start).toLowerCase() + ': <b>' + App.esc(first.title) + '</b> ' + App.fmt.time(first.start) + ' · ' + App.esc(App.person(first.people[0]).name) : 'Nothing early tomorrow') + '</div>' +
       nightLock();
