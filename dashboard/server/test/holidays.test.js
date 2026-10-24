@@ -2,9 +2,8 @@
 // to no one. GET /api/calendar, deletes and adds against a fake Google plus a fake ICS link.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from '../app.js';
 import { decodeEventId, encodeEventId } from '../calendar.js';
-import { fakeGoogle, fakeIcs, icsFixture, serviceAccount } from './helpers.js';
+import { fakeGoogle, fakeIcs, icsFixture, serviceAccount, startTestServer } from './helpers.js';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
 const FAMILY = 'family@group.calendar.google.com';
@@ -18,7 +17,8 @@ const allDay = (id, uid, summary, date, end) => ({ id, iCalUID: uid, status: 'co
 
 async function withServer(fn) {
   const google = await fakeGoogle({
-    [FAMILY]: { timeZone: 'America/Toronto', pages: [[]] },
+    // Diwali is on the Family calendar too (the same UID + start as the ICS holiday feed's copy).
+    [FAMILY]: { timeZone: 'America/Toronto', pages: [[allDay('diwali-fam', 'diwali-2026@holidays.example', 'Diwali', '2026-11-08', '2026-11-09')]] },
     // Alex also has Halloween on their own calendar: the same UID + start as both holiday copies.
     'alex@example.com': { pages: [[allDay('hw-alex', 'halloween-2026@holidays.example', 'Halloween', '2026-10-31', '2026-11-01')]] },
     [HOLIDAYS]: {
@@ -27,6 +27,9 @@ async function withServer(fn) {
         allDay('vet-g', 'veterans-2026@holidays.example', 'Veterans Day', '2026-11-11', '2026-11-12'),
         { id: 'dst-g', iCalUID: 'dst@holidays.example', status: 'confirmed', summary: 'Clocks go back',
           start: { dateTime: '2026-11-01T02:00:00-05:00' }, end: { dateTime: '2026-11-01T03:00:00-05:00' } },
+        // Midnight to midnight: all-day (as #46 reads it), so it is kept.
+        { id: 'tg-g', iCalUID: 'thanksgiving-2026@holidays.example', status: 'confirmed', summary: 'Thanksgiving',
+          start: { dateTime: '2026-11-26T00:00:00-05:00' }, end: { dateTime: '2026-11-27T00:00:00-05:00' } },
       ]],
     },
   });
@@ -42,7 +45,7 @@ async function withServer(fn) {
     ],
   };
   const log = { log: () => {}, warn: () => {}, error: () => {} };
-  const srv = await startServer({
+  const srv = await startTestServer({
     config: { settings, serviceAccount: serviceAccount(), port: 0, timeZone: null },
     distDir: '/nonexistent', tokenUrl: google.tokenUrl, apiBase: google.apiBase, now: () => NOW, log, icsTimeoutMs: 300,
   });
@@ -72,8 +75,10 @@ test('holiday all-day events belong to no one and cannot be deleted; their timed
     const events = await calendar(url);
     assert.deepEqual(events.map((e) => [e.title, e.start, e.people.join('+'), e.deletable]), [
       ['Halloween', '2026-10-31', 'alex', true],
-      ['Diwali', '2026-11-08', '', false],
+      ['Diwali', '2026-11-08', 'alex+sam', true],
       ['Veterans Day', '2026-11-11', '', false],
+      ['PD day', '2026-11-13', '', false],
+      ['Thanksgiving', '2026-11-26', '', false],
     ]);
     const vet = events.find((e) => e.title === 'Veterans Day');
     assert.deepEqual(Object.assign({}, vet, { id: undefined }), {
@@ -92,10 +97,20 @@ test('an event on a person’s calendar and a holiday calendar is served once, a
   });
 });
 
+test('an event on the Family calendar and a holiday feed is served once, as everyone’s', async () => {
+  await withServer(async ({ url }) => {
+    const d = (await calendar(url)).filter((e) => e.title === 'Diwali');
+    assert.equal(d.length, 1);
+    assert.deepEqual(d[0].people, ['alex', 'sam']);
+    assert.equal(d[0].deletable, true);
+    assert.deepEqual(decodeEventId(d[0].id), { calendarId: FAMILY, eventId: 'diwali-fam' });
+  });
+});
+
 test('a holiday event cannot be deleted: 403, and Google is not called', async () => {
   await withServer(async ({ url, google }) => {
     const events = await calendar(url);
-    for (const title of ['Veterans Day', 'Diwali']) {
+    for (const title of ['Veterans Day', 'PD day', 'Thanksgiving']) {
       const res = await call(url, 'DELETE', '/api/events/' + events.find((e) => e.title === title).id);
       assert.equal(res.status, 403, title);
       assert.match(res.body.error, /can’t be deleted/);

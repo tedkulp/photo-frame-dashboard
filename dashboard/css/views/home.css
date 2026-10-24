@@ -67,6 +67,8 @@
   border-radius: 999px; background: var(--card); border: 2px solid var(--line);
   font-size: 17px; white-space: nowrap;
 }
+.h-ad.is-none { background: var(--none); border-color: var(--none); color: var(--none-ink); }
+.h-ad.is-none .h-ad-until { color: var(--ink-2); }
 .h-ad b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .h-ad .dots { flex: none; }
 .h-ad .dots i { box-shadow: 0 0 0 2px var(--card), 0 0 0 3px rgb(var(--ink-rgb) / .25); }

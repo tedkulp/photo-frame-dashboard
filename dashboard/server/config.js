@@ -45,7 +45,7 @@ const isText = (v) => typeof v === 'string' && v.trim() !== '';
 // A settings.calendars entry is Google ({ calendarId }) or read-only from an ICS link ({ ics, url }).
 export const isReadOnly = (cal) => isText(cal.ics);
 // A holiday calendar ({ person: "none" }, Google or ICS): its all-day events belong to no one.
-export const isUnassigned = (cal) => cal.person === 'none';
+export const isHoliday = (cal) => cal.person === 'none';
 // Calendar person values that are not people.
 const RESERVED = ['family', 'none'];
 

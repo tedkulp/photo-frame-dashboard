@@ -42,7 +42,7 @@
         '<div class="h-hero-title serif feed-note">' + App.feedNote() + '</div></div>';
     }
     if (!e) {
-      var tomorrow = App.timedOn(App.addDays(now, 1))[0];
+      var tomorrow = window.CalEvents.assigned(App.timedOn(App.addDays(now, 1)))[0];
       return '<div class="h-hero h-hero--empty" data-go="calendar">' +
         '<div class="label label--light">Rest of today</div>' +
         '<div class="h-hero-title serif">Nothing else scheduled.<br><i>Enjoy the quiet.</i></div>' +
@@ -79,7 +79,7 @@
     var now = App.now();
     return list.map(function (e) {
       var until = window.AllDay.until(e, now);
-      return '<button class="h-ad" data-ev="' + App.esc(e.id) + '">' +
+      return '<button class="h-ad' + (window.CalEvents.unassigned(e) ? ' is-none' : '') + '" data-ev="' + App.esc(e.id) + '">' + // no one's (a holiday): grey
         (e.people.length ? App.dots(e.people, 14) : '') +
         '<b>' + App.esc(e.title) + '</b>' +
         (until ? '<span class="h-ad-until">until ' + App.fmt.dayShort(until) + '</span>' : '') + '</button>';
