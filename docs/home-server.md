@@ -13,7 +13,8 @@ address on your LAN:
 - `GET /api/calendar` returns `{ people, events, updatedAt }`: every event in your configured Google
   calendars and [read-only calendars](#read-only-calendars-from-ics-links-optional) from 7 days ago
   to 42 days ahead, recurring events expanded. Each event has `deletable`: `false` when it is only
-  on read-only calendars. If Google fails it answers with a non-2xx status and a JSON `error`; it
+  on read-only or [holiday](#holiday-calendars-optional) calendars. A holiday calendar's events
+  (all-day only) come with `people: []`. If Google fails it answers with a non-2xx status and a JSON `error`; it
   never pretends the calendar is empty. A read-only feed that fails doesn't fail the answer.
 - `POST /api/events` with a JSON body `{ title, start, end, people, allDay? }` creates the event
   and answers `201` with it in the same shape `GET /api/calendar` uses. `start`/`end` are times
@@ -23,7 +24,7 @@ address on your LAN:
   (so on the dashboard it then belongs to everyone). Bad input gets `400` and a JSON `error`, and
   nothing is written; the body must be sent as `application/json`.
 - `DELETE /api/events/:id` deletes an event by the `id` the API gave it (`204`). Only events in
-  the configured Google calendars can be deleted: an event only on read-only calendars gets `403`
+  the configured Google calendars can be deleted: an event only on read-only or holiday calendars gets `403`
   and nothing is written. The dashboard uses it for **Undo** right after adding.
 - `GET /api/weather` returns `{ configured: true, now, hourly, daily, updatedAt }` from a Home
   Assistant weather entity, in whole °F (see [Weather](#weather-from-home-assistant-optional)), or
@@ -88,6 +89,8 @@ Copy [`dashboard/settings.example.json`](../dashboard/settings.example.json) and
 - A calendar can also be read-only, from an ICS link: `{ "ics": "alex-work", "person": "alex" }`.
   See [Read-only calendars](#read-only-calendars-from-ics-links-optional). The Family calendar
   must be a Google calendar.
+- `"person": "none"` makes a calendar a holiday calendar: its all-day events show for no one. See
+  [Holiday calendars](#holiday-calendars-optional). `family` and `none` can't be person ids.
 - `people[].homeAssistant` (optional, needs `homeAssistant` below) links a person to their Home
   Assistant `person.*` entity, e.g. `"homeAssistant": "person.alex"`, so their avatar shows
   whether they are home (see [presence](#home-controls-from-home-assistant-optional)). Anything
@@ -170,6 +173,42 @@ publishing. The fallback is to share the Outlook calendar into Google: in Outloo
 calendar with your Google address; once it shows up in Google Calendar, share it with the service
 account (step 2) and add it as a normal `calendarId` calendar. Check that company policy allows
 it first.
+
+### Holiday calendars (optional)
+
+A holiday calendar's all-day events show on the frame without belonging to anyone: a grey chip
+with no avatar or person dots on Today and in the Calendar views. Give the calendar
+`"person": "none"`. It can be a Google calendar or an ICS link, and you can have as many as you like:
+
+```json
+{ "calendarId": "abc123family@group.calendar.google.com", "person": "family" },
+{ "calendarId": "en.usa#holiday@group.v.calendar.google.com", "person": "none" },
+{ "ics": "school-holidays", "person": "none" }
+```
+
+**A Google public holiday calendar:** in Google Calendar on the web, **Other calendars → + →
+Browse calendars of interest → Holidays**, tick your country, then open that calendar's
+**⋮ → Settings** and copy its **Calendar ID** (it ends in `@group.v.calendar.google.com`; the one
+above is the US holidays one). A public calendar can be read without sharing it with the service
+account (step 2 is for your own calendars).
+
+**An ICS link** (a school's or a country's holiday feed) works like any
+[read-only calendar](#read-only-calendars-from-ics-links-optional): its link goes in
+`config/<ics name>`:
+
+```sh
+echo 'https://<the holiday feed's ICS link>' > config/school-holidays
+```
+
+What changes for a holiday calendar:
+
+- Only its all-day events are shown. Its timed events are left out.
+- Its events can't be deleted from the frame, even when it is a Google calendar, and an event added
+  on the frame never goes to it.
+- They don't show on a person's lane or when a view shows one person, and the idle and night
+  screens never pick one as "First up".
+- If the same event (same UID and start) is also on a person's or the Family calendar, it shows
+  once, as that calendar's event, with its people and colour, and can be deleted there.
 
 ### Weather from Home Assistant (optional)
 

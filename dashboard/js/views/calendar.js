@@ -95,7 +95,7 @@
     var ad = allDay.length ? '<div class="allday"><div class="gutter label">All day</div><div class="allday-grid" style="' + cols() + '">' + allDay.map(function (e) {
       var fam2 = App.isFamily(e);
       var idx = ids().indexOf(e.people[0]);
-      var col = fam2 ? '1 / -1' : (idx + 1) + ' / span 1';
+      var col = fam2 || idx < 0 ? '1 / -1' : (idx + 1) + ' / span 1'; // everyone's or no one's: all lanes
       var s = App.dayStart(day), spanDays = Math.round((e.end - e.start) / 864e5), dayN = Math.round((s - e.start) / 864e5) + 1;
       return '<button class="ad' + (e.start < s ? ' ad--cont' : '') + '" data-ev="' + e.id + '" style="grid-column:' + col + ';' + App.pstyle(App.evColor(e)) + '">' +
         (e.start < s ? App.icon('left', 16) : '') + App.esc(e.title) + (spanDays > 1 ? ' <small>Day ' + dayN + ' of ' + spanDays + '</small>' : '') + '</button>';
@@ -312,9 +312,9 @@
       '<div class="evs-body">' +
       (e.travel ? '<div class="evs-row evs-leave">' + App.icon('car', 28) + '<div><b>Leave by ' + App.fmt.time(App.leaveBy(e)) + '</b><span>' + e.travel + ' min drive in current traffic</span></div></div>' : '') +
       (e.loc ? '<div class="evs-row">' + App.icon('pin', 28) + '<div><b>' + App.esc(e.loc) + '</b><span>Tap to send directions to phone</span></div></div>' : '') +
-      '<div class="evs-row">' + App.icon('person', 28) + '<div class="evs-people">' + (fam ? D.people : e.people.map(App.person)).map(function (x) {
+      (e.people.length ? '<div class="evs-row">' + App.icon('person', 28) + '<div class="evs-people">' + (fam ? D.people : e.people.map(App.person)).map(function (x) {
         return '<span class="chip" style="' + App.pstyle(x) + '">' + App.avatar(x, 32) + App.esc(x.name) + '</span>';
-      }).join('') + '</div></div>' +
+      }).join('') + '</div></div>' : '') + // no one's (a holiday): no people row
       (e.notes ? '<div class="evs-notes serif">“' + App.esc(e.notes) + '”</div>' : '') +
       '</div></div>', { cls: 'sheet--event' });
   };

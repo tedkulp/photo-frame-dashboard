@@ -334,3 +334,35 @@ test('a calendar needs exactly one of calendarId and ics', () => {
     });
   }
 });
+
+test('holiday calendars: person "none" on a Google calendar or an ICS link, any number of them', () => {
+  const s = settings();
+  s.calendars.push(
+    { ics: 'us-holidays', person: 'none' },
+    { calendarId: 'en.usa#holiday@group.v.calendar.google.com', person: 'none' },
+    { ics: 'school-holidays', person: 'none' },
+  );
+  withDir(icsDir(s, { 'us-holidays': 'https://a.example/us.ics', 'school-holidays': 'https://a.example/school.ics' }), (t) => {
+    const c = loadConfig({ env: {}, cwd: t.dir });
+    assert.deepEqual(c.settings.calendars.slice(3), [
+      { ics: 'us-holidays', url: 'https://a.example/us.ics', person: 'none' },
+      { calendarId: 'en.usa#holiday@group.v.calendar.google.com', person: 'none' },
+      { ics: 'school-holidays', url: 'https://a.example/school.ics', person: 'none' },
+    ]);
+  });
+});
+
+test('a holiday calendar is not the Family calendar', () => {
+  const s = settings({ calendars: [{ calendarId: 'en.usa#holiday@group.v.calendar.google.com', person: 'none' }] });
+  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/no calendar with person "family"/));
+  });
+});
+
+test('a person cannot have the id "none"', () => {
+  const s = settings();
+  s.people.push({ id: 'none', name: 'Nobody', colour: '#000000' });
+  withDir({ 'config/settings.json': s, 'config/service-account.json': serviceAccount() }, (t) => {
+    assert.throws(() => loadConfig({ env: {}, cwd: t.dir }), named(/people\[2\]\.id cannot be "none"/));
+  });
+});

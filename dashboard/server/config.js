@@ -9,7 +9,8 @@
 // immich is their Immich user's email, which credits them with the photos they uploaded. A
 // calendar is a Google calendar ({ calendarId, person }) or a read-only one from an ICS link
 // ({ ics, person }, ADR 0005); the link is a secret, read from the file config/<ics> (one per link,
-// like config/immich-api-key).
+// like config/immich-api-key). A calendar's person is a person id, "family" (exactly one, a Google
+// calendar) or "none" (a holiday calendar: its all-day events belong to no one).
 import { createPrivateKey } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -43,6 +44,10 @@ const isText = (v) => typeof v === 'string' && v.trim() !== '';
 
 // A settings.calendars entry is Google ({ calendarId }) or read-only from an ICS link ({ ics, url }).
 export const isReadOnly = (cal) => isText(cal.ics);
+// A holiday calendar ({ person: "none" }, Google or ICS): its all-day events belong to no one.
+export const isUnassigned = (cal) => cal.person === 'none';
+// Calendar person values that are not people.
+const RESERVED = ['family', 'none'];
 
 function checkSettings(s) {
   if (!s || typeof s !== 'object') throw new ConfigError('settings must be a JSON object');
@@ -53,7 +58,7 @@ function checkSettings(s) {
       if (!p || !isText(p[key])) throw new ConfigError(`settings.people[${i}].${key} is missing`);
     }
     if (!/^#[0-9a-fA-F]{6}$/.test(p.colour)) throw new ConfigError(`settings.people[${i}].colour "${p.colour}" must be a 6-digit hex colour like #2D5BFF`);
-    if (p.id === 'family') throw new ConfigError(`settings.people[${i}].id cannot be "family"`);
+    if (RESERVED.includes(p.id)) throw new ConfigError(`settings.people[${i}].id cannot be "${p.id}" (reserved for calendars: "family" is everyone's, "none" no one's)`);
     if (ids.has(p.id)) throw new ConfigError(`settings.people[${i}].id "${p.id}" is used twice`);
     if (p.homeAssistant !== undefined && (typeof p.homeAssistant !== 'string' || !/^person\.[a-z0-9_]+$/.test(p.homeAssistant))) {
       throw new ConfigError(`settings.people[${i}].homeAssistant (${p.name}) "${p.homeAssistant}" must be a Home Assistant person entity id like person.alex`);
@@ -68,8 +73,8 @@ function checkSettings(s) {
     if (!c || isText(c.calendarId) === isReadOnly(c)) {
       throw new ConfigError(`settings.calendars[${i}] needs either a calendarId (a Google calendar) or an ics name (a read-only calendar from an ICS link)`);
     }
-    if (c.person !== 'family' && !ids.has(c.person)) {
-      throw new ConfigError(`settings.calendars[${i}] has unknown person id "${c.person}" (not in settings.people)`);
+    if (!RESERVED.includes(c.person) && !ids.has(c.person)) {
+      throw new ConfigError(`settings.calendars[${i}] has unknown person id "${c.person}" (not in settings.people, "family" or "none")`);
     }
   });
   const family = s.calendars.filter((c) => c.person === 'family').length;

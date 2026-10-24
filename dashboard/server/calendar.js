@@ -3,9 +3,11 @@
 // ADR 0005). Family-calendar events belong to everyone; per-person calendars to that person. The
 // same event (iCalUID + start) seen in several calendars is returned once with the people combined.
 // Each event says whether it can be deleted: only through a Google copy, so an event that is only
-// on read-only calendars can't. create/remove write single events: to that person's own Google
-// calendar when exactly one person with one is picked, otherwise to the Family calendar.
-import { isReadOnly } from './config.js';
+// on read-only calendars can't. Holiday calendars ({ person: "none" }, Google or ICS) give only
+// their all-day events, to no one (people: []) and not deletable; merged with a copy on someone's
+// calendar, the event is that copy's. create/remove write single events: to that person's own
+// Google calendar when exactly one person with one is picked, otherwise to the Family calendar.
+import { isReadOnly, isUnassigned } from './config.js';
 import { createIcsFeeds } from './ics.js';
 import { HttpError } from './errors.js';
 
@@ -94,7 +96,7 @@ function toEvent(item, cal) {
   if (item.location) e.loc = item.location;
   const notes = plainNotes(item.description);
   if (notes) e.notes = notes;
-  e.deletable = !isReadOnly(cal);
+  e.deletable = !isReadOnly(cal) && !isUnassigned(cal);
   return e;
 }
 
@@ -136,10 +138,14 @@ function checkInput(input, allIds) {
 export function createCalendar({ settings, google, timeZone = null, now = Date.now, icsTimeoutMs, log = console }) {
   const allIds = settings.people.map((p) => p.id);
   const family = settings.calendars.find((c) => c.person === 'family');
-  const others = settings.calendars.filter((c) => c !== family && !isReadOnly(c)); // per-person Google calendars
-  const readOnly = settings.calendars.filter(isReadOnly);
-  const icsFeeds = readOnly.length ? createIcsFeeds({ feeds: readOnly, now, timeoutMs: icsTimeoutMs, log }) : null;
-  const peopleOf = (cal) => (cal.person === 'family' ? allIds : [cal.person]);
+  const assigned = settings.calendars.filter((c) => !isUnassigned(c));
+  const others = assigned.filter((c) => c !== family && !isReadOnly(c)); // per-person Google calendars
+  const readOnly = assigned.filter(isReadOnly);
+  const holidays = settings.calendars.filter(isUnassigned);
+  const feeds = settings.calendars.filter(isReadOnly);
+  const icsFeeds = feeds.length ? createIcsFeeds({ feeds, now, timeoutMs: icsTimeoutMs, log }) : null;
+  const peopleOf = (cal) => (cal.person === 'family' ? allIds : isUnassigned(cal) ? [] : [cal.person]);
+  const listCal = (cal, opts) => (isReadOnly(cal) ? icsFeeds.items(cal.ics, opts) : google.listEvents(cal.calendarId, opts).then((r) => r.items));
   let familyZone = null;
 
   async function load() {
@@ -153,9 +159,10 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     if (familyResult.timeZone) familyZone = familyResult.timeZone;
     const zone = timeZone || familyResult.timeZone;
     // A read-only feed never fails the load: ics.js serves its last good copy, or nothing.
-    const [otherResults, readOnlyItems] = await Promise.all([
+    const [otherResults, readOnlyItems, holidayItems] = await Promise.all([
       Promise.all(others.map((c) => google.listEvents(c.calendarId, Object.assign({ timeZone: zone }, range)))),
       Promise.all(readOnly.map((c) => icsFeeds.items(c.ics, Object.assign({ zone }, range)))),
+      Promise.all(holidays.map((c) => listCal(c, Object.assign({ timeZone: zone, zone }, range)))),
     ]);
 
     const byKey = new Map();
@@ -173,6 +180,8 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     others.forEach((c, i) => add(c, otherResults[i].items));
     // After every Google calendar, so a merged event keeps its Google copy's id and can be deleted.
     readOnly.forEach((c, i) => add(c, readOnlyItems[i]));
+    // Last, so a holiday also on someone's calendar is theirs (id, people, deletable). Timed ones are dropped.
+    holidays.forEach((c, i) => add(c, holidayItems[i].filter((item) => item.start && item.start.date)));
 
     const events = [...byKey.values()];
     for (const e of events) e.people.sort((a, b) => allIds.indexOf(a) - allIds.indexOf(b));
@@ -195,10 +204,13 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
   // touched; an event only on read-only calendars is refused.
   async function remove(id) {
     const ref = decodeEventId(id);
-    if (ref && ref.ics !== undefined && readOnly.some((c) => c.ics === ref.ics)) {
+    if (ref && ref.ics !== undefined && feeds.some((c) => c.ics === ref.ics)) {
       throw new HttpError(403, 'This event is on a read-only calendar and can’t be deleted here');
     }
-    if (!ref || ref.calendarId === undefined || !settings.calendars.some((c) => c.calendarId === ref.calendarId)) throw new HttpError(404, 'No such event');
+    if (ref && ref.calendarId !== undefined && !assigned.some((c) => c.calendarId === ref.calendarId) && holidays.some((c) => c.calendarId === ref.calendarId)) {
+      throw new HttpError(403, 'This event is on a holiday calendar and can’t be deleted here');
+    }
+    if (!ref || ref.calendarId === undefined || !assigned.some((c) => c.calendarId === ref.calendarId)) throw new HttpError(404, 'No such event');
     await google.deleteEvent(ref.calendarId, ref.eventId);
   }
 

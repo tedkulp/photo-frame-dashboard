@@ -21,6 +21,11 @@
   --wet: #1F6FEB; /* wet hours and rainy days */
   --night: #D8321F;
 
+  /* an event that belongs to no one (a holiday calendar's): calevents.js NONE */
+  --none: #B5AEA1;
+  --none-rgb: 181 174 161;
+  --none-ink: #111111;
+
   /* person colour defaults (overridden inline per element) */
   --c: var(--ink);
   --c-rgb: var(--ink-rgb);

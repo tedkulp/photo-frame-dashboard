@@ -45,6 +45,10 @@ The one calendar whose events belong to everyone. An event added for several peo
 A calendar whose events the dashboard shows but can't add to or delete from, such as a person's Fastmail or work Outlook calendar.
 _Avoid_: External calendar, subscribed calendar
 
+**Holiday calendar**:
+A calendar whose all-day events belong to no one (`"person": "none"`), such as a country's public holidays or a school's term dates. Its events show as grey chips and can't be deleted from the frame; its timed events aren't shown.
+_Avoid_: Unassigned calendar, shared calendar
+
 ### Home
 
 **Today**:

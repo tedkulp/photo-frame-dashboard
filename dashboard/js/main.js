@@ -10,6 +10,7 @@ import './house.js';
 import './version.js';
 import './photos.js';
 import './allday.js';
+import './calevents.js';
 import './calnav.js';
 import './displaymode.js';
 import './app.js';

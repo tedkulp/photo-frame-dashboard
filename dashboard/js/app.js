@@ -93,28 +93,18 @@
 
   // ------------------------------------------------------------ calendar helpers
   App.events = function () { return D.events; };
-  // Everyone in the family is on it (with one person, nothing is a family event).
-  App.isFamily = function (e) {
-    return D.people.length > 1 && D.people.every(function (p) { return e.people.indexOf(p.id) > -1; });
-  };
-  App.evColor = function (e) { return App.isFamily(e) ? D.family : App.person(e.people[0]); };
-  App.timedOn = function (day, pid) {
-    var s = App.dayStart(day), e = App.addDays(s, 1);
-    return App.events().filter(function (ev) {
-      return !ev.allDay && ev.start < e && ev.end > s && (!pid || ev.people.indexOf(pid) > -1);
-    }).sort(function (a, b) { return a.start - b.start || b.end - a.end; });
-  };
-  App.allDayOn = function (day, pid) {
-    var s = App.dayStart(day), e = App.addDays(s, 1);
-    return App.events().filter(function (ev) {
-      return ev.allDay && ev.start < e && ev.end > s && (!pid || ev.people.indexOf(pid) > -1);
-    });
-  };
+  // calevents.js with the live data. An event with no people (a holiday calendar's) is never a
+  // family event, gets the neutral colour and is left out of a person's (pid) list.
+  App.isFamily = function (e) { return window.CalEvents.isFamily(e, D.people); };
+  App.evColor = function (e) { return window.CalEvents.color(e, D.people, D.family); };
+  App.timedOn = function (day, pid) { return window.CalEvents.timedOn(App.events(), day, pid); };
+  App.allDayOn = function (day, pid) { return window.CalEvents.allDayOn(App.events(), day, pid); };
   App.leaveBy = function (e) { return e.travel ? new Date(+e.start - e.travel * 60000) : e.start; };
-  // The next thing someone needs to act on: earliest upcoming "leave by" today.
+  // The next thing someone needs to act on: earliest upcoming "leave by" today (someone's event,
+  // not one that belongs to no one).
   App.nextEvent = function () {
     var now = App.now();
-    var list = App.timedOn(now).filter(function (e) { return e.start > now; });
+    var list = window.CalEvents.assigned(App.timedOn(now)).filter(function (e) { return e.start > now; });
     list.sort(function (a, b) { return App.leaveBy(a) - App.leaveBy(b); });
     return list[0] || null;
   };
