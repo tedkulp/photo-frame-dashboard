@@ -34,7 +34,7 @@ export function createFrameZone({ timeZone = null, lookup, now = Date.now, log =
     try {
       return await strictZone();
     } catch (e) {
-      log.error(`Using the server's local time zone, could not read the Family calendar's: ${e.message}`);
+      log.error(`frame zone: using the server's local time zone, could not read the Family calendar's: ${e.message}`);
       return Intl.DateTimeFormat().resolvedOptions().timeZone;
     }
   }
@@ -51,5 +51,5 @@ export function createFrameZone({ timeZone = null, lookup, now = Date.now, log =
   }
 
   // configured: TZ when set, else null (the zone to ask the Family calendar's events in).
-  return { configured: timeZone, learn, settle, strictZone, zone, today };
+  return { configured: timeZone, settle, zone, today };
 }

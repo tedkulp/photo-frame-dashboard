@@ -91,6 +91,20 @@ test('a timed event is clamped to the day’s visible hours (6 AM to 11 PM)', ()
   assert.deepEqual([+late.start, +late.end], [+day(21, 22), +day(21, 23)]);
 });
 
+// Pins down today's behaviour for events the grid can't show (not a spec of what it should do):
+// clamp moves only the edge outside the hours, so the result ends before it starts (the view then
+// draws its minimum-height block at the top or bottom edge), and layout works on the real times.
+test('an event wholly before 6 AM or wholly after 11 PM: clamp gives an inverted span, layout ignores the hours', () => {
+  const early = t('e', 4, 5);
+  const ce = CalEvents.clamp(early, day(21));
+  assert.deepEqual([+ce.start, +ce.end], [+day(21, 6), +day(21, 5)]);
+  const late = { id: 'n', title: 'n', start: new Date(2026, 9, 21, 23, 15), end: new Date(2026, 9, 21, 23, 45), people: ['alex'] };
+  const cl = CalEvents.clamp(late, day(21));
+  assert.deepEqual([+cl.start, +cl.end], [+late.start, +day(21, 23)]);
+  // Drawn on top of a 6–7 AM event and a 10–11 PM one, but they don't overlap, so one column each.
+  assert.deepEqual(ids(CalEvents.layout([early, t('a', 6, 7), t('b', 22, 23), late])), ['e@0/1', 'a@0/1', 'b@0/1', 'n@0/1']);
+});
+
 test('"Day N of M" across a multi-day all-day event', () => {
   const trip = { id: 'trip', allDay: true, start: day(21), end: day(24), people: ['alex'] };
   assert.deepEqual(CalEvents.spanDay(trip, day(21, 15)), { n: 1, of: 3 });
@@ -106,6 +120,22 @@ test('all-day events overlapping a date range, end exclusive, timed events left 
   assert.deepEqual(CalEvents.allDayIn(list, day(21), day(24)).map((e) => e.id), ['trip', 'h']);
   assert.deepEqual(CalEvents.allDayIn(list, day(22), day(25)).map((e) => e.id), ['later']);
   assert.deepEqual(CalEvents.allDayIn(list, day(15), day(19)).map((e) => e.id), []);
+});
+
+test('whole days between local midnights, a DST day counting as one', () => {
+  assert.equal(CalEvents.days(day(21), day(24)), 3);
+  assert.equal(CalEvents.days(day(24), day(21)), -3);
+  assert.equal(CalEvents.days(new Date(2026, 10, 1), new Date(2026, 10, 2)), 1);
+});
+
+test('the columns an all-day event covers in a 3-day strip, cut to the strip', () => {
+  const s0 = day(21);
+  const cols = (start, end) => CalEvents.columns({ allDay: true, start, end }, s0, 3);
+  assert.deepEqual(cols(day(21), day(22)), { a: 0, b: 1 });
+  assert.deepEqual(cols(day(22), day(24)), { a: 1, b: 3 });
+  assert.deepEqual(cols(day(19), day(23)), { a: 0, b: 2 }, 'started before the strip');
+  assert.deepEqual(cols(day(23), day(27)), { a: 2, b: 3 }, 'runs past the strip');
+  assert.deepEqual(cols(day(18), day(30)), { a: 0, b: 3 });
 });
 
 test('leave-by is the start less the travel time, or the start without any', () => {

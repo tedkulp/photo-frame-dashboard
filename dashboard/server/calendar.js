@@ -152,12 +152,16 @@ function checkInput(input, allIds) {
   return { title, start, end, allDay, people: [...new Set(input.people)] };
 }
 
-// The Family calendar's own time zone, asked of Google: framezone.js's lookup.
+// The Family calendar's settings entry.
+const familyOf = (settings) => settings.calendars.find((c) => c.person === 'family');
+// Google's events.list window [t - backMs, t + aheadMs) as { timeMin, timeMax }.
+const windowAt = (t, backMs, aheadMs) => ({ timeMin: new Date(t - backMs).toISOString(), timeMax: new Date(t + aheadMs).toISOString() });
+
+// The Family calendar's own time zone, asked of Google (one minute of events): framezone.js's lookup.
 export function familyZoneLookup({ settings, google, now = Date.now }) {
-  const family = settings.calendars.find((c) => c.person === 'family');
+  const family = familyOf(settings);
   return async () => {
-    const t = now();
-    const r = await google.listEvents(family.calendarId, { timeMin: new Date(t).toISOString(), timeMax: new Date(t + 60000).toISOString() });
+    const r = await google.listEvents(family.calendarId, windowAt(now(), 0, 60000));
     if (!r.timeZone) throw new Error('Google did not say which time zone the Family calendar is in; set TZ');
     return r.timeZone;
   };
@@ -168,7 +172,7 @@ export function familyZoneLookup({ settings, google, now = Date.now }) {
 // passed on).
 export function createCalendar({ settings, google, frameZone, now = Date.now, icsTimeoutMs, log = console }) {
   const allIds = settings.people.map((p) => p.id);
-  const family = settings.calendars.find((c) => c.person === 'family');
+  const family = familyOf(settings);
   const peopleCals = settings.calendars.filter((c) => !isHoliday(c)); // everyone's or someone's
   const others = peopleCals.filter((c) => c !== family && !isReadOnly(c)); // per-person Google calendars
   const readOnly = peopleCals.filter(isReadOnly);
@@ -194,10 +198,7 @@ export function createCalendar({ settings, google, frameZone, now = Date.now, ic
 
   async function load() {
     const t = now();
-    const range = {
-      timeMin: new Date(t - DAYS_BACK * DAY_MS).toISOString(),
-      timeMax: new Date(t + DAYS_AHEAD * DAY_MS).toISOString(),
-    };
+    const range = windowAt(t, DAYS_BACK * DAY_MS, DAYS_AHEAD * DAY_MS);
     // Without TZ, the Family calendar's own time zone (returned with its events) is used for the rest.
     const familyResult = await google.listEvents(family.calendarId, Object.assign({ timeZone: frameZone.configured }, range));
     const zone = await frameZone.settle(familyResult.timeZone);

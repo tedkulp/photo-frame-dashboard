@@ -127,8 +127,8 @@
       var s0 = App.dayStart(days[0]), s3 = App.addDays(s0, 3);
       var list = CE.allDayIn(App.events(), s0, s3);
       ad = '<div class="allday"><div class="gutter label">All day</div><div class="allday-grid allday-grid--3">' + list.map(function (e) {
-        var a = Math.max(0, Math.round((e.start - s0) / 864e5)), b = Math.min(3, Math.round((e.end - s0) / 864e5));
-        return '<button class="ad' + (e.start < s0 ? ' ad--cont' : '') + '" data-ev="' + e.id + '" style="grid-column:' + (a + 1) + ' / ' + (b + 1) + ';' + App.pstyle(App.evColor(e)) + '">' +
+        var c = CE.columns(e, s0, 3);
+        return '<button class="ad' + (e.start < s0 ? ' ad--cont' : '') + '" data-ev="' + e.id + '" style="grid-column:' + (c.a + 1) + ' / ' + (c.b + 1) + ';' + App.pstyle(App.evColor(e)) + '">' +
           (e.start < s0 ? App.icon('left', 16) : '') + App.esc(e.title) + (e.end > s3 ? App.icon('right', 16) : '') + '</button>';
       }).join('') + '</div></div>';
     }

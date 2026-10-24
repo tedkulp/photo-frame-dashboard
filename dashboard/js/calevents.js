@@ -52,9 +52,18 @@
     return list.filter(function (e) { return e.allDay && e.start < to && e.end > from; });
   };
 
+  // Whole days from `from` to `to` (both local midnights; rounded, so a DST day still counts as one).
+  CalEvents.days = function (from, to) { return Math.round((to - from) / 864e5); };
+
   // Where `day` falls in an all-day event: { n, of } for "Day n of of" (of is 1 for a one-day event).
   CalEvents.spanDay = function (e, day) {
-    return { n: Math.round((dayStart(day) - e.start) / 864e5) + 1, of: Math.round((e.end - e.start) / 864e5) };
+    return { n: CalEvents.days(e.start, dayStart(day)) + 1, of: CalEvents.days(e.start, e.end) };
+  };
+
+  // The day columns [a, b) an all-day event covers in an n-day strip starting at local midnight
+  // `from` (3 Day's): { a, b }, cut to 0 and n.
+  CalEvents.columns = function (e, from, n) {
+    return { a: Math.max(0, CalEvents.days(from, e.start)), b: Math.min(n, CalEvents.days(from, e.end)) };
   };
 
   // The event with id `id`, or undefined.

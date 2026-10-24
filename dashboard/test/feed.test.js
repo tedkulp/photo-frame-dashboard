@@ -102,8 +102,9 @@ function harness(opts) {
     seen: [],
     respond: opts.respond || (() => ({ ok: true, json: () => Promise.resolve(body()) })),
   };
-  h.feed = Feed.create(Object.assign({
+  h.feed = Feed.calendar(Object.assign({
     url: '/api/calendar',
+    data: { events: [] },
     fetch: (url, init) => { h.calls++; h.requests.push({ url, init }); return Promise.resolve().then(() => h.respond(url, init)); },
     storage: opts.storage || {
       getItem: (k) => (k in h.store ? h.store[k] : null),
@@ -392,6 +393,20 @@ test('with a data object, the feed keeps its events: fetched, added, then remove
   assert.deepEqual(fetched.map((e) => e.id), ['a', 'b'], 'a new list, the old one left alone');
   await h.feed.remove('new1');
   assert.deepEqual(data.events.map((e) => e.id), ['a', 'b'], 'gone by the time remove resolves');
+});
+
+test('a plain feed hands newly parsed data to store, before onChange, and has no add or remove', async () => {
+  const order = [];
+  const h = harness();
+  const feed = Feed.create({
+    url: '/api/calendar', fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(body()) }), storage: null,
+    now: () => h.t, setTimeout: () => ({}), clearTimeout: () => {},
+    store: (d) => order.push(['store', d.events.length]), onChange: (d) => order.push(['change', d.events.length]),
+  });
+  await feed.start();
+  assert.deepEqual(order, [['store', 2], ['change', 2]]);
+  assert.equal(feed.add, undefined);
+  assert.equal(feed.remove, undefined);
 });
 
 test('a failed add or remove leaves the data’s events alone', async () => {

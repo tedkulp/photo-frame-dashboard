@@ -675,7 +675,7 @@
     fit(); // size the stage before any view is built
     var storage = null;
     try { storage = window.localStorage; } catch (e) {}
-    App.feed = window.Feed.create({
+    App.feed = window.Feed.calendar({
       url: '/api/calendar', data: D, fetch: window.fetch.bind(window), storage: storage,
       now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
       onChange: onFeed, onState: onFeedState, onError: function (e) { console.error('[feed]', e); }

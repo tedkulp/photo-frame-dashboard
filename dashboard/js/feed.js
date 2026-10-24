@@ -67,9 +67,8 @@
   // onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.
   // Optional, for feeds other than the calendar: cacheKey, refresh and stale (ms), parse(body) (throws
   // on a bad body), changeKey(body) (a string that changes only when the data does) and noAnswer (what
-  // a write that timed out rejects with). data: for the calendar feed, the object whose `events`
-  // list it owns (window.DATA): replaced on every change, and on a confirmed add or remove before
-  // that resolves. Nothing else writes it.
+  // a write that timed out rejects with), store(parsed) (keeps newly parsed data, called just before
+  // onChange). The calendar's add and remove are Feed.calendar's, below.
   Feed.create = function (o) {
     var cacheKey = o.cacheKey || CACHE_KEY, refresh = o.refresh || REFRESH, staleMs = o.stale || STALE;
     var parse = o.parse || Feed.parse, noAnswer = o.noAnswer || NO_ANSWER;
@@ -97,7 +96,7 @@
       }
       lastOk = at;
       status = 'ok';
-      if (parsed && o.data) o.data.events = parsed.events;
+      if (parsed && o.store) o.store(parsed);
       // A view failing to render the data is not a fetch failure: keep the data, cache and schedule.
       if (parsed) try { o.onChange(parsed); } catch (e) { if (o.onError) o.onError(e); }
       return true;
@@ -166,22 +165,6 @@
     return {
       // Any write: (method, url, body?) → the JSON answer (null for 204). See send() above.
       send: send,
-      // { title, start, end, people, allDay? } with ISO strings → the created event, parsed, and
-      // already in o.data's events.
-      add: function (input) {
-        return send('POST', '/api/events', input).then(function (raw) {
-          var e = raw && toEvent(raw);
-          if (!e || isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response from the home server');
-          if (o.data) o.data.events = o.data.events.concat([e]);
-          return e;
-        });
-      },
-      // Deletes event `id`; resolves once it's also gone from o.data's events.
-      remove: function (id) {
-        return send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {
-          if (o.data) o.data.events = o.data.events.filter(function (e) { return e.id !== id; });
-        });
-      },
       // A write (an add, a remove, any send) is unanswered: a reload would lose its result.
       busy: function () { return unanswered > 0; },
       // A new refresh interval (Home controls polls faster while it's open). With `now`, fetches
@@ -205,5 +188,31 @@
         return { status: status, age: age, stale: age != null && age * MIN >= staleMs, failed: failed, answered: answered };
       }
     };
+  };
+
+  // ------------------------------------------------------------ the calendar feed
+  // The refresh loop for GET /api/calendar plus adding and deleting events. o is Feed.create's, plus
+  // data: the object whose `events` list this feed owns (window.DATA): replaced on every change, and
+  // on a confirmed add or remove before that resolves. Nothing else writes it.
+  Feed.calendar = function (o) {
+    var data = o.data;
+    var feed = Feed.create(Object.assign({}, o, { store: function (parsed) { data.events = parsed.events; } }));
+    // { title, start, end, people, allDay? } with ISO strings → the created event, parsed, and
+    // already in data's events.
+    feed.add = function (input) {
+      return feed.send('POST', '/api/events', input).then(function (raw) {
+        var e = raw && toEvent(raw);
+        if (!e || isNaN(e.start) || isNaN(e.end)) throw new Error('Unexpected response from the home server');
+        data.events = data.events.concat([e]);
+        return e;
+      });
+    };
+    // Deletes event `id`; resolves once it's also gone from data's events.
+    feed.remove = function (id) {
+      return feed.send('DELETE', '/api/events/' + encodeURIComponent(id)).then(function () {
+        data.events = data.events.filter(function (e) { return e.id !== id; });
+      });
+    };
+    return feed;
   };
 })(typeof window !== 'undefined' ? window : globalThis);
