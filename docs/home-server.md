@@ -444,6 +444,9 @@ Calendar:
   of showing events.
 - All-day events go on their date in the frame's time zone; timed events show in the frame's local
   time, so set the frame's time zone to match the family's.
+- A timed event that starts and ends exactly at midnight in the frame's time zone, on different
+  dates, shows as an all-day event on those dates (Outlook calendars shared into Google write
+  all-day events that way). This applies to every calendar, Google or read-only.
 - Without an Immich album, the sample photos and their credits are handed to your people by
   position (first mock person → first person in `settings.people`, and so on). With one, the
   album's photos replace them everywhere, and are fetched every 5 minutes and cached like the

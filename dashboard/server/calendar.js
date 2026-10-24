@@ -81,13 +81,26 @@ export function plainNotes(description) {
 
 const calKey = (cal) => (isReadOnly(cal) ? 'ics:' + cal.ics : cal.calendarId);
 
+// A timed item from local midnight to a later local midnight (how Outlook → Google conversion
+// writes all-day events) → its start and end dates, end exclusive; anything else → null. Every
+// calendar is fetched in the frame's zone, so the wall-clock time is the one written before the
+// offset, whatever the offset (a span across a DST change still starts and ends at 00:00).
+const MIDNIGHT = /^(\d{4}-\d{2}-\d{2})T00:00(:00(\.0+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+function midnightDates(item) {
+  const s = MIDNIGHT.exec(item.start.dateTime || '');
+  const e = MIDNIGHT.exec(item.end.dateTime || '');
+  return s && e && s[1] < e[1] ? { start: s[1], end: e[1] } : null;
+}
+
 function toEvent(item, cal) {
-  const allDay = Boolean(item.start.date);
+  const dates = item.start.date ? { start: item.start.date, end: item.end.date } : midnightDates(item);
+  const allDay = Boolean(dates);
   const e = {
     id: isReadOnly(cal) ? encodeReadOnlyId(cal.ics, item.id) : encodeEventId(cal.calendarId, item.id),
     title: item.summary || '(No title)',
-    start: allDay ? item.start.date : item.start.dateTime,
-    end: allDay ? item.end.date : item.end.dateTime,
+    start: allDay ? dates.start : item.start.dateTime,
+    end: allDay ? dates.end : item.end.dateTime,
     people: [],
   };
   if (allDay) e.allDay = true;
