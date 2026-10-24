@@ -152,8 +152,21 @@ function checkInput(input, allIds) {
   return { title, start, end, allDay, people: [...new Set(input.people)] };
 }
 
-// Read-only calendars are fetched through createIcsFeeds() (icsTimeoutMs/log passed on).
-export function createCalendar({ settings, google, timeZone = null, now = Date.now, icsTimeoutMs, log = console }) {
+// The Family calendar's own time zone, asked of Google: framezone.js's lookup.
+export function familyZoneLookup({ settings, google, now = Date.now }) {
+  const family = settings.calendars.find((c) => c.person === 'family');
+  return async () => {
+    const t = now();
+    const r = await google.listEvents(family.calendarId, { timeMin: new Date(t).toISOString(), timeMax: new Date(t + 60000).toISOString() });
+    if (!r.timeZone) throw new Error('Google did not say which time zone the Family calendar is in; set TZ');
+    return r.timeZone;
+  };
+}
+
+// Every calendar is fetched in frameZone's zone (framezone.js); each load reports the Family
+// calendar's zone to it. Read-only calendars are fetched through createIcsFeeds() (icsTimeoutMs/log
+// passed on).
+export function createCalendar({ settings, google, frameZone, now = Date.now, icsTimeoutMs, log = console }) {
   const allIds = settings.people.map((p) => p.id);
   const family = settings.calendars.find((c) => c.person === 'family');
   const peopleCals = settings.calendars.filter((c) => !isHoliday(c)); // everyone's or someone's
@@ -178,7 +191,6 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
       return last || [];
     }
   }
-  let familyZone = null;
 
   async function load() {
     const t = now();
@@ -186,10 +198,9 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
       timeMin: new Date(t - DAYS_BACK * DAY_MS).toISOString(),
       timeMax: new Date(t + DAYS_AHEAD * DAY_MS).toISOString(),
     };
-    // Without TZ, the family calendar's own time zone (returned with its events) is used for the rest.
-    const familyResult = await google.listEvents(family.calendarId, Object.assign({ timeZone }, range));
-    if (familyResult.timeZone) familyZone = familyResult.timeZone;
-    const zone = timeZone || familyResult.timeZone;
+    // Without TZ, the Family calendar's own time zone (returned with its events) is used for the rest.
+    const familyResult = await google.listEvents(family.calendarId, Object.assign({ timeZone: frameZone.configured }, range));
+    const zone = await frameZone.settle(familyResult.timeZone);
     // A read-only feed or holiday calendar never fails the load: it serves its last good copy, or nothing.
     const [otherResults, readOnlyItems, holidayItems] = await Promise.all([
       Promise.all(others.map((c) => google.listEvents(c.calendarId, Object.assign({ timeZone: zone }, range)))),
@@ -246,17 +257,5 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     await google.deleteEvent(ref.calendarId, ref.eventId);
   }
 
-  // The time zone the dashboard lives in: TZ, else the Family calendar's own (asked once).
-  async function zone() {
-    if (timeZone) return timeZone;
-    if (!familyZone) {
-      const t = now();
-      const r = await google.listEvents(family.calendarId, { timeMin: new Date(t).toISOString(), timeMax: new Date(t + 60000).toISOString() });
-      if (!r.timeZone) throw new Error('Google did not say which time zone the Family calendar is in; set TZ');
-      familyZone = r.timeZone;
-    }
-    return familyZone;
-  }
-
-  return { load, create, remove, zone };
+  return { load, create, remove };
 }
