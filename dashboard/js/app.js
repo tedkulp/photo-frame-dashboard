@@ -76,7 +76,7 @@
   App.cols = function (n) { return 'repeat(' + Math.max(1, n) + ', minmax(0, 1fr))'; };
   App.pstyle = function (p) {
     if (typeof p === 'string') p = App.person(p);
-    return '--c:' + p.color + ';--c-rgb:' + p.rgb + ';--c-ink:' + p.ink;
+    return '--c:' + p.color + ';--c-rgb:' + p.rgb + ';--c-ink:' + p.ink + (p.lift ? ';--allday-lift:' + p.lift : '');
   };
   // opts.presence: draw the person Home (solid) or Away (hollow ring) from Home Assistant, and keep
   // it current in place (paintPresence). Only the Today and ambient "who" places pass it.

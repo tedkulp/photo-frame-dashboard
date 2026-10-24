@@ -34,7 +34,7 @@
 .ad {
   min-height: 44px; padding: 0 14px; border-radius: 10px;
   display: flex; align-items: center; gap: 6px;
-  background: var(--c); color: var(--c-ink);
+  background: linear-gradient(var(--allday-lift), var(--allday-lift)), var(--c); color: var(--ink);
   font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ad small { font-size: var(--fs-min); opacity: .75; font-weight: 600; margin-left: 4px; }
@@ -117,7 +117,7 @@
 .wk-col.is-today .wk-head { background: var(--ink); color: var(--paper); border-radius: 12px 12px 0 0; }
 .wk-ad {
   min-height: 40px; padding: 0 10px; border-radius: 8px;
-  background: var(--c); color: var(--c-ink);
+  background: linear-gradient(var(--allday-lift), var(--allday-lift)), var(--c); color: var(--ink);
   font-size: var(--fs-min); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;
 }
 .wk-ev {

@@ -7,8 +7,9 @@
   'use strict';
   var CalEvents = root.CalEvents = {};
 
-  // The colour of an event that belongs to no one, from css/tokens.css (--none*).
-  CalEvents.NONE = { color: 'var(--none)', rgb: 'var(--none-rgb)', ink: 'var(--none-ink)' };
+  // The colour of an event that belongs to no one, from css/tokens.css (--none*). Its all-day
+  // chips aren't lifted toward white (--allday-lift): the grey would wash out.
+  CalEvents.NONE = { color: 'var(--none)', rgb: 'var(--none-rgb)', ink: 'var(--none-ink)', lift: 'transparent' };
 
   // The event belongs to no one (a holiday calendar's).
   CalEvents.noOne = function (e) { return !e.people.length; };

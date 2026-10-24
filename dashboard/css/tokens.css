@@ -30,6 +30,10 @@
   --c: var(--ink);
   --c-rgb: var(--ink-rgb);
   --c-ink: #FFFFFF;
+  /* all-day chips are their person's colour lifted toward white, with dark ink, so they read
+     apart from timed events but stay that person's (calendar.css .ad, .wk-ad); a holiday's grey
+     is already light, so calevents.js NONE turns the lift off */
+  --allday-lift: rgb(255 255 255 / .75);
 
   /* type */
   --sans: 'Archivo', 'Roboto Condensed', 'Roboto', system-ui, sans-serif;
