@@ -1,16 +1,16 @@
 // GET /api/photos and GET /api/photos/:id.jpg (an album photo's preview, streamed from Immich as it
-// arrives). The method is checked first; then, without Immich, the listing is 200
-// { configured: false } and an image 404.
-import { apiCall, sendImage, sendJson, notAllowed, HttpError } from '../http.js';
+// arrives). Without Immich, http.js notSetUp answers.
+import { apiCall, sendImage, sendJson, notAllowed, notSetUp, HttpError } from '../http.js';
 
 export function photosRoutes(photos) {
   return {
     match: (pathname) => pathname === '/api/photos' || pathname.startsWith('/api/photos/'),
     async handle(req, res, pathname) {
+      if (!photos) return notSetUp(req, res, pathname, '/api/photos', 'Photos are not set up');
       if (req.method !== 'GET') return notAllowed(res);
-      if (pathname === '/api/photos') return photos ? apiCall(res, 'photos', 200, () => photos.load()) : sendJson(res, 200, { configured: false });
+      if (pathname === '/api/photos') return apiCall(res, 'photos', 200, () => photos.load());
       const m = pathname.match(/^\/api\/photos\/([0-9A-Za-z-]+)\.jpg$/);
-      if (!photos || !m) return sendJson(res, 404, { error: 'No such photo' });
+      if (!m) return sendJson(res, 404, { error: 'No such photo' });
       // Only the content type and length are passed on. The browser may keep it for an hour (the
       // frame shows the same photos again and again); the server keeps nothing.
       return sendImage(res, 'photo', async () => {

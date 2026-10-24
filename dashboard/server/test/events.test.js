@@ -1,9 +1,8 @@
 // POST /api/events and DELETE /api/events/:id against the fake Google.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from '../app.js';
 import { decodeEventId, encodeEventId, TITLE_MAX } from '../calendar.js';
-import { fakeGoogle, serviceAccount, settings } from './helpers.js';
+import { fakeGoogle, serviceAccount, settings, startTestServer } from './helpers.js';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
 const FAMILY = 'family@group.calendar.google.com';
@@ -16,7 +15,7 @@ const empty = () => ({ [FAMILY]: { pages: [[]] }, 'alex@example.com': { pages: [
 
 async function withServer(calendars, fn) {
   const google = await fakeGoogle(calendars);
-  const srv = await startServer({
+  const srv = await startTestServer({
     config: { settings: SETTINGS, serviceAccount: serviceAccount(), port: 0, timeZone: null },
     distDir: '/nonexistent', tokenUrl: google.tokenUrl, apiBase: google.apiBase, now: () => NOW,
   });

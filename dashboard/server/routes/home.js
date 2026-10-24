@@ -1,7 +1,7 @@
 // /api/home, /api/home/:entityId, /api/home/rooms/:name/off, /api/home/cameras/:entityId.jpg and
-// /api/home/media/:entityId/art. Without Home Assistant: GET /api/home is 200 { configured: false },
-// anything else 404. HA's images are never cached.
-import { apiCall, readJson, sendImage, sendJson, notAllowed } from '../http.js';
+// /api/home/media/:entityId/art. Without Home Assistant, http.js notSetUp answers. HA's images are
+// never cached.
+import { apiCall, readJson, sendImage, sendJson, notAllowed, notSetUp } from '../http.js';
 
 const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
 
@@ -9,10 +9,7 @@ export function homeRoutes(home) {
   return {
     match: (pathname) => pathname === '/api/home' || pathname.startsWith('/api/home/'),
     async handle(req, res, pathname) {
-      if (!home) {
-        if (pathname === '/api/home' && req.method === 'GET') return sendJson(res, 200, { configured: false });
-        return sendJson(res, 404, { error: 'Home Assistant is not set up' });
-      }
+      if (!home) return notSetUp(req, res, pathname, '/api/home', 'Home Assistant is not set up');
       const parts = pathname.split('/').slice(3);
       let seg;
       try {

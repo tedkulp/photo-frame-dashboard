@@ -1,5 +1,5 @@
 // Route modules mounted on their own: fake feature objects, no config and no Google key. Also pins
-// each feature's "not set up" answer, which the route module gives itself.
+// the one "not set up" answer (http.js notSetUp) that every optional feature gives.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -68,22 +68,23 @@ test('a feature that throws anything else answers 502', async () => {
   }
 });
 
-test('unconfigured features keep their own answers', async () => {
-  await withRoutes([weatherRoutes(null), choresRoutes(null), homeRoutes(null), photosRoutes(null)], async (url) => {
-    assert.deepEqual(await call(url, 'GET', '/api/weather').then((r) => [r.status, r.body]), [200, { configured: false }]);
-    assert.deepEqual(await call(url, 'GET', '/api/home').then((r) => [r.status, r.body]), [200, { configured: false }]);
-    assert.deepEqual(await call(url, 'GET', '/api/photos').then((r) => [r.status, r.body]), [200, { configured: false }]);
-    assert.deepEqual(await call(url, 'POST', '/api/home/light.kitchen', { action: 'toggle' }).then((r) => [r.status, r.body]),
-      [404, { error: 'Home Assistant is not set up' }]);
-    assert.deepEqual(await call(url, 'GET', '/api/home/cameras/camera.door.jpg').then((r) => [r.status, r.body]),
-      [404, { error: 'Home Assistant is not set up' }]);
-    assert.deepEqual(await call(url, 'GET', '/api/photos/abc-123.jpg').then((r) => [r.status, r.body]), [404, { error: 'No such photo' }]);
-    for (const [method, path] of [['GET', '/api/chores'], ['POST', '/api/chores'], ['PATCH', '/api/chores/x'], ['PUT', '/api/chores/x/done'], ['GET', '/api/chores/x/y/z']]) {
-      assert.deepEqual(await call(url, method, path).then((r) => [r.status, r.body]), [503, { error: 'Chores need a data dir' }], method + ' ' + path);
+test('an unconfigured feature: its top-level GET is { configured: false }, anything else 404 not set up', async () => {
+  await withRoutes([weatherRoutes(null), homeRoutes(null), photosRoutes(null)], async (url) => {
+    const answer = (method, path, body) => call(url, method, path, body).then((r) => [r.status, r.body]);
+    for (const path of ['/api/weather', '/api/home', '/api/photos']) {
+      assert.deepEqual(await answer('GET', path), [200, { configured: false }], path);
     }
-    // Photos checks the method before whether it is set up.
-    assert.deepEqual(await call(url, 'POST', '/api/photos').then((r) => [r.status, r.body]), [405, { error: 'Method not allowed' }]);
-    assert.equal((await call(url, 'POST', '/api/weather')).status, 405);
+    const weather = [404, { error: 'Weather is not set up' }];
+    const home = [404, { error: 'Home Assistant is not set up' }];
+    const photos = [404, { error: 'Photos are not set up' }];
+    assert.deepEqual(await answer('POST', '/api/weather'), weather);
+    assert.deepEqual(await answer('POST', '/api/home/light.kitchen', { action: 'toggle' }), home);
+    assert.deepEqual(await answer('GET', '/api/home/cameras/camera.door.jpg'), home);
+    assert.deepEqual(await answer('POST', '/api/home'), home);
+    assert.deepEqual(await answer('GET', '/api/home/x/y/z'), home);
+    assert.deepEqual(await answer('GET', '/api/photos/abc-123.jpg'), photos);
+    assert.deepEqual(await answer('POST', '/api/photos'), photos);
+    assert.deepEqual(await answer('GET', '/api/photos/nope'), photos);
   });
 });
 
@@ -116,6 +117,7 @@ test('a photo image streams with a private one-hour cache; a missing one is 404'
     assert.equal(gz.headers.get('content-encoding'), null);
     assert.equal(await gz.text(), 'JPEGDATA');
     assert.deepEqual(await call(url, 'GET', '/api/photos/zzz.jpg').then((r) => [r.status, r.body]), [404, { error: 'No such photo' }]);
+    assert.equal((await call(url, 'POST', '/api/photos')).status, 405);
   });
 });
 

@@ -4,7 +4,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { startServer } from '../app.js';
 import { decodeEventId } from '../calendar.js';
-import { fakeGoogle, serviceAccount, settings, tempDir } from './helpers.js';
+import { fakeGoogle, serviceAccount, settings, tempDir, startTestServer } from './helpers.js';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
 const FAMILY = 'family@group.calendar.google.com';
@@ -20,7 +20,7 @@ async function withServer(calendars, fn, opts) {
   const google = await fakeGoogle(calendars);
   let clock = NOW;
   const config = Object.assign({ settings: settings(), serviceAccount: serviceAccount(), port: 0, timeZone: null }, (opts && opts.config) || {});
-  const srv = await startServer({
+  const srv = await startTestServer({
     config,
     distDir: (opts && opts.distDir) || '/nonexistent',
     tokenUrl: google.tokenUrl,
@@ -39,6 +39,13 @@ async function getCalendar(url) {
   const res = await fetch(url + '/api/calendar');
   return { status: res.status, type: res.headers.get('content-type'), body: await res.json() };
 }
+
+test('startServer refuses to start without a store', async () => {
+  await assert.rejects(
+    startServer({ config: { settings: settings(), serviceAccount: serviceAccount(), port: 0, timeZone: null }, distDir: '/nonexistent' }),
+    /startServer needs a store/,
+  );
+});
 
 test('maps Google events into the dashboard shape', async () => {
   await withServer({

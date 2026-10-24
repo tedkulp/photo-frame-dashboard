@@ -19,7 +19,7 @@ import { choresRoutes } from './routes/chores.js';
 import { homeRoutes } from './routes/home.js';
 import { photosRoutes } from './routes/photos.js';
 
-// Each feature from config, or null when it isn't set up (the calendar always is).
+// Each feature from config, or null when it isn't set up (the calendar and chores always are).
 function createFeatures({ config, store, tokenUrl, apiBase, now, homeRetryMs, icsTimeoutMs, log }) {
   const google = createGoogle({ serviceAccount: config.serviceAccount, tokenUrl, apiBase, now });
   const calendar = createCalendar({ settings: config.settings, google, timeZone: config.timeZone, now, icsTimeoutMs, log });
@@ -34,13 +34,14 @@ function createFeatures({ config, store, tokenUrl, apiBase, now, homeRetryMs, ic
   });
   const im = config.immich;
   const photos = im ? createPhotos({ immich: createImmich(im), albumId: im.albumId, people: config.settings.people, now }) : null;
-  const chores = store ? createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await choreZone()) }) : null;
+  const chores = createChores({ db: store.db, settings: config.settings, now, today: async () => localDate(now(), await choreZone()) });
   return { calendar, weather, chores, home, photos };
 }
 
-// config comes from loadConfig(), store from openStore() (without one, /api/chores answers 503);
+// config comes from loadConfig(), store from openStore() (required: chores live in it);
 // tokenUrl/apiBase/now/homeRetryMs/icsTimeoutMs/log are overridable for tests.
 export async function startServer({ config, store, distDir, tokenUrl, apiBase, now = Date.now, homeRetryMs, icsTimeoutMs, log = console }) {
+  if (!store) throw new Error('startServer needs a store (openStore(dataDir)): chores live in it');
   const { calendar, weather, chores, home, photos } = createFeatures({ config, store, tokenUrl, apiBase, now, homeRetryMs, icsTimeoutMs, log });
   const routes = [calendarRoutes(calendar), weatherRoutes(weather), choresRoutes(chores), homeRoutes(home), photosRoutes(photos)];
   const server = createServer(createHandler({ routes, distDir }));

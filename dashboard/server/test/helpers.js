@@ -1,12 +1,14 @@
 // Shared fixtures for the server tests: a throwaway service-account key, sample settings, a temp
-// config folder, and a fake Google (OAuth token + Calendar events endpoints) on a local port, plus
-// fake ICS links, Home Assistant and Immich.
+// config folder, startServer on a temp store, and a fake Google (OAuth token + Calendar events
+// endpoints) on a local port, plus fake ICS links, Home Assistant and Immich.
 import { generateKeyPairSync, createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startServer } from '../app.js';
+import { openStore } from '../store.js';
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' });
@@ -45,6 +47,22 @@ export function tempDir(files) {
     writeFileSync(full, typeof body === 'string' ? body : JSON.stringify(body));
   }
   return { dir, path: (rel) => join(dir, rel), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+// startServer with a store on a fresh temp data dir (the server needs one); close() also closes the
+// store and removes the dir.
+export async function startTestServer(opts) {
+  const t = tempDir();
+  const store = openStore(t.path('data'));
+  let srv;
+  try {
+    srv = await startServer(Object.assign({}, opts, { store }));
+  } catch (e) {
+    store.close();
+    t.cleanup();
+    throw e;
+  }
+  return Object.assign({}, srv, { close: async () => { await srv.close(); store.close(); t.cleanup(); } });
 }
 
 // Fake Google. `calendars` maps calendarId -> { timeZone, pages: [[item, ...], ...] } or

@@ -33,6 +33,10 @@ address on your LAN:
   [Home controls](#home-controls-from-home-assistant-optional).
 - `GET /api/photos` and `GET /api/photos/:id.jpg`: the photos from one Immich album, see
   [Photos](#photos-from-immich-optional).
+- An optional feature that isn't set up (weather, Home controls, photos) answers the same way:
+  `GET` on its top-level path (`/api/weather`, `/api/home`, `/api/photos`) is `200`
+  `{ configured: false }`, and any other request under it (another method, an action, an image) is
+  `404` with a JSON `error` naming it, e.g. `Home Assistant is not set up`.
 - `GET /api/version` returns `{ build }`: the id `npm run build` stamped into the `dist` being
   served (`dist/version.json`), or `{ build: null }` without one. Sent `Cache-Control: no-store`.
   The dashboard uses it to [reload itself after an update](#updates-reload-the-dashboard).
@@ -262,7 +266,7 @@ the registries when they change). If the connection drops it reconnects with a g
 up to 1 min) and in the meantime still answers with the last-known state.
 
 API (all JSON, `cache-control: no-store`; without `homeAssistant`, `GET /api/home` is
-`{ configured: false }` and the rest 404):
+`{ configured: false }` and the rest `404` `Home Assistant is not set up`):
 
 - `GET /api/home` →
   `{ configured: true, connected, updated, rooms, climate, scenes, cameras, media, presence }`.
@@ -351,7 +355,8 @@ API (JSON is `cache-control: no-store`):
 
 - `GET /api/photos` → `{ configured: true, photos: [{ id, o, date, place, from?, tag, fav }], updatedAt }`:
   `o` is `"p"` or `"l"`, `date` and `tag` are `YYYY-MM-DD`, `place` may be `""`, `from` is a
-  person id and left out when nobody matches. Without `immich`, `{ configured: false }`. The album
+  person id and left out when nobody matches. Without `immich`, `{ configured: false }` (and every
+  other `/api/photos` request is `404` `Photos are not set up`). The album
   is read from Immich at most once every 5 minutes; if Immich fails it answers `502` with a JSON
   `error`, and the frame keeps the photos it had.
 - `GET /api/photos/:id.jpg`: the photo's preview-size image (Immich's own, about 1440 px), streamed
