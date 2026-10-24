@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from '../app.js';
-import { fakeHomeAssistant, serviceAccount, settings } from './helpers.js';
+import { fakeHomeAssistant, serviceAccount, settings, startTestServer } from './helpers.js';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
 const ENTITY = 'weather.pirateweather';
@@ -27,7 +26,7 @@ async function withServer(entities, fn, opts) {
   // opts.homeAssistant: the config to use instead, or a function of the fake that returns it.
   let homeAssistant = { url: ha.url, weatherEntity: ENTITY, token: ha.token };
   if (opts && 'homeAssistant' in opts) homeAssistant = typeof opts.homeAssistant === 'function' ? opts.homeAssistant(ha) : opts.homeAssistant;
-  const srv = await startServer({
+  const srv = await startTestServer({
     config: { settings: settings(), serviceAccount: serviceAccount(), homeAssistant, port: 0, timeZone: null },
     distDir: '/nonexistent',
     now: () => NOW,

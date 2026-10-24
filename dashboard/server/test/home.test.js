@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from '../app.js';
-import { fakeHomeAssistant, serviceAccount, settings } from './helpers.js';
+import { fakeHomeAssistant, serviceAccount, settings, startTestServer } from './helpers.js';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
 
@@ -85,7 +84,7 @@ async function withHome(home, fn, { rooms = ["Robin's Room", 'living room'], lab
   const ha = await fakeHomeAssistant({}, { home });
   const out = quietLog();
   const homeAssistant = { url: ha.url, weatherEntity: 'weather.home', token: ha.token, label: label || 'frame', rooms };
-  const srv = await startServer({
+  const srv = await startTestServer({
     config: { settings: people, serviceAccount: serviceAccount(), homeAssistant, port: 0, timeZone: null },
     distDir: '/nonexistent',
     now: () => NOW,
@@ -318,7 +317,7 @@ test('camera snapshots and media art are proxied for labelled entities only', as
 });
 
 test('without Home Assistant settings, says Home controls are not configured', async () => {
-  const srv = await startServer({
+  const srv = await startTestServer({
     config: { settings: settings(), serviceAccount: serviceAccount(), homeAssistant: null, port: 0, timeZone: null },
     distDir: '/nonexistent',
   });

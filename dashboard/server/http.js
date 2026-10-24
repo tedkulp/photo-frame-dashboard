@@ -1,7 +1,8 @@
 // The home server's shared HTTP mechanics (HttpError is re-exported from errors.js): JSON bodies and answers,
 // the one error → status map, the one image responder, and the request handler that runs the
 // route modules (routes/*.js) and then serves GET /api/version and the built dashboard (dist).
-// What each feature mounts, its method checks and its "not set up" answer live in its route module.
+// What each feature mounts and its method checks live in its route module; an optional feature that
+// isn't set up answers with notSetUp.
 import { readFile, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { extname, join, resolve, sep } from 'node:path';
@@ -28,6 +29,14 @@ export function sendJson(res, status, obj) {
 }
 
 export const notAllowed = (res) => sendJson(res, 405, { error: 'Method not allowed' });
+
+// The one answer of an optional feature that isn't set up: GET on its top-level path (`top`) is 200
+// { configured: false }, which the dashboard reads; anything else (any method, any sub-path) is 404
+// { error } (e.g. 'Photos are not set up'; the feed shows a 4xx's error text).
+export function notSetUp(req, res, pathname, top, error) {
+  if (pathname === top && req.method === 'GET') return sendJson(res, 200, { configured: false });
+  return sendJson(res, 404, { error });
+}
 
 const BODY_MAX = 64 * 1024;
 

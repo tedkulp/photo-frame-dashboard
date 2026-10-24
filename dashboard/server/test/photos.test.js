@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from '../app.js';
-import { fakeImmich, serviceAccount, settings } from './helpers.js';
+import { fakeImmich, serviceAccount, settings, startTestServer } from './helpers.js';
 
 const ALBUM = '11111111-2222-4333-8444-555555555555';
 const ALEX = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -37,7 +36,7 @@ const people = [
 
 async function withServer(opts, fn) {
   const im = await fakeImmich(opts);
-  const srv = await startServer({
+  const srv = await startTestServer({
     config: {
       settings: settings({ people }), serviceAccount: serviceAccount(), homeAssistant: null, port: 0, timeZone: null,
       immich: 'immich' in opts ? opts.immich : { url: im.url, albumId: ALBUM, apiKey: opts.configKey || im.apiKey },

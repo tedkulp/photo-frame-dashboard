@@ -2,10 +2,9 @@
 // Google plus fake ICS links serving the synthetic fixtures in test/fixtures.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from '../app.js';
 import { decodeEventId, encodeReadOnlyId } from '../calendar.js';
 import { expandIcs, parseIcs } from '../ics.js';
-import { fakeGoogle, fakeIcs, icsFixture, serviceAccount } from './helpers.js';
+import { fakeGoogle, fakeIcs, icsFixture, serviceAccount, startTestServer } from './helpers.js';
 
 const NOW = Date.parse('2026-10-19T12:00:00Z');
 const MIN = 60000;
@@ -45,7 +44,7 @@ async function withServer(fn, opts) {
       { calendarId: 'alex@example.com', person: 'alex' },
     ],
   };
-  const srv = await startServer({
+  const srv = await startTestServer({
     config: { settings, serviceAccount: serviceAccount(), port: 0, timeZone: null },
     distDir: '/nonexistent', tokenUrl: google.tokenUrl, apiBase: google.apiBase,
     now: () => clock, log, icsTimeoutMs: 300,

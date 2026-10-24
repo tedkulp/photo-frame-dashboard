@@ -1,11 +1,10 @@
-// /api/chores, /api/chores/:id and /api/chores/:id/done. Without a data dir every route answers 503.
+// /api/chores, /api/chores/:id and /api/chores/:id/done. Always set up (the server needs a store).
 import { apiCall, readJson, sendJson, notAllowed } from '../http.js';
 
 export function choresRoutes(chores) {
   return {
     match: (pathname) => pathname === '/api/chores' || pathname.startsWith('/api/chores/'),
     async handle(req, res, pathname) {
-      if (!chores) return sendJson(res, 503, { error: 'Chores need a data dir' });
       const m = pathname.match(/^\/api\/chores(?:\/([^/]+)(\/done)?)?$/);
       if (!m) return sendJson(res, 404, { error: 'Not found' });
       const [, id, done] = m;
