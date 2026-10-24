@@ -16,7 +16,7 @@ const PEOPLE = [
 const allDay = (id, uid, summary, date, end) => ({ id, iCalUID: uid, status: 'confirmed', summary, start: { date }, end: { date: end } });
 
 async function withServer(fn) {
-  const google = await fakeGoogle({
+  const cals = {
     // Diwali is on the Family calendar too (the same UID + start as the ICS holiday feed's copy).
     [FAMILY]: { timeZone: 'America/Toronto', pages: [[allDay('diwali-fam', 'diwali-2026@holidays.example', 'Diwali', '2026-11-08', '2026-11-09')]] },
     // Alex also has Halloween on their own calendar: the same UID + start as both holiday copies.
@@ -32,7 +32,8 @@ async function withServer(fn) {
           start: { dateTime: '2026-11-26T00:00:00-05:00' }, end: { dateTime: '2026-11-27T00:00:00-05:00' } },
       ]],
     },
-  });
+  };
+  const google = await fakeGoogle(cals);
   const ics = await fakeIcs({ 'us-holidays': { body: icsFixture('holidays.ics') } });
   const settings = {
     people: PEOPLE,
@@ -44,13 +45,14 @@ async function withServer(fn) {
       { calendarId: 'alex@example.com', person: 'alex' },
     ],
   };
-  const log = { log: () => {}, warn: () => {}, error: () => {} };
+  const errors = [];
+  const log = { log: () => {}, warn: () => {}, error: (msg) => errors.push(msg) };
   const srv = await startTestServer({
     config: { settings, serviceAccount: serviceAccount(), port: 0, timeZone: null },
     distDir: '/nonexistent', tokenUrl: google.tokenUrl, apiBase: google.apiBase, now: () => NOW, log, icsTimeoutMs: 300,
   });
   try {
-    await fn({ url: srv.url, google });
+    await fn({ url: srv.url, google, cals, errors });
   } finally {
     await srv.close();
     await ics.close();
@@ -129,5 +131,41 @@ test('adding events never writes to a holiday calendar', async () => {
       assert.equal(res.body.deletable, true);
     }
     assert.deepEqual(writes(google).map((r) => decodeURIComponent(r.path.split('/')[4])), [FAMILY, 'alex@example.com', FAMILY, FAMILY]);
+  });
+});
+
+const titles = (events) => events.map((e) => e.title);
+
+test('a Google holiday calendar that fails is skipped and logged; the other calendars are served', async () => {
+  await withServer(async ({ url, cals, errors }) => {
+    cals[HOLIDAYS] = { status: 404, body: { error: { code: 404, message: 'Not Found' } } };
+    const res = await call(url, 'GET', '/api/calendar');
+    assert.equal(res.status, 200);
+    assert.deepEqual(titles(res.body.events), ['Halloween', 'Diwali', 'PD day']);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /en\.usa#holiday@group\.v\.calendar\.google\.com/);
+    assert.match(errors[0], /404/);
+    assert.doesNotMatch(errors[0], /PRIVATE KEY|Bearer|token-\d/);
+    // Logged again on each load that fails.
+    await calendar(url);
+    assert.equal(errors.length, 2);
+  });
+});
+
+test('a Google holiday calendar that fails after a good load serves its last good copy', async () => {
+  await withServer(async ({ url, cals, errors }) => {
+    const before = titles(await calendar(url));
+    cals[HOLIDAYS] = { status: 500 };
+    const res = await call(url, 'GET', '/api/calendar');
+    assert.equal(res.status, 200);
+    assert.deepEqual(titles(res.body.events), before);
+    assert.equal(errors.length, 1);
+  });
+});
+
+test('a failing Family calendar still fails the load, holiday calendars or not', async () => {
+  await withServer(async ({ url, cals }) => {
+    cals[FAMILY] = { status: 403 };
+    assert.equal((await call(url, 'GET', '/api/calendar')).status, 502);
   });
 });

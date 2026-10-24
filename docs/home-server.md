@@ -213,6 +213,9 @@ What changes for a holiday calendar:
   screens never pick one as "First up".
 - If the same event (same UID and start) is also on a person's or the Family calendar, it shows
   once, as that calendar's event, with its people and colour, and can be deleted there.
+- A holiday calendar that fails to load (a mistyped Calendar ID, no access, a Google error) doesn't
+  take the calendar down: it is skipped, with an error naming it in the server log, and shows its
+  last good copy if it loaded earlier. A failing person's or Family calendar still fails the load.
 
 ### Weather from Home Assistant (optional)
 

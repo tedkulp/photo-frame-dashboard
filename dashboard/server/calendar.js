@@ -5,8 +5,10 @@
 // Each event says whether it can be deleted: only through a Google copy, so an event that is only
 // on read-only calendars can't. Holiday calendars ({ person: "none" }, Google or ICS) give only
 // their all-day events, to no one (people: []) and not deletable; merged with a copy on someone's
-// calendar, the event is that copy's. create/remove write single events: to that person's own
-// Google calendar when exactly one person with one is picked, otherwise to the Family calendar.
+// calendar, the event is that copy's. A failing holiday calendar is logged and serves its last good
+// copy, or nothing.
+// create/remove write single events: to that person's own Google calendar when exactly one person
+// with one is picked, otherwise to the Family calendar.
 import { isReadOnly, isHoliday } from './config.js';
 import { createIcsFeeds } from './ics.js';
 import { HttpError } from './errors.js';
@@ -161,7 +163,21 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
   const allIcs = settings.calendars.filter(isReadOnly); // readOnly plus the holiday ICS links
   const icsFeeds = allIcs.length ? createIcsFeeds({ feeds: allIcs, now, timeoutMs: icsTimeoutMs, log }) : null;
   const peopleOf = (cal) => (cal.person === 'family' ? allIds : isHoliday(cal) ? [] : [cal.person]);
-  const listCal = (cal, opts) => (isReadOnly(cal) ? icsFeeds.items(cal.ics, opts) : google.listEvents(cal.calendarId, opts).then((r) => r.items));
+  // A holiday Google calendar never fails the load either: on an error it is logged and serves
+  // its last good listing, or nothing.
+  const lastGood = new Map();
+  async function listHoliday(cal, opts) {
+    if (isReadOnly(cal)) return icsFeeds.items(cal.ics, opts);
+    try {
+      const { items } = await google.listEvents(cal.calendarId, opts);
+      lastGood.set(cal.calendarId, items);
+      return items;
+    } catch (e) {
+      const last = lastGood.get(cal.calendarId);
+      log.error(`Holiday calendar "${cal.calendarId}" could not be read (${e.message}); ${last ? 'showing its last good copy' : 'it shows no events until it can be'}`);
+      return last || [];
+    }
+  }
   let familyZone = null;
 
   async function load() {
@@ -174,11 +190,11 @@ export function createCalendar({ settings, google, timeZone = null, now = Date.n
     const familyResult = await google.listEvents(family.calendarId, Object.assign({ timeZone }, range));
     if (familyResult.timeZone) familyZone = familyResult.timeZone;
     const zone = timeZone || familyResult.timeZone;
-    // A read-only feed never fails the load: ics.js serves its last good copy, or nothing.
+    // A read-only feed or holiday calendar never fails the load: it serves its last good copy, or nothing.
     const [otherResults, readOnlyItems, holidayItems] = await Promise.all([
       Promise.all(others.map((c) => google.listEvents(c.calendarId, Object.assign({ timeZone: zone }, range)))),
       Promise.all(readOnly.map((c) => icsFeeds.items(c.ics, Object.assign({ zone }, range)))),
-      Promise.all(holidays.map((c) => listCal(c, Object.assign({ timeZone: zone, zone }, range)))),
+      Promise.all(holidays.map((c) => listHoliday(c, Object.assign({ timeZone: zone, zone }, range)))),
     ]);
 
     const byKey = new Map();
