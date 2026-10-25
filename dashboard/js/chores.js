@@ -11,6 +11,24 @@
 
   var MARKS = { hit: 'hit', miss: 'miss', due: 'due' };
 
+  // The chores feed's health, from its state(), the data and now (both unused; the same arguments as
+  // House.note). '' means fine.
+  var LOADING = 'Loading chores…';
+  // Why ticking is off right now: nothing loaded yet, or the server isn't reachable (the last
+  // request failed, or no fetch has worked for a couple of minutes).
+  Chores.blocked = function (s) {
+    if (s.status === 'loading') return LOADING;
+    return s.status === 'offline' || s.failed || s.stale ? root.Feed.UNREACHABLE : '';
+  };
+  // What to say about the chores data: why there is none yet, or that it may be out of date.
+  Chores.note = function (s) {
+    var down = root.Feed.UNREACHABLE + ' · ';
+    if (s.status === 'loading') return LOADING;
+    if (s.status === 'offline') return down + 'retrying';
+    if (s.failed || s.stale) return down + (s.age ? 'chores from ' + root.Feed.mins(s.age) + ' ago' : 'retrying');
+    return '';
+  };
+
   function isDays(d) {
     return Array.isArray(d) && d.length > 0 && d.every(function (n) { return n === (n | 0) && n >= 0 && n <= 6; });
   }

@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import '../js/feed.js';
 import '../js/chores.js';
 
-const Chores = globalThis.Chores;
+const { Chores, Feed } = globalThis;
 
 // 2026-10-21 is a Wednesday.
 const body = (over) => Object.assign({
@@ -216,4 +217,26 @@ test('a deleted chore is gone from today and from edit mode', () => {
   const d = Chores.applyRemoved(Chores.parse(body()), '2');
   assert.deepEqual(d.chores.map((c) => c.id), ['1', '3']);
   assert.deepEqual(Chores.today(d, 'morning'), []);
+});
+
+// ------------------------------------------------------------ notes
+const st = (over) => Object.assign({ status: 'ok', failed: false, stale: false, age: 0, answered: true }, over);
+
+test('note: loading, offline, failed or stale with the age, failed with no age, fine', () => {
+  const d = Chores.parse(body());
+  assert.equal(Chores.note(st({ status: 'loading' }), null, 0), 'Loading chores…');
+  assert.equal(Chores.note(st({ status: 'offline' }), null, 0), Feed.UNREACHABLE + ' · retrying');
+  assert.equal(Chores.note(st({ failed: true, age: 1 }), d, 0), Feed.UNREACHABLE + ' · chores from 1 min ago');
+  assert.equal(Chores.note(st({ stale: true, age: 3 }), d, 0), Feed.UNREACHABLE + ' · chores from 3 min ago');
+  assert.equal(Chores.note(st({ failed: true, age: 0 }), d, 0), Feed.UNREACHABLE + ' · retrying');
+  assert.equal(Chores.note(st(), d, 0), '');
+});
+
+test('blocked: loading, then unreachable when offline, failed or stale, else nothing', () => {
+  const d = Chores.parse(body());
+  assert.equal(Chores.blocked(st({ status: 'loading' }), null, 0), 'Loading chores…');
+  assert.equal(Chores.blocked(st({ status: 'offline' }), null, 0), Feed.UNREACHABLE);
+  assert.equal(Chores.blocked(st({ failed: true, age: 1 }), d, 0), Feed.UNREACHABLE);
+  assert.equal(Chores.blocked(st({ stale: true, age: 3 }), d, 0), Feed.UNREACHABLE);
+  assert.equal(Chores.blocked(st(), d, 0), '');
 });
