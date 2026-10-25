@@ -260,6 +260,7 @@
   App.on('minute', function (n) { if (n.getMinutes() === 0 || App.weatherNote()) repaint(); if (V.live) noteRadar(); });
   App.on('weatherstate', repaint);
   App.on('alerts', paintAlerts);
+  App.on('alertsstate', paintAlerts); // the note follows the feed's health
   App.on('minute', paintAlerts);
   // How many hours fit follows the stage's width.
   App.on('stage', function () { if (V.el && V.hours !== hourCount()) repaint(); if (V.live) fitRadar(); });

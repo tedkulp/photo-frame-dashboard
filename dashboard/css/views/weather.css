@@ -2,9 +2,12 @@
    week (right), the next hours (across). No scrolling. */
 .wx-page { height: 100%; display: flex; flex-direction: column; gap: 14px; }
 .wx-page > .wx { flex: 1; min-height: 0; height: auto; }
+/* With several alerts the strip gives way first (it scrolls), so the page below keeps the height
+   its tiles need; with none or one the page is as it was. */
+.wx-page > .wx:not(.wx--radar):not(.wx--none) { min-height: 620px; }
 
-/* ---- weather alerts: one row each, worst first; more than three scroll inside the strip */
-.wx-alerts { flex: none; display: flex; flex-direction: column; gap: 6px; max-height: 162px; overflow-y: auto; }
+/* ---- weather alerts: one row each, worst first; more than fit scroll inside the strip */
+.wx-alerts { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; max-height: 162px; overflow-y: auto; }
 .wx-alerts:empty { display: none; }
 .wx-al {
   display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 0 16px; border-radius: var(--r-s);
@@ -121,6 +124,7 @@
 /* ---- phone layout: one scrolling column (see base.css); the hourly strip scrolls sideways */
 .stage[data-layout="phone"] .wx-page { height: auto; }
 .stage[data-layout="phone"] .wx-alerts { max-height: none; overflow: visible; }
+.stage[data-layout="phone"] .wx-page > .wx:not(.wx--radar):not(.wx--none) { min-height: 0; }
 .stage[data-layout="phone"] .wx-al { min-height: 56px; padding: 6px 12px; flex-wrap: wrap; gap: 4px 10px; }
 .stage[data-layout="phone"] .wx-al b { font-size: 18px; white-space: normal; flex: 1; }
 .stage[data-layout="phone"] .wx-al span { font-size: 15px; }

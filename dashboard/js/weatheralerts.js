@@ -22,15 +22,19 @@
       return d && typeof d === 'object' && !Array.isArray(d) ? A.prune(d, Date.now()) : {};
     } catch (e) { return {}; }
   }
-  function save() { try { window.localStorage.setItem(KEY, JSON.stringify(dismissed)); } catch (e) {} }
+  function save() {
+    dismissed = A.prune(dismissed, Date.now());
+    try { window.localStorage.setItem(KEY, JSON.stringify(dismissed)); } catch (e) {}
+  }
 
   function real() { return D.alerts && D.alerts.configured ? D.alerts.alerts : []; }
   // Every alert running now, real and fake, worst first.
   App.alerts = function () { return A.active(real().concat(fakes), App.now()); };
   // Today's chip and the ambient/night line: { alert, more, text } for the notable alerts, or null.
   App.notableAlert = function () { return A.notableSummary(App.alerts(), App.now()); };
-  // The Weather page's note: 'Alerts unavailable', 'Alerts from 3:10 pm' or ''.
-  App.alertsNote = function () { return A.note(D.alerts, App.now()); };
+  // The Weather page's note ('' for none): Alerts.note with the live feed.
+  function alertsState() { return App.alertsFeed ? App.alertsFeed.state() : { status: 'loading' }; }
+  App.alertsNote = function () { return A.note(alertsState(), D.alerts, App.now()); };
   App.findAlert = function (id) { return App.alerts().filter(function (a) { return a.id === id; })[0] || null; };
 
   function dismissAll(list) {
@@ -47,7 +51,7 @@
   App.alertSheet = function (a) {
     if (!a) return;
     var now = App.now();
-    var times = [a.onset ? 'From <b>' + A.when(a.onset, now) + '</b>' : '', a.ends ? 'Until <b>' + A.when(a.ends, now) + '</b>' : '']
+    var times = [a.onset ? 'From <b>' + A.when(a.onset, now) + '</b>' : '', 'Until <b>' + (a.ends ? A.when(a.ends, now) : 'further notice') + '</b>']
       .filter(Boolean).join(' · ');
     App.sheet('<div class="sheet-pad al-sheet">' +
       '<div class="label">' + App.esc(a.severity + ' · ' + a.urgency) + (a.fake ? ' · Test' : '') + '</div>' +
@@ -67,7 +71,7 @@
       '<div class="tk-al-kicker">' + App.icon('alert', 30) + 'Weather alert' + (a.fake ? ' · Test' : '') + '</div>' +
       '<h1 class="tk-al-event serif">' + App.esc(a.event) + '</h1>' +
       (a.headline ? '<p class="tk-al-head">' + App.esc(a.headline) + '</p>' : '') +
-      (a.ends ? '<p class="tk-al-until">' + App.esc(A.until(a, now)) + '</p>' : '') +
+      '<p class="tk-al-until">' + App.esc(A.until(a, now)) + '</p>' +
       (desc ? '<p class="tk-al-desc">' + App.esc(desc) + '</p>' : '') +
       (more ? '<p class="tk-al-more">' + A.moreText(more) + '</p>' : '') +
       '<div class="tk-actions"><button class="tk-btn" data-al-dismiss><span>Dismiss</span></button>' +

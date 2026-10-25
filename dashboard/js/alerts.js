@@ -45,7 +45,12 @@
       alerts: body.alerts.filter(function (r) { return r && text(r.id) && text(r.event); }).map(toAlert)
     };
   };
-  Alerts.changeKey = function (body) { return JSON.stringify(body); };
+  // Only the alerts and what the note says count as a change, not the copy's age: when the server's
+  // copy is fresh (not stale) its read time moves every minute and the note ignores it.
+  Alerts.changeKey = function (body) {
+    return JSON.stringify(body && body.configured === true
+      ? [body.available, body.stale === true, body.stale === true ? body.fetched : null, body.alerts] : body);
+  };
 
   // ------------------------------------------------------------ the rules
   Alerts.notable = function (a) { return sev(a) >= SEVERITY.Moderate; };
@@ -82,20 +87,31 @@
   function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
   // "3:40 pm" today, else "Tue 3:40 pm".
   Alerts.when = function (d, now) { return (sameDay(d, now) ? '' : DAYS[d.getDay()] + ' ') + clock(d); };
-  // "until 6:00 pm", "until Tue 9:30 am", or '' without an end time.
-  Alerts.until = function (a, now) { return a.ends ? 'until ' + Alerts.when(a.ends, now) : ''; };
+  // "until 6:00 pm", "until Tue 9:30 am", or "until further notice" without an end time (the NWS
+  // gives none while it's in force with no end in sight).
+  Alerts.until = function (a, now) { return 'until ' + (a.ends ? Alerts.when(a.ends, now) : 'further notice'); };
   // NWS text is hard-wrapped, paragraphs split by a blank line: the paragraphs, each on one line.
   Alerts.paragraphs = function (s) {
     if (!text(s)) return [];
     return s.split(/\n\s*\n/).map(function (p) { return p.replace(/\s*\n\s*/g, ' ').trim(); }).filter(Boolean);
   };
 
-  // What to say on the Weather page: 'Alerts unavailable' when the server has never had a good copy,
-  // 'Alerts from 3:10 pm' once its copy is over Alerts.OLD old, else ''.
-  Alerts.note = function (data, now) {
+  // What to say on the Weather page, like Weather.note from the feed's state(), the parsed data and
+  // now (a Date); '' for nothing. Loading says nothing (the strip stays hidden until there's an
+  // answer). The unreachable line while the frame has never had an answer; 'Alerts unavailable' when
+  // the server has never had a good copy; 'Alerts from 3:10 pm' once the alerts shown are over
+  // Alerts.OLD old: the server's copy when its last try failed, else the copy the frame last got.
+  Alerts.note = function (s, data, now) {
+    if (s.status === 'loading') return '';
+    if (s.status === 'offline') return s.answered ? 'Alerts unavailable · retrying' : root.Feed.UNREACHABLE + ' · retrying';
     if (!data || !data.configured) return '';
     if (!data.available || !data.fetched) return 'Alerts unavailable';
-    return now - data.fetched > Alerts.OLD ? 'Alerts from ' + Alerts.when(data.fetched, now) : '';
+    var from = data.stale ? data.fetched : null;
+    if (s.age != null) {
+      var got = new Date(now - s.age * MIN);
+      if (!from || got < from) from = got;
+    }
+    return from && now - from > Alerts.OLD ? 'Alerts from ' + Alerts.when(from, now) : '';
   };
 
   // ------------------------------------------------------------ dismissals
@@ -124,7 +140,7 @@
     });
     return out;
   };
-  // d without dismissals older than Alerts.KEEP.
+  // d without dismissals older than Alerts.KEEP (on load and on every save).
   Alerts.prune = function (d, now) {
     var out = {};
     for (var k in d) if (d.hasOwnProperty(k) && d[k] && now - d[k].at < Alerts.KEEP) out[k] = d[k];

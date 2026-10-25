@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import '../js/feed.js';
 import '../js/alerts.js';
 
-const { Alerts } = globalThis;
+const { Alerts, Feed } = globalThis;
 const MIN = 60000;
 const at = (h, m, day) => new Date(2026, 9, day || 25, h, m);
 const NOW = at(15, 40);
@@ -81,7 +82,7 @@ test('the summary is the worst of a list plus "+N"; nothing for an empty list', 
 test('"until" says the end time, with the weekday when it is not today', () => {
   assert.equal(Alerts.until(alert({ ends: at(18, 0).toISOString() }), NOW), 'until 6:00 pm');
   assert.equal(Alerts.until(alert({ ends: at(9, 30, 27).toISOString() }), NOW), 'until Tue 9:30 am');
-  assert.equal(Alerts.until(alert({ ends: null }), NOW), '');
+  assert.equal(Alerts.until(alert({ ends: null }), NOW), 'until further notice');
 });
 
 test('a description is unwrapped into paragraphs', () => {
@@ -91,13 +92,40 @@ test('a description is unwrapped into paragraphs', () => {
 });
 
 // ------------------------------------------------------------ staleness note
-test('the note: unavailable with no good copy ever, "Alerts from" once over 10 minutes old, else nothing', () => {
-  const data = (fetched, available) => Alerts.parse({ configured: true, available, alerts: [], fetched: fetched && fetched.toISOString(), stale: false });
-  assert.equal(Alerts.note(data(null, false), NOW), 'Alerts unavailable');
-  assert.equal(Alerts.note(data(new Date(NOW - 10 * MIN), true), NOW), '');
-  assert.equal(Alerts.note(data(at(15, 29), true), NOW), 'Alerts from 3:29 pm');
-  assert.equal(Alerts.note({ configured: false }, NOW), '');
-  assert.equal(Alerts.note(null, NOW), '');
+const ok = (age) => ({ status: 'ok', failed: false, stale: false, age: age || 0, answered: false });
+test('the note: unavailable with no good copy ever, "Alerts from" once the server\'s copy is over 10 minutes old, else nothing', () => {
+  const data = (fetched, available, stale) => Alerts.parse({ configured: true, available, alerts: [], fetched: fetched && fetched.toISOString(), stale: stale !== false });
+  assert.equal(Alerts.note(ok(), data(null, false), NOW), 'Alerts unavailable');
+  assert.equal(Alerts.note(ok(), data(new Date(NOW - 10 * MIN), true), NOW), '');
+  assert.equal(Alerts.note(ok(), data(at(15, 29), true), NOW), 'Alerts from 3:29 pm');
+  // The server's last try worked: its copy is current, whatever time it came with.
+  assert.equal(Alerts.note(ok(), data(at(15, 0), true, false), NOW), '');
+  assert.equal(Alerts.note(ok(), { configured: false }, NOW), '');
+  assert.equal(Alerts.note(ok(), null, NOW), '');
+});
+
+test('the note follows the feed: nothing while loading, unreachable while never answered, the frame\'s own copy\'s age', () => {
+  const fresh = Alerts.parse({ configured: true, available: true, alerts: [], fetched: NOW.toISOString(), stale: false });
+  assert.equal(Alerts.note({ status: 'loading' }, null, NOW), '');
+  const offline = { status: 'offline', failed: true, stale: false, age: null, answered: false };
+  assert.equal(Alerts.note(offline, null, NOW), Feed.UNREACHABLE + ' · retrying');
+  assert.equal(Alerts.note(Object.assign({}, offline, { answered: true }), null, NOW), 'Alerts unavailable · retrying');
+  // The frame hasn't heard from the server for 11 minutes (status stays ok on the cached copy).
+  assert.equal(Alerts.note(ok(10), fresh, new Date(NOW.getTime() + 10 * MIN)), '');
+  assert.equal(Alerts.note(Object.assign(ok(11), { stale: true, failed: true }), fresh, new Date(NOW.getTime() + 11 * MIN)), 'Alerts from 3:40 pm');
+  // Both old: the older one.
+  const old = Alerts.parse({ configured: true, available: true, alerts: [], fetched: at(15, 0).toISOString(), stale: true });
+  assert.equal(Alerts.note(ok(20), old, NOW), 'Alerts from 3:00 pm');
+});
+
+test('changeKey: only the alerts and what the note needs; a fresh copy\'s read time is no change', () => {
+  const body = (fetched, stale, alerts) => ({ configured: true, available: true, alerts: alerts || [raw()], fetched, age: 0, stale });
+  assert.equal(Alerts.changeKey(body('2026-10-25T19:40:00Z', false)), Alerts.changeKey(Object.assign(body('2026-10-25T19:41:00Z', false), { age: 3 })));
+  assert.notEqual(Alerts.changeKey(body('2026-10-25T19:40:00Z', false)), Alerts.changeKey(body('2026-10-25T19:40:00Z', false, [])));
+  assert.notEqual(Alerts.changeKey(body('2026-10-25T19:40:00Z', false)), Alerts.changeKey(body('2026-10-25T19:40:00Z', true)));
+  // Stale: the copy's time is what the note says, so it counts.
+  assert.notEqual(Alerts.changeKey(body('2026-10-25T19:40:00Z', true)), Alerts.changeKey(body('2026-10-25T19:30:00Z', true)));
+  assert.notEqual(Alerts.changeKey({ configured: false }), Alerts.changeKey(body(null, false)));
 });
 
 // ------------------------------------------------------------ dismissal and supersede

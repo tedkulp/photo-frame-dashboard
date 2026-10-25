@@ -48,9 +48,12 @@
     return kill;
   };
 
+  // Whether a key goes to a form field (typing there is never a shortcut); Test controls' keys use it too.
+  App.typing = function (e) { return /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || !!e.target.isContentEditable; };
+
   App.on('ready', function () {
     document.addEventListener('keydown', function (e) {
-      if (e.target.tagName === 'INPUT') return;
+      if (App.typing(e)) return;
       var k = e.key.toLowerCase();
       // A and N do what the idle switch does (close the sheet, Today, then ambient or night) and
       // hold until the next 22:00/06:00; nothing over a takeover or on a phone

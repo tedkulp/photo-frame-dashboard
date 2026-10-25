@@ -127,7 +127,7 @@
     });
     el().addEventListener('click', onClick);
     document.addEventListener('keydown', function (e) {
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (App.typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
       var k = e.key.toLowerCase();
       if (k === 't') App.test.toggle();
       if (k === 'escape') close();
