@@ -1,8 +1,8 @@
 // Weather page: now (with feels-like, humidity, wind, UV, sunrise and sunset), the next hours and
 // the week, from App.weatherNow / App.weatherWeek, plus the radar when the home server has it
 // (radar.js, ADR 0006). With the radar the details shrink to two lines, the radar fills the rest of
-// the left column and the hours go under the week in 3-hour steps; without it the page is as it
-// was. Never scrolls on the frame; one scrolling column on a phone, where the hourly strip (one
+// the left column and the hours go under the week in 3-hour steps; without it the details are six
+// tiles and the hours a full-width strip, one hour a column. Never scrolls on the frame; one scrolling column on a phone, where the hourly strip (one
 // hour a column) scrolls sideways on its own. The radar listing is fetched only while the page is
 // on screen.
 (function () {
@@ -16,11 +16,11 @@
 
   function stored() { try { return window.localStorage.getItem(RADAR_KEY) === '1'; } catch (e) { return false; } }
   V.radar = stored(); // the page has a radar (the server's last answer)
-  function steps() { return V.radar && !App.isPhone(); }
+  function stepped() { return V.radar && !App.isPhone(); } // the hours go 3 at a time under the week
 
   function hourCount() {
     if (App.isPhone()) return 24;
-    if (steps()) return STEP * STEPS;
+    if (stepped()) return STEP * STEPS;
     var cs = getComputedStyle(V.el);
     var inner = V.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     return Math.max(12, Math.min(24, Math.floor(inner / HOUR_W)));
@@ -78,8 +78,8 @@
   }
 
   function hours(w) {
-    var list = steps() ? window.Weather.steps(w.hours, STEP) : w.hours;
-    return '<div class="label">' + (steps() ? 'Next hours, 3 at a time' : 'Next hours') + '</div>' +
+    var list = stepped() ? window.Weather.steps(w.hours, STEP) : w.hours;
+    return '<div class="label">' + (stepped() ? 'Next hours, 3 at a time' : 'Next hours') + '</div>' +
       '<div class="wx-strip" style="--hours:' + list.length + '">' + list.map(function (h) {
         return '<div class="wx-hr' + (h.wet ? ' is-wet' : '') + '"><span class="wx-hr-l">' + h.label + '</span>' +
           '<span class="wx-hr-i">' + App.icon(h.cond, 28) + '</span><b class="num">' + h.temp + '<i>°</i></b>' +
@@ -196,7 +196,11 @@
       if (!r.configured) return;
       V.rd = r;
       renderRadar();
-    }).catch(function (e) { console.error('[radar]', e); });
+    }).catch(function (e) {
+      console.error('[radar]', e);
+      // Nothing to show yet: say so over the (empty) map.
+      if (V.live && !V.rd && V.rdEl) V.rdEl.querySelector('.rd-note').textContent = 'Radar unavailable';
+    });
   }
   function live(on) {
     if (V.live === on) return;
@@ -222,8 +226,8 @@
   App.on('mode', function (m) { if (App.current === 'weather') live(m === window.DisplayMode.MODES.DAY); });
   function repaint() { if (V.el && App.current === 'weather') paint(); else if (App.views.weather) App.views.weather._dirty = true; }
   // The hours move on the hour; a note (loading, missing, stale) is kept current every minute.
-  App.on('minute', function (n) { if (n.getMinutes() === 0 || App.weatherNote()) repaint(); noteRadar(); });
+  App.on('minute', function (n) { if (n.getMinutes() === 0 || App.weatherNote()) repaint(); if (V.live) noteRadar(); });
   App.on('weatherstate', repaint);
   // How many hours fit follows the stage's width.
-  App.on('stage', function () { if (V.el && V.hours !== hourCount()) repaint(); fitRadar(); });
+  App.on('stage', function () { if (V.el && V.hours !== hourCount()) repaint(); if (V.live) fitRadar(); });
 })();

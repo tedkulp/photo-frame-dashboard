@@ -15,7 +15,7 @@
   function text(v) { return typeof v === 'string' && v !== ''; }
 
   // The server's body → { configured: false } or { configured: true, frames: [{ id, at, nowcast,
-  // url }] oldest first, latest (index of the newest past frame, -1 without one), stale, age,
+  // url }] oldest first, latest (index of the newest past frame, -1 without one), stale,
   // map: [{ url, left, top }], size, tile }. Throws on anything else.
   Radar.parse = function (body) {
     if (body && body.configured === false) return { configured: false };
@@ -28,7 +28,7 @@
     var latest = -1;
     frames.forEach(function (f, i) { if (!f.nowcast) latest = i; });
     return {
-      configured: true, frames: frames, latest: latest, stale: body.stale === true, age: num(body.age) ? body.age : null,
+      configured: true, frames: frames, latest: latest, stale: body.stale === true,
       map: body.map.filter(function (t) { return t && text(t.url) && num(t.left) && num(t.top); })
         .map(function (t) { return { url: t.url, left: t.left, top: t.top }; }),
       size: body.size, tile: body.tile

@@ -86,7 +86,7 @@
 .rd-time { top: 12px; }
 .rd-time:empty, .rd-note:empty { display: none; }
 .rd-note { bottom: 12px; color: var(--ink-2); font-weight: 700; }
-.rd-credit { font-size: 13px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-credit { font-size: 13px; line-height: 1.3; color: var(--mute); }
 
 .wx--radar .wx-hours { grid-column: 2; }
 
