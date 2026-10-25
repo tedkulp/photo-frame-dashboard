@@ -628,3 +628,31 @@ test('setRefresh leaves a fetch in flight or a failure backoff alone', async () 
   h.feed.setRefresh(3000, true);
   assert.deepEqual(h.timers.map((t) => t.ms), [30000], 'only the in-flight timeout');
 });
+
+// ------------------------------------------------------------ calendar notes
+const st = (over) => Object.assign({ status: 'ok', failed: false, stale: false, age: 0, answered: true }, over);
+
+test('mins: whole minutes, then hours and minutes', () => {
+  assert.equal(Feed.mins(0), '0 min');
+  assert.equal(Feed.mins(16), '16 min');
+  assert.equal(Feed.mins(59.6), '1 hr');
+  assert.equal(Feed.mins(135), '2 hr 15 min');
+  assert.equal(Feed.mins(-3), '0 min');
+});
+
+test('calendarNote: loading, offline, stale with its age, fine (a failed fetch alone says nothing)', () => {
+  assert.equal(Feed.calendarNote(st({ status: 'loading' }), null, 0), 'Loading the calendar…');
+  assert.equal(Feed.calendarNote(st({ status: 'offline', answered: false }), null, 0), Feed.UNREACHABLE + ' · retrying');
+  assert.equal(Feed.calendarNote(st({ stale: true, age: 16 }), null, 0), 'Updated 16 min ago');
+  assert.equal(Feed.calendarNote(st({ failed: true, age: 2 }), null, 0), '');
+  assert.equal(Feed.calendarNote(st(), null, 0), '');
+});
+
+test('addBlocked: loading, offline, failed, stale with its age, fine', () => {
+  assert.equal(Feed.addBlocked(st({ status: 'loading' }), null, 0), 'Loading the calendar…');
+  assert.equal(Feed.addBlocked(st({ status: 'offline' }), null, 0), Feed.UNREACHABLE);
+  assert.equal(Feed.addBlocked(st({ failed: true, age: 2 }), null, 0), 'The last calendar request failed · retrying');
+  assert.equal(Feed.addBlocked(st({ failed: true, stale: true, age: 20 }), null, 0), 'The last calendar request failed · retrying');
+  assert.equal(Feed.addBlocked(st({ stale: true, age: 75 }), null, 0), 'Calendar not updated for 1 hr 15 min');
+  assert.equal(Feed.addBlocked(st(), null, 0), '');
+});

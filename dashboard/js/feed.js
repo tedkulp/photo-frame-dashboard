@@ -62,6 +62,31 @@
     return photos;
   };
 
+  // ------------------------------------------------------------ feed health
+  // A feed's age in the notes: "16 min", "1 hr 15 min" (App.fmt.mins is this).
+  Feed.mins = function (m) {
+    m = Math.max(0, Math.round(m));
+    if (m < 60) return m + ' min';
+    var h = Math.floor(m / 60), r = m % 60;
+    return h + ' hr' + (r ? ' ' + r + ' min' : '');
+  };
+  // The calendar's notes. Like House.note, Weather.note and Chores.note they take the feed's
+  // state(), the data and now (unused here) and return '' when there's nothing to say.
+  // What to say about the calendar data: why there is none yet, or how old it is once stale.
+  Feed.calendarNote = function (s) {
+    if (s.status === 'loading') return 'Loading the calendar…';
+    if (s.status === 'offline') return UNREACHABLE + ' · retrying';
+    return s.stale ? 'Updated ' + Feed.mins(s.age) + ' ago' : '';
+  };
+  // Why adding an event is off right now ('' when it is on): no data yet, the last request failed,
+  // or no fetch has worked for 15 minutes. The server would most likely fail the write too.
+  Feed.addBlocked = function (s) {
+    if (s.status === 'loading') return 'Loading the calendar…';
+    if (s.status === 'offline') return UNREACHABLE;
+    if (s.failed) return 'The last calendar request failed · retrying';
+    return s.stale ? 'Calendar not updated for ' + Feed.mins(s.age) : '';
+  };
+
   // ------------------------------------------------------------ refresh loop
   // deps: url, fetch, storage, now, setTimeout, clearTimeout, onChange(parsed) when the data changes,
   // onState() after every fetch attempt, onError(e) if onChange throws. Injected for tests.

@@ -294,7 +294,7 @@
   // the last state is. `state` is the feed's state(). While there's a note, taps are refused.
   House.note = function (state, data, now) {
     if (state.status === 'loading') return 'Loading Home Assistant…';
-    if (state.status === 'offline' || !data) return 'Can’t reach the home server · retrying';
+    if (state.status === 'offline' || !data) return root.Feed.UNREACHABLE + ' · retrying';
     if (!data.configured) return 'Home Assistant isn’t set up';
     var down = 'Home Assistant unreachable';
     if (!data.connected) return data.updated ? down + ' · updated ' + ago(Math.floor((now - data.updated) / MIN)) : down;

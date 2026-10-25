@@ -330,3 +330,19 @@ test('steps group the hours n at a time: first label and temp, highest chance, s
   assert.deepEqual(Weather.steps(hours, 1), hours);
   assert.deepEqual(Weather.steps([], 3), []);
 });
+
+// ------------------------------------------------------------ note
+const st = (over) => Object.assign({ status: 'ok', failed: false, stale: false, age: 0, answered: true }, over);
+
+test('note: loading, unreachable server, HA not answering, not set up, unavailable, stale in hours, fine', () => {
+  const d = Weather.parse(body()), now = at(14, 30);
+  assert.equal(Weather.note(st({ status: 'loading' }), null, now), 'Loading the weather…');
+  assert.equal(Weather.note(st({ status: 'offline', answered: false }), null, now), Feed.UNREACHABLE + ' · retrying');
+  assert.equal(Weather.note(st({ status: 'offline', answered: true }), d, now), 'Home Assistant isn’t answering · retrying');
+  assert.equal(Weather.note(st(), Weather.parse({ configured: false }), now), 'Weather not set up');
+  assert.equal(Weather.note(st(), d, new Date(2026, 9, 22, 12)), 'Weather unavailable');
+  assert.equal(Weather.note(st({ stale: true, age: 135 }), d, now), 'Weather from 2 hr ago');
+  assert.equal(Weather.note(st({ stale: true, age: 60 }), d, now), 'Weather from 1 hr ago');
+  assert.equal(Weather.note(st({ failed: true, age: 3 }), d, now), '');
+  assert.equal(Weather.note(st(), d, now), '');
+});
