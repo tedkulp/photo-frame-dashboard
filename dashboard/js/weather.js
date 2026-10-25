@@ -61,6 +61,16 @@
     return JSON.stringify(body && body.configured ? [body.now, body.hourly, body.daily] : body);
   };
 
+  // Why there is no weather, or how old it is once stale ('' when it's fresh), from the feed's
+  // state(), the parsed data and now (a Date, as for Weather.at). The age is in whole hours.
+  Weather.note = function (s, data, now) {
+    if (s.status === 'loading') return 'Loading the weather…';
+    if (s.status === 'offline') return s.answered ? 'Home Assistant isn’t answering · retrying' : root.Feed.UNREACHABLE + ' · retrying';
+    if (!data || !data.configured) return 'Weather not set up';
+    if (!Weather.at(data, now, 7)) return 'Weather unavailable';
+    return s.stale ? 'Weather from ' + root.Feed.mins(Math.floor(s.age / 60) * 60) + ' ago' : '';
+  };
+
   function hourLabel(d) { var h = d.getHours(); return (h % 12 || 12) + (h >= 12 ? 'p' : 'a'); }
 
   // What to show at `now` from parsed data: { temp, cond, label, hi, lo, summary, advice, hours }

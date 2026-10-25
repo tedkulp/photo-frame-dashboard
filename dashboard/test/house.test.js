@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import '../js/feed.js';
 import '../js/house.js';
 
 const House = globalThis.House;
@@ -251,7 +252,7 @@ const st = (over) => Object.assign({ status: 'ok', age: 0, stale: false, failed:
 test('note: loading, unreachable server, not set up, HA disconnected, stale, fine', () => {
   const h = House.parse(body());
   assert.equal(House.note(st({ status: 'loading' }), null, T), 'Loading Home Assistant…');
-  assert.equal(House.note(st({ status: 'offline' }), null, T), 'Can’t reach the home server · retrying');
+  assert.equal(House.note(st({ status: 'offline' }), null, T), globalThis.Feed.UNREACHABLE + ' · retrying');
   assert.equal(House.note(st(), { configured: false }, T), 'Home Assistant isn’t set up');
   assert.equal(House.note(st(), House.parse(body({ connected: false })), T + 3 * MIN), 'Home Assistant unreachable · updated 4 min ago');
   assert.equal(House.note(st({ failed: true, age: 0 }), h, T), 'Home Assistant unreachable · updated just now');

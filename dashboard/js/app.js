@@ -116,23 +116,11 @@
     App.emit('feed');
   }
   App.hasCalendar = function () { return !!App.feed && App.feed.state().status === 'ok'; };
-  // Why adding an event is off right now ('' when it is on): no data yet, the last request failed,
-  // or no fetch has worked for 15 minutes. The server would most likely fail the write too.
+  // Why adding an event is off right now, and what to say about the calendar data ('' for none):
+  // Feed.addBlocked / Feed.calendarNote with the live feed.
   function feedState() { return App.feed ? App.feed.state() : { status: 'loading' }; }
-  App.addBlocked = function () {
-    var s = feedState();
-    if (s.status === 'loading') return 'Loading the calendar…';
-    if (s.status === 'offline') return window.Feed.UNREACHABLE;
-    if (s.failed) return 'The last calendar request failed · retrying';
-    return s.stale ? 'Calendar not updated for ' + App.fmt.mins(s.age) : '';
-  };
-  // What to say about the calendar data: why there is none yet, or how old it is once stale.
-  App.feedNote = function () {
-    var s = feedState();
-    if (s.status === 'loading') return 'Loading the calendar…';
-    if (s.status === 'offline') return 'Can’t reach the home server · retrying';
-    return s.stale ? 'Updated ' + App.fmt.mins(s.age) + ' ago' : '';
-  };
+  App.addBlocked = function () { return window.Feed.addBlocked(feedState(), D.events, Date.now()); };
+  App.feedNote = function () { return window.Feed.calendarNote(feedState(), D.events, Date.now()); };
   function paintFeedNotes() {
     var t = App.feedNote();
     App.$$('.feed-note').forEach(function (el) { el.innerHTML = t; });
@@ -152,15 +140,9 @@
   App.weatherWeek = function () {
     return D.weather && D.weather.configured ? window.Weather.week(D.weather, App.now()) : [];
   };
-  // Why there is no weather, or how old it is once stale ('' when it's fresh).
-  App.weatherNote = function () {
-    var s = App.weatherFeed ? App.weatherFeed.state() : { status: 'loading' };
-    if (s.status === 'loading') return 'Loading the weather…';
-    if (s.status === 'offline') return s.answered ? 'Home Assistant isn’t answering · retrying' : 'Can’t reach the home server';
-    if (!D.weather.configured) return 'Weather not set up';
-    if (!App.weatherNow()) return 'Weather unavailable';
-    return s.stale ? 'Weather from ' + App.fmt.mins(Math.floor(s.age / 60) * 60) + ' ago' : '';
-  };
+  // Why there is no weather, or how old it is once stale ('' when it's fresh): Weather.note.
+  function weatherState() { return App.weatherFeed ? App.weatherFeed.state() : { status: 'loading' }; }
+  App.weatherNote = function () { return window.Weather.note(weatherState(), D.weather, App.now()); };
 
   // ------------------------------------------------------------ photos feed (home server)
   // The Immich album from GET /api/photos (photos.js), on the calendar feed's loop. Once the server
@@ -199,22 +181,10 @@
   App.choreOwners = function () { return App.peopleIds().concat([window.Chores.ANYONE]); };
   App.choreOwnerName = function (id) { return id === window.Chores.ANYONE ? 'Anyone' : App.person(id).name; };
   function choresState() { return App.choresFeed ? App.choresFeed.state() : { status: 'loading' }; }
-  // Why ticking is off right now ('' when it is on): nothing loaded yet, or the server isn't
-  // reachable (the last request failed, or no fetch has worked for a couple of minutes).
-  var LOADING_CHORES = 'Loading chores…';
-  App.tickBlocked = function () {
-    var s = choresState();
-    if (s.status === 'loading') return LOADING_CHORES;
-    return s.status === 'offline' || s.failed || s.stale ? window.Feed.UNREACHABLE : '';
-  };
-  // What to say about the chores data: why there is none yet, or that it may be out of date.
-  App.choresNote = function () {
-    var s = choresState();
-    if (s.status === 'loading') return LOADING_CHORES;
-    if (s.status === 'offline') return window.Feed.UNREACHABLE + ' · retrying';
-    if (s.failed || s.stale) return window.Feed.UNREACHABLE + ' · ' + (s.age ? 'chores from ' + App.fmt.mins(s.age) + ' ago' : 'retrying');
-    return '';
-  };
+  // Why ticking is off right now, and what to say about the chores data ('' for none):
+  // Chores.blocked / Chores.note with the live feed.
+  App.tickBlocked = function () { return window.Chores.blocked(choresState(), D.chores, Date.now()); };
+  App.choresNote = function () { return window.Chores.note(choresState(), D.chores, Date.now()); };
   // Tick (done = true) or untick a chore. Shows at once; resolves when the server has it (or when
   // a later tap on the chore owns it now, whatever this one's answer), or rejects with the reason
   // after putting it back. The feed refetches after every write.
@@ -681,40 +651,27 @@
       onChange: onFeed, onState: onFeedState, onError: function (e) { console.error('[feed]', e); }
     });
     App.feed.start(); // a cached response is applied right here, before the first view is built
-    App.weatherFeed = window.Feed.create({
-      url: '/api/weather', cacheKey: 'homehq.weather', refresh: window.Weather.REFRESH, stale: window.Weather.STALE,
-      parse: window.Weather.parse, changeKey: window.Weather.changeKey,
-      fetch: window.fetch.bind(window), storage: storage,
-      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: onWeather, onState: function () { App.emit('weatherstate'); }, onError: function (e) { console.error('[weather]', e); }
+    // The plain feeds: one Feed.create loop each, the domain module giving REFRESH, STALE, parse and
+    // changeKey (home's refresh is House.REFRESH_IDLE; Home controls speeds it up).
+    var feeds = [
+      { name: 'weatherFeed', url: '/api/weather', cacheKey: 'homehq.weather', mod: window.Weather, onChange: onWeather, event: 'weatherstate', tag: 'weather' },
+      { name: 'photosFeed', url: '/api/photos', cacheKey: 'homehq.photos', mod: window.Photos, onChange: onPhotos, tag: 'photos' },
+      { name: 'choresFeed', url: '/api/chores', cacheKey: 'homehq.chores', mod: window.Chores, onChange: onChores, event: 'choresstate', tag: 'chores',
+        noAnswer: 'No answer from the home server · check the chores before trying again' },
+      { name: 'homeFeed', url: '/api/home', cacheKey: 'homehq.home', mod: window.House, refresh: window.House.REFRESH_IDLE, onChange: onHome, event: 'homestate', tag: 'home',
+        noAnswer: 'No answer from the home server · check it before trying again' },
+    ];
+    feeds.forEach(function (f) {
+      var feed = App[f.name] = window.Feed.create({
+        url: f.url, cacheKey: f.cacheKey, refresh: f.refresh || f.mod.REFRESH, stale: f.mod.STALE,
+        parse: f.mod.parse, changeKey: f.mod.changeKey, noAnswer: f.noAnswer,
+        fetch: window.fetch.bind(window), storage: storage,
+        now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
+        onChange: f.onChange, onState: f.event ? function () { App.emit(f.event); } : undefined,
+        onError: function (e) { console.error('[' + f.tag + ']', e); }
+      });
+      feed.start();
     });
-    App.weatherFeed.start();
-    App.photosFeed = window.Feed.create({
-      url: '/api/photos', cacheKey: 'homehq.photos', refresh: window.Photos.REFRESH, stale: window.Photos.STALE,
-      parse: window.Photos.parse, changeKey: window.Photos.changeKey,
-      fetch: window.fetch.bind(window), storage: storage,
-      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: onPhotos, onError: function (e) { console.error('[photos]', e); }
-    });
-    App.photosFeed.start();
-    App.choresFeed = window.Feed.create({
-      url: '/api/chores', cacheKey: 'homehq.chores', refresh: window.Chores.REFRESH, stale: window.Chores.STALE,
-      parse: window.Chores.parse, changeKey: window.Chores.changeKey,
-      noAnswer: 'No answer from the home server · check the chores before trying again',
-      fetch: window.fetch.bind(window), storage: storage,
-      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: onChores, onState: function () { App.emit('choresstate'); }, onError: function (e) { console.error('[chores]', e); }
-    });
-    App.choresFeed.start();
-    App.homeFeed = window.Feed.create({
-      url: '/api/home', cacheKey: 'homehq.home', refresh: window.House.REFRESH_IDLE, stale: window.House.STALE,
-      parse: window.House.parse, changeKey: window.House.changeKey,
-      noAnswer: 'No answer from the home server · check it before trying again',
-      fetch: window.fetch.bind(window), storage: storage,
-      now: Date.now, setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window),
-      onChange: onHome, onState: function () { App.emit('homestate'); }, onError: function (e) { console.error('[home]', e); }
-    });
-    App.homeFeed.start();
     // No caching (storage: null): only the server's answer right now counts. Failures stay quiet.
     if (window.Version.page) App.versionFeed = window.Feed.create({
       url: '/api/version', refresh: window.Version.REFRESH, parse: window.Version.parse, changeKey: window.Version.changeKey,
