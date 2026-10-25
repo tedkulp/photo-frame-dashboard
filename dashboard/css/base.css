@@ -71,6 +71,14 @@ ul { margin: 0; padding: 0; list-style: none; }
 .rail-clock { margin-top: auto; padding: 10px 0; text-align: center; line-height: 1; position: relative; overflow: hidden; }
 .rail-clock b { display: block; font-size: 24px; font-weight: 800; font-stretch: 62%; font-variant-numeric: tabular-nums; }
 .rail-clock span { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--mute); }
+/* the "Test" pill over the clock while a test control is on (testcontrols.js sets data-test) */
+.rail-test {
+  display: none; margin: auto 12px 0; padding: 3px 0; border-radius: 99px;
+  background: var(--ink); color: var(--paper); text-align: center;
+  font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+}
+.stage[data-test] .rail-test { display: block; }
+.stage[data-test] .rail-clock { margin-top: 4px; }
 
 /* ---------------------------------------------------------------- views */
 .views { position: relative; overflow: hidden; }
@@ -278,6 +286,27 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .tk-btn.is-on { background: var(--ok); }
 .tk-btn.is-holding { background: rgba(255, 255, 255, .34); }
 
+/* ---------------------------------------------------------------- Test controls (testcontrols.js) */
+/* Above the takeover and the ambient/night screens, so it works from every mode. */
+.testctl { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 90; display: none; background: rgba(0, 0, 0, .3); }
+.testctl.is-open { display: block; }
+.tc-panel {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 460px; padding: 28px;
+  background: var(--ink); color: #fff; overflow: auto;
+}
+.tc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+.tc-head h2 { font-size: 44px; line-height: 1; margin-top: 6px; }
+.tc-x { width: var(--tap); height: var(--tap); border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .1); flex: none; }
+.tc-sec { margin-bottom: 22px; }
+.tc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.tc-grid button {
+  min-height: var(--tap); border-radius: 14px; padding: 0 16px;
+  background: rgba(255, 255, 255, .1);
+  font-size: 18px; font-weight: 700;
+}
+.tc-grid button:active, .tc-grid button.is-on { background: #fff; color: var(--ink); }
+.tc-note { font-size: 16px; color: rgba(255, 255, 255, .6); }
+
 /* ---------------------------------------------------------------- night dashboard (tap on night clock) */
 .stage[data-mode="nightdash"] > .rail,
 .stage[data-mode="nightdash"] > .views {
@@ -315,6 +344,7 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
   background: var(--paper); border-bottom: 2px solid var(--ink);
 }
 .stage[data-layout="phone"] .rail-clock b { display: inline; font-size: 26px; }
+.stage[data-layout="phone"] .rail-test { display: none; } /* no Test controls on a phone */
 .stage[data-layout="phone"] .view { padding: 16px 16px 28px; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .stage[data-layout="phone"] .view--bleed { padding: 0; }
 

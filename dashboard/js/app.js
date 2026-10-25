@@ -16,7 +16,8 @@
   App.dayStart = window.CalEvents.dayStart;
   App.addDays = function (d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; };
   App.sameDay = function (a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); };
-  App.isNight = function () { return window.DisplayMode.isNight(App.now().getHours()); };
+  // Night hours now, or Pretend night (Test controls) is on; the clock itself stays real.
+  App.isNight = function () { return window.DisplayMode.night(modeState, App.now().getHours()); };
 
   var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -577,7 +578,12 @@
   };
   // For other code; a phone and an open takeover stay in day.
   App.setMode = function (m) { App.modeInput({ type: 'set', mode: m }); };
-  App.idle = window.DisplayMode.IDLE; // { home: 120, ambient: 300, nightdash: 20 } seconds
+  // The idle thresholds counted now: { home: 120, ambient: 300, nightdash: 20 } seconds, or
+  // DisplayMode.FAST_IDLE while Test controls' fast idle is on.
+  App.idle = function () { return window.DisplayMode.idle(modeState); };
+  // The test controls DisplayMode holds ({ fastIdle, pretendNight }); Test controls set them with
+  // App.modeInput and read them back here.
+  App.modeTest = function () { return { fastIdle: modeState.fastIdle, pretendNight: modeState.pretendNight }; };
   App.resetIdle = function () { App.modeInput({ type: 'input' }); };
   // The idle screen: close any sheet, back to Today, then night (10 pm–6 am) or ambient. Day
   // only, never over a takeover or on a phone. A clock tap is deliberate, so a sheet, edit mode or

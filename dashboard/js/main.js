@@ -16,6 +16,7 @@ import './calnav.js';
 import './displaymode.js';
 import './app.js';
 import './system.js';
+import './testcontrols.js';
 import './slideshow.js';
 import './views/home.js';
 import './views/weather.js';
