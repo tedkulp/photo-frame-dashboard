@@ -40,6 +40,18 @@ _Avoid_: Forecast page, weather screen
 A map of where it is raining or snowing around the home right now, from LibreWXR rather than Home Assistant. Only Home Assistant's home location comes from Home Assistant.
 _Avoid_: Precipitation map, weather map
 
+**Weather alert**:
+A warning, watch, advisory or statement the National Weather Service has issued for the home's location, such as a Winter Storm Warning. Comes from the NWS rather than Home Assistant; only the home's location comes from Home Assistant.
+_Avoid_: Warning (that's one kind of alert), notification
+
+**Notable alert**:
+A weather alert of Moderate severity or worse. Only notable alerts show outside the Weather page.
+_Avoid_: Important alert, major alert
+
+**Urgent alert**:
+A weather alert of Severe severity or worse that needs action now (urgency Immediate). An urgent alert takes over the frame's screen; at night only an Extreme one does.
+_Avoid_: Emergency, critical alert
+
 ### Calendar
 
 **Family calendar**:
