@@ -143,14 +143,14 @@
 
   function chores() {
     var today = App.choresToday(), note = App.choresNote();
-    var who = App.choreOwners();
-    if (!D.chores) return '<div class="label">Chores · Today</div><div class="h-chores-note">' + note + '</div>';
+    var who = App.choreOwners(), head = '<div class="label">Chores · Today</div>';
+    if (!D.chores) return head + '<div class="h-chores-note">' + note + '</div>';
     if (!today.length) {
       var none = D.chores.chores.length ? 'Nothing today' : 'No chores yet';
-      return '<div class="label">Chores · Today</div><div class="h-chores-empty"><b class="serif"><i>' + none + '</i></b>' +
+      return head + '<div class="h-chores-empty"><b class="serif"><i>' + none + '</i></b>' +
         '<small class="h-chores-note">' + (note || (D.chores.chores.length ? 'Tap to see all chores' : 'Tap to add some')) + '</small></div>';
     }
-    return '<div class="label">Chores · Today</div><div class="h-rings">' + who.map(function (id) {
+    return head + '<div class="h-rings">' + who.map(function (id) {
       var list = today.filter(function (c) { return c.owner === id; });
       if (!list.length) return '';
       var done = list.filter(function (c) { return c.done; }).length;

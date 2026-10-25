@@ -1,6 +1,7 @@
 // Tasks / chores: one lane per person + "Anyone", with all of today's chores. Chores come from
 // the home server (App.choresToday); a tap ticks or unticks at once and is saved there.
-// Edit mode (App.editMode, the reusable pattern in app.js) shows every chore with its days; a tap opens the edit sheet instead of ticking, and each lane ends with "+ Add".
+// Edit mode (App.editMode, the reusable pattern in app.js) shows every chore with its days; a
+// tap opens the edit sheet instead of ticking, and each lane ends with "+ Add".
 (function () {
   'use strict';
   var D = window.DATA;
@@ -110,7 +111,6 @@
     var isNew = !c.id;
     var st = { owner: c.owner, days: c.days ? c.days.slice() : ALL_DAYS.slice() };
     var owners = App.choreOwners();
-    function on(k, v) { return st[k] === v ? ' is-on' : ''; }
     App.editSheet({
       label: isNew ? 'New chore' : 'Edit chore',
       body:
@@ -118,7 +118,7 @@
         '<div class="label">Emoji <input class="emoji-input" maxlength="16" data-f="emoji" aria-label="Type an emoji" value="' + App.esc(c.emoji || '✅') + '"></div>' +
         '<div class="emoji-grid">' + window.Chores.EMOJI.map(function (e) { return '<button class="emoji-btn" data-emoji="' + e + '">' + e + '</button>'; }).join('') + '</div>' +
         '<div class="label">Who</div><div class="add-who">' + owners.map(function (id) {
-          return '<button class="who-btn' + on('owner', id) + '" data-owner="' + App.esc(id) + '" style="' + App.pstyle(id) + '">' + App.avatar(id, 44) + '<span>' + App.esc(App.choreOwnerName(id)) + '</span></button>';
+          return '<button class="who-btn' + (st.owner === id ? ' is-on' : '') + '" data-owner="' + App.esc(id) + '" style="' + App.pstyle(id) + '">' + App.avatar(id, 44) + '<span>' + App.esc(App.choreOwnerName(id)) + '</span></button>';
         }).join('') + '</div>' +
         '<div class="add-row"><div><div class="label">Days</div><div class="chips">' + window.Chores.DAY_LETTERS.map(function (d, i) {
           return '<button class="chip day-btn" data-day="' + i + '" aria-label="' + window.Chores.DAY_NAMES[i] + '">' + d + '</button>';

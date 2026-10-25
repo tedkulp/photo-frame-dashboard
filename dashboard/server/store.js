@@ -11,8 +11,8 @@ export class DataDirError extends Error {}
 
 // Each entry moves the schema up one version (PRAGMA user_version). Add new tables (shopping, …)
 // as new entries at the end; never edit one that has shipped.
-const MIGRATIONS = [
-  // 1: chores. Title and emoji are overwritten; owner, days and deletion are versions
+export const MIGRATIONS = [
+  // 1: chores. Title, emoji and routine are overwritten; owner, days and deletion are versions
   // that apply from their date until the next one (ADR 0002). Done is (chore, date).
   `CREATE TABLE chores (
      id INTEGER PRIMARY KEY,

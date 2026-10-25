@@ -12,7 +12,7 @@ import { createHandler } from '../http.js';
 import { createChores } from '../chores.js';
 import { createFrameZone } from '../framezone.js';
 import { choresRoutes } from '../routes/chores.js';
-import { openStore } from '../store.js';
+import { MIGRATIONS, openStore } from '../store.js';
 import { fakeGoogle, serviceAccount, settings, tempDir } from './helpers.js';
 
 const FAMILY = 'family@group.calendar.google.com';
@@ -307,11 +307,8 @@ test('a v1 home.db with routines migrates; chores, versions, ticks and hit days 
   const t = tempDir();
   mkdirSync(t.path('data'));
   const old = new DatabaseSync(t.path('data/home.db'));
-  old.exec(`CREATE TABLE chores (id INTEGER PRIMARY KEY, title TEXT NOT NULL, emoji TEXT NOT NULL, routine TEXT NOT NULL);
-    CREATE TABLE chore_versions (chore_id INTEGER NOT NULL REFERENCES chores(id), date TEXT NOT NULL, owner TEXT NOT NULL,
-      days TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (chore_id, date));
-    CREATE TABLE chore_done (chore_id INTEGER NOT NULL REFERENCES chores(id), date TEXT NOT NULL, PRIMARY KEY (chore_id, date));
-    INSERT INTO chores VALUES (1, 'Make bed', '🛏️', 'morning'), (2, 'Dishes', '🍽️', 'evening'), (3, 'Piano', '🎹', 'evening');
+  old.exec(MIGRATIONS[0]);
+  old.exec(`INSERT INTO chores VALUES (1, 'Make bed', '🛏️', 'morning'), (2, 'Dishes', '🍽️', 'evening'), (3, 'Piano', '🎹', 'evening');
     INSERT INTO chore_versions VALUES (1, '2026-10-01', 'alex', '0,1,2,3,4,5,6', 0), (2, '2026-10-01', 'alex', '0,1,2,3,4,5,6', 0),
       (3, '2026-10-01', 'sam', '1', 0), (3, '2026-10-19', 'sam', '1,4', 0);
     INSERT INTO chore_done VALUES (1, '2026-10-19'), (2, '2026-10-19'), (1, '2026-10-20');
