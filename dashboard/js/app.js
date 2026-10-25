@@ -41,12 +41,7 @@
     dayShort: function (d) { return DAYS[d.getDay()].slice(0, 3); },
     month: function (d) { return MONTHS[d.getMonth()]; },
     monthShort: function (d) { return MON_SHORT[d.getMonth()]; },
-    mins: function (m) {
-      m = Math.max(0, Math.round(m));
-      if (m < 60) return m + ' min';
-      var h = Math.floor(m / 60), r = m % 60;
-      return h + ' hr' + (r ? ' ' + r + ' min' : '');
-    },
+    mins: window.Feed.mins, // "16 min", "1 hr 15 min"
     rel: function (d) {
       var t = App.dayStart(App.now()), x = App.dayStart(d), diff = Math.round((x - t) / 864e5);
       if (diff === 0) return 'Today';
@@ -659,7 +654,7 @@
       { name: 'choresFeed', url: '/api/chores', cacheKey: 'homehq.chores', mod: window.Chores, onChange: onChores, event: 'choresstate', tag: 'chores',
         noAnswer: 'No answer from the home server · check the chores before trying again' },
       { name: 'homeFeed', url: '/api/home', cacheKey: 'homehq.home', mod: window.House, refresh: window.House.REFRESH_IDLE, onChange: onHome, event: 'homestate', tag: 'home',
-        noAnswer: 'No answer from the home server · check it before trying again' },
+        noAnswer: 'No answer from the home server · check it before trying again' }
     ];
     feeds.forEach(function (f) {
       var feed = App[f.name] = window.Feed.create({

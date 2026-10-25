@@ -63,7 +63,7 @@
   };
 
   // ------------------------------------------------------------ feed health
-  // A feed's age in the notes: "16 min", "1 hr 15 min" (the same as App.fmt.mins, without App).
+  // A feed's age in the notes: "16 min", "1 hr 15 min" (App.fmt.mins is this).
   Feed.mins = function (m) {
     m = Math.max(0, Math.round(m));
     if (m < 60) return m + ' min';
