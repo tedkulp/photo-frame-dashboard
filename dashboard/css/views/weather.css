@@ -1,4 +1,28 @@
-/* Weather page — now + details (left), the week (right), the next hours (across). No scrolling. */
+/* Weather page — the alerts strip (only while there are alerts), then now + details (left), the
+   week (right), the next hours (across). No scrolling. */
+.wx-page { height: 100%; display: flex; flex-direction: column; gap: 14px; }
+.wx-page > .wx { flex: 1; min-height: 0; height: auto; }
+
+/* ---- weather alerts: one row each, worst first; more than three scroll inside the strip */
+.wx-alerts { flex: none; display: flex; flex-direction: column; gap: 6px; max-height: 162px; overflow-y: auto; }
+.wx-alerts:empty { display: none; }
+.wx-al {
+  display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 0 16px; border-radius: var(--r-s);
+  background: var(--card); border: 2px solid var(--line); text-align: left; flex: none;
+}
+.wx-al b { font-size: 21px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wx-al span { font-size: 18px; color: var(--ink-2); white-space: nowrap; margin-left: auto; }
+.wx-al small { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.wx-al .i { flex: none; }
+/* Moderate: amber; Severe and Extreme: red (Extreme filled) */
+.wx-al.is-sev-2 { border-color: var(--amber); }
+.wx-al.is-sev-2 .i { color: var(--amber); }
+.wx-al.is-sev-3 { border-color: var(--alert); }
+.wx-al.is-sev-3 .i { color: var(--alert); }
+.wx-al.is-sev-4 { border-color: var(--alert); background: var(--alert); color: #fff; }
+.wx-al.is-sev-4 span, .wx-al.is-sev-4 small { color: #fff; }
+.wx-al-note { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: var(--mute); flex: none; }
+
 .wx {
   height: 100%;
   display: grid;
@@ -95,6 +119,11 @@
 .wx--none .wx-icon { color: var(--mute); }
 
 /* ---- phone layout: one scrolling column (see base.css); the hourly strip scrolls sideways */
+.stage[data-layout="phone"] .wx-page { height: auto; }
+.stage[data-layout="phone"] .wx-alerts { max-height: none; overflow: visible; }
+.stage[data-layout="phone"] .wx-al { min-height: 56px; padding: 6px 12px; flex-wrap: wrap; gap: 4px 10px; }
+.stage[data-layout="phone"] .wx-al b { font-size: 18px; white-space: normal; flex: 1; }
+.stage[data-layout="phone"] .wx-al span { font-size: 15px; }
 .stage[data-layout="phone"] .wx { height: auto; display: flex; flex-direction: column; gap: 18px; }
 .stage[data-layout="phone"] .wx--none { min-height: 60vh; }
 .stage[data-layout="phone"] .wx-hours { order: 1; }

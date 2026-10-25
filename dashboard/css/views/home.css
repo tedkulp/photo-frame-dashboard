@@ -15,8 +15,17 @@
 .h-date b { font-family: var(--sans); font-weight: 800; font-stretch: 75%; text-transform: uppercase; letter-spacing: .06em; font-size: 20px; margin-right: 6px; }
 
 /* ---- weather */
-.h-weather { grid-column: 5 / 10; border-bottom: 3px solid var(--ink); padding: 0 8px 6px; display: flex; flex-direction: column; justify-content: flex-end; }
+.h-weather { position: relative; grid-column: 5 / 10; border-bottom: 3px solid var(--ink); padding: 0 8px 6px; display: flex; flex-direction: column; justify-content: flex-end; }
 .h-wx-top { display: flex; align-items: center; gap: 12px; }
+/* the worst notable weather alert, top right of the card (amber Moderate, red Severe/Extreme) */
+.h-wx-alert {
+  position: absolute; top: 0; right: 8px; max-width: 62%;
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px;
+  background: var(--amber); color: var(--ink); font-size: 16px;
+}
+.h-wx-alert b { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.h-wx-alert .i { flex: none; }
+.h-wx-alert.is-sev-3, .h-wx-alert.is-sev-4 { background: var(--alert); color: #fff; }
 .h-wx-icon { color: var(--ink); }
 .h-wx-temp { font-size: 84px; line-height: .8; letter-spacing: -.03em; }
 .h-wx-meta { display: flex; flex-direction: column; font-size: 17px; margin-left: 4px; }
@@ -162,6 +171,7 @@
 .stage[data-layout="phone"] .h-date b { font-size: 17px; }
 .stage[data-layout="phone"] .h-weather { padding: 0 0 10px; }
 .stage[data-layout="phone"] .h-wx-temp { font-size: 60px; }
+.stage[data-layout="phone"] .h-wx-alert { position: static; align-self: flex-start; max-width: 100%; margin-bottom: 10px; }
 .stage[data-layout="phone"] .h-wx-say { font-size: 19px; }
 .stage[data-layout="phone"] .h-presence { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; gap: 8px 16px; padding: 0 0 10px; }
 .stage[data-layout="phone"] .h-feed { flex-basis: 100%; white-space: normal; }

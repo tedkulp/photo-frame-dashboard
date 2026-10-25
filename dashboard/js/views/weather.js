@@ -4,7 +4,7 @@
 // the left column and the hours go under the week in 3-hour steps; without it the details are six
 // tiles and the hours a full-width strip, one hour a column. Never scrolls on the frame; one scrolling column on a phone, where the hourly strip (one
 // hour a column) scrolls sideways on its own. The radar listing is fetched only while the page is
-// on screen.
+// on screen. Weather alerts (weatheralerts.js) sit in a strip at the top while there are any.
 (function () {
   'use strict';
   var V = {};
@@ -107,17 +107,42 @@
     }).join('') + '</div>';
   }
 
+  // ------------------------------------------------------------ weather alerts (alerts.js)
+  // A strip at the top, one row per active alert (every severity), worst first; a row opens the
+  // alert's sheet. Hidden with no alerts and nothing to say about them.
+  function alertStrip() {
+    var list = App.alerts(), note = App.alertsNote(), now = App.now();
+    return list.map(function (a) {
+      return '<button class="wx-al is-sev-' + window.Alerts.severityRank(a) + '" data-alert="' + App.esc(a.id) + '">' +
+        App.icon('alert', 24) + '<b>' + App.esc(a.event) + '</b>' +
+        '<span>' + App.esc(window.Alerts.until(a, now)) + '</span>' + (a.fake ? '<small>Test</small>' : '') + '</button>';
+    }).join('') + (note ? '<div class="wx-al-note">' + App.icon('alert', 20) + note + '</div>' : '');
+  }
+  // Repaints just the strip (on a new listing and every minute); the radar is refitted if the
+  // strip's height changed.
+  function paintAlerts() {
+    var box = V.el && V.el.querySelector('.wx-alerts');
+    if (!box) return;
+    var html = alertStrip();
+    if (html === V.alertsHtml) return;
+    V.alertsHtml = html;
+    box.innerHTML = html;
+    fitRadar();
+  }
+
   function paint() {
     var el = V.el, w = App.weatherNow(V.hours = hourCount()), note = App.weatherNote();
+    V.alertsHtml = alertStrip();
+    var strip = '<div class="wx-alerts">' + V.alertsHtml + '</div>';
     if (!w) {
-      el.innerHTML = '<div class="wx wx--none"><span class="wx-icon">' + App.icon('cloud', 96) + '</span><p class="wx-say">' + note + '</p></div>';
+      el.innerHTML = '<div class="wx-page">' + strip + '<div class="wx wx--none"><span class="wx-icon">' + App.icon('cloud', 96) + '</span><p class="wx-say">' + note + '</p></div></div>';
       return;
     }
-    el.innerHTML = '<div class="wx' + (V.radar ? ' wx--radar' : '') + '">' +
+    el.innerHTML = '<div class="wx-page">' + strip + '<div class="wx' + (V.radar ? ' wx--radar' : '') + '">' +
       '<section class="wx-now">' + now(w, note) + '</section>' +
       '<section class="wx-week">' + week(App.weatherWeek()) + '</section>' +
       '<section class="wx-hours">' + hours(w) + '</section>' +
-      '</div>';
+      '</div></div>';
     // The radar's element is kept across repaints, so its images and loop carry on.
     var slot = el.querySelector('.wx-radar');
     if (slot) { slot.appendChild(radarEl()); fitRadar(); }
@@ -215,6 +240,12 @@
 
   App.register('weather', {
     show: function (el) {
+      if (V.el !== el) {
+        el.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-alert]');
+          if (b) App.alertSheet(App.findAlert(b.getAttribute('data-alert')));
+        });
+      }
       V.el = el;
       paint();
       if (App.current === 'weather') live(true); // not when pre-built in the background
@@ -228,6 +259,8 @@
   // The hours move on the hour; a note (loading, missing, stale) is kept current every minute.
   App.on('minute', function (n) { if (n.getMinutes() === 0 || App.weatherNote()) repaint(); if (V.live) noteRadar(); });
   App.on('weatherstate', repaint);
+  App.on('alerts', paintAlerts);
+  App.on('minute', paintAlerts);
   // How many hours fit follows the stage's width.
   App.on('stage', function () { if (V.el && V.hours !== hourCount()) repaint(); if (V.live) fitRadar(); });
 })();

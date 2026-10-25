@@ -9,10 +9,18 @@
       '<div class="h-date"><b>' + App.fmt.day(n) + '</b> ' + App.fmt.month(n) + ' ' + n.getDate() + '</div>';
   }
 
+  // The worst notable weather alert (+N more notable), on the weather card; the card opens the
+  // Weather page, where the alert's row opens its sheet.
+  function alertChip() {
+    var s = App.notableAlert();
+    if (!s) return '';
+    return '<span class="h-wx-alert is-sev-' + window.Alerts.severityRank(s.alert) + '">' + App.icon('alert', 18) + '<b>' + App.esc(s.text) + '</b></span>';
+  }
+
   function weather() {
     var w = App.weatherNow(), note = App.weatherNote();
-    if (!w) return '<div class="h-wx-top"><span class="h-wx-icon h-wx-none">' + App.icon('cloud', 60) + '</span><span class="h-wx-say">' + note + '</span></div>';
-    return '<div class="h-wx-top">' +
+    if (!w) return alertChip() + '<div class="h-wx-top"><span class="h-wx-icon h-wx-none">' + App.icon('cloud', 60) + '</span><span class="h-wx-say">' + note + '</span></div>';
+    return alertChip() + '<div class="h-wx-top">' +
       '<span class="h-wx-icon">' + App.icon(w.cond, 60) + '</span>' +
       '<span class="h-wx-temp num">' + w.temp + '°</span>' +
       '<span class="h-wx-meta"><b>' + w.label + '</b><span>H ' + w.hi + '°  L ' + w.lo + '°</span>' + (note ? '<small>' + note + '</small>' : '') + '</span>' +
@@ -240,6 +248,7 @@
     if (n.getMinutes() === 0) { paintAllDay(); V.el.querySelector('.h-lanes').innerHTML = lanes(); }
   });
   App.on('weatherstate', paintWeather);
+  App.on('alerts', paintWeather); // the alert chip; a new listing comes every minute
   App.on('stage', function () { if (V.el && V.el.firstChild) fitAllDay(); });
   App.on('choresstate', function () { if (V.el && V.el.firstChild) V.el.querySelector('.h-chores').innerHTML = chores(); });
   App.on('data', function () { if (App.current === 'home') paint(); });

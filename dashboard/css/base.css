@@ -286,6 +286,29 @@ button.card:active, .h-hero:active, .h-photo:active { transform: scale(.985); }
 .tk-btn.is-on { background: var(--ok); }
 .tk-btn.is-holding { background: rgba(255, 255, 255, .34); }
 
+/* an urgent weather alert (weatheralerts.js): dark red, Extreme bright red */
+.tk-alert { background: #7A1510; color: #fff; }
+.tk-alert--extreme { background: var(--alert); }
+.tk-al { position: absolute; left: 80px; right: 80px; top: 64px; bottom: 56px; display: flex; flex-direction: column; }
+.tk-al-kicker { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.tk-al-event { font-size: 104px; line-height: .95; margin: 20px 0 16px; }
+.tk-al-head { font-size: 26px; font-weight: 700; line-height: 1.2; max-width: 1000px; }
+.tk-al-until { font-size: 34px; font-weight: 800; margin-top: 14px; }
+.tk-al-desc {
+  font-size: 22px; line-height: 1.35; margin-top: 16px; max-width: 1000px; opacity: .9;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.tk-al-more { font-size: 22px; font-weight: 800; margin-top: 14px; }
+.tk-al .tk-actions { margin-top: auto; }
+.tk-alert .tk-btn--solid { color: #7A1510; }
+
+/* an alert's sheet */
+.al-sheet .sheet-h { margin-bottom: 12px; }
+.al-head { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.al-times { font-size: 18px; color: var(--ink-2); margin-bottom: 14px; }
+.al-text p { font-size: 18px; line-height: 1.4; margin-bottom: 10px; }
+.al-text .al-do { font-weight: 700; }
+
 /* ---------------------------------------------------------------- Test controls (testcontrols.js) */
 /* Above the takeover and the ambient/night screens, so it works from every mode. */
 .testctl { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 90; display: none; background: rgba(0, 0, 0, .3); }
