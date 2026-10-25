@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapAlerts, userAgent } from '../alerts.js';
+import { createAlerts, mapAlerts, userAgent } from '../alerts.js';
 import { fakeHomeAssistant, fakeNws, nwsAlert, serviceAccount, settings, startTestServer } from './helpers.js';
 
 const NOW = Date.parse('2026-10-25T19:40:00Z'); // 3:40 pm EDT
@@ -60,8 +60,9 @@ test('NWS features map to the dashboard shape; tests, drafts and cancels are lef
     instruction: 'Travel could be very difficult.',
     onset: '2026-10-25T19:00:00.000Z', ends: '2026-10-26T10:00:00.000Z',
   });
-  // Without ends, the message's expiry; without onset, when it took effect.
-  assert.deepEqual([out[1].onset, out[1].ends], ['2026-10-25T19:00:00.000Z', '2026-10-26T03:00:00.000Z']);
+  // Without ends, none (until further notice; the expiry is only when it's reissued); without
+  // onset, when it took effect.
+  assert.deepEqual([out[1].onset, out[1].ends], ['2026-10-25T19:00:00.000Z', null]);
   assert.deepEqual(mapAlerts({}), []);
   assert.deepEqual(mapAlerts(null), []);
 });
@@ -175,5 +176,74 @@ test('without settings.homeAssistant.alerts: { configured: false }, other reques
     assert.deepEqual(await get(url + '/api/alerts/x').then((r) => [r.status, r.body]), [404, { error: 'Weather alerts are not set up' }]);
     assert.equal((await fetch(url + '/api/alerts', { method: 'POST' })).status, 404);
     assert.equal(nws.requests.length, 0);
+  });
+});
+
+// ------------------------------------------------------------ the feature on its own (a fake Home Assistant client)
+// ha: { home() } answering from `answers` (a value, an Error to throw, or a promise).
+async function withFeature(answers, opts, fn) {
+  const nws = await fakeNws([nwsAlert({ id: 'A' }), nwsAlert({ id: 'B', ends: null })]);
+  const clock = { t: NOW };
+  const logged = [];
+  const log = { warn: (...a) => logged.push(['warn', a.join(' ')]), error: (...a) => logged.push(['error', a.join(' ')]) };
+  const ha = { calls: 0, home() { const a = answers[Math.min(ha.calls++, answers.length - 1)]; return a instanceof Error ? Promise.reject(a) : Promise.resolve(a); } };
+  const alerts = createAlerts(Object.assign({ ha, contact: null, now: () => clock.t, log, apiBase: nws.url }, opts));
+  try {
+    await fn({ alerts, ha, nws, clock, logged });
+  } finally {
+    await nws.close();
+  }
+}
+const LOC = { lat: 43.65107, lon: -79.383186 };
+
+test('an alert without an end time stays while it is in the copy', async () => {
+  await withFeature([LOC], {}, async ({ alerts, nws, clock }) => {
+    await alerts.load();
+    nws.fail = 503;
+    clock.t += 3 * 24 * 60 * MIN;
+    const l = await alerts.load();
+    assert.deepEqual([l.stale, l.alerts.map((a) => [a.id, a.ends])], [true, [['B', null]]]);
+  });
+});
+
+test('a slow try: the request answers with the last good copy after waitMs; the try carries on', async () => {
+  let release;
+  const slow = new Promise((r) => { release = r; });
+  await withFeature([LOC, slow], { waitMs: 40, locateMs: 0 }, async ({ alerts, nws, clock }) => {
+    assert.equal((await alerts.load()).alerts.length, 2);
+    clock.t += MIN;
+    const started = Date.now();
+    const l = await alerts.load(); // Home Assistant hangs
+    assert.ok(Date.now() - started < 1000);
+    assert.deepEqual([l.available, l.alerts.length, l.age], [true, 2, 1]);
+    assert.equal(nws.requests.length, 1);
+    release(LOC);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(nws.requests.length, 2, 'the try finished in the background');
+    assert.equal((await alerts.load()).age, 0);
+  });
+  // Never a good copy: unavailable, promptly.
+  await withFeature([new Promise(() => {})], { waitMs: 40 }, async ({ alerts }) => {
+    const l = await alerts.load();
+    assert.deepEqual([l.configured, l.available, l.alerts], [true, false, []]);
+  });
+});
+
+test('a known place is looked up again only after locateMs', async () => {
+  await withFeature([LOC], { locateMs: 10 * MIN }, async ({ alerts, ha, nws, clock }) => {
+    for (let i = 0; i < 5; i++) { await alerts.load(); clock.t += MIN; }
+    assert.deepEqual([ha.calls, nws.requests.length], [1, 5]);
+    clock.t += 5 * MIN;
+    await alerts.load();
+    assert.equal(ha.calls, 2);
+  });
+});
+
+test('Home Assistant errors are logged once per outage, also once a place is known; the place stands', async () => {
+  const down = new Error('Home Assistant: 502 Bad Gateway');
+  await withFeature([LOC, down, down, down, LOC, down], { locateMs: 0 }, async ({ alerts, nws, clock, logged }) => {
+    for (let i = 0; i < 6; i++) { await alerts.load(); clock.t += MIN; }
+    assert.deepEqual(logged, [['error', '[alerts] Home Assistant: 502 Bad Gateway'], ['error', '[alerts] Home Assistant: 502 Bad Gateway']]);
+    assert.equal(nws.requests.length, 6, 'the last place known is still asked about');
   });
 });

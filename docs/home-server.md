@@ -336,7 +336,10 @@ add:
   Weather page shows "Alerts unavailable".
 - The frame asks the home server every minute; the server asks the NWS at most once a minute, and
   only while a frame is asking. If the NWS refuses (429), fails or doesn't answer, the server keeps
-  its last good copy, drops alerts from it as they end, and tries again the next minute. The
+  its last good copy, drops alerts from it as they end, and tries again the next minute (an
+  alert the NWS gives no end time stays "until further notice" while it's in that copy). A frame
+  waits at most 5 seconds for a try; a slower one carries on and the frame gets the last good copy
+  meanwhile. The server looks `zone.home` up again every 10 minutes. The
   Weather page says "Alerts from <time>" once that copy is over 10 minutes old, and "Alerts
   unavailable" if there has never been one.
 - Where they show: every active alert gets a row in a strip at the top of the Weather page (tap it
@@ -354,7 +357,7 @@ add:
 
 API: `GET /api/alerts` returns `{ configured: true, available (the server has had a good copy),
 alerts: [{ id, references, event, severity, urgency, headline, description, instruction, onset,
-ends }] (alerts that have ended are left out), fetched (when the copy was read, or null), age
+ends (null: until further notice) }] (alerts that have ended are left out), fetched (when the copy was read, or null), age
 (minutes since then, or null), stale (the last try at the NWS failed) }`. Test and draft messages
 and cancellations are left out; `references` lists the ids of the alerts an update replaces.
 
