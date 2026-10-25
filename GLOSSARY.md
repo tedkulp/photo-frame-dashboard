@@ -33,8 +33,12 @@ _Avoid_: Tip, recommendation
 A condition on the weather (and time of day) paired with the advice it produces. Rules are checked in order.
 
 **Weather page**:
-The page with the full weather: now (feels-like, humidity, wind, UV, sunrise and sunset), the next hours, and the week. Opened from the rail or by tapping the weather on Today.
+The page with the full weather: now (feels-like, humidity, wind, UV, sunrise and sunset), the radar, the next hours, and the week. Opened from the rail or by tapping the weather on Today.
 _Avoid_: Forecast page, weather screen
+
+**Radar**:
+A map of where it is raining or snowing around the home right now, from LibreWXR rather than Home Assistant. Only Home Assistant's home location comes from Home Assistant.
+_Avoid_: Precipitation map, weather map
 
 ### Calendar
 
