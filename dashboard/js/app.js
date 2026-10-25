@@ -140,6 +140,11 @@
   function weatherState() { return App.weatherFeed ? App.weatherFeed.state() : { status: 'loading' }; }
   App.weatherNote = function () { return window.Weather.note(weatherState(), D.weather, App.now()); };
 
+  // ------------------------------------------------------------ weather alerts feed (home server)
+  // The NWS's alerts for the home from GET /api/alerts (alerts.js), every minute; what the views
+  // show from them and the takeover are weatheralerts.js's, on the 'alerts' event.
+  function onAlerts(d) { D.alerts = d; App.emit('alerts'); }
+
   // ------------------------------------------------------------ photos feed (home server)
   // The Immich album from GET /api/photos (photos.js), on the calendar feed's loop. Once the server
   // has an album its photos replace the mock ones everywhere; without one (or before the first
@@ -656,6 +661,7 @@
     // changeKey (home's refresh is House.REFRESH_IDLE; Home controls speeds it up).
     var feeds = [
       { name: 'weatherFeed', url: '/api/weather', cacheKey: 'homehq.weather', mod: window.Weather, onChange: onWeather, event: 'weatherstate', tag: 'weather' },
+      { name: 'alertsFeed', url: '/api/alerts', cacheKey: 'homehq.alerts', mod: window.Alerts, onChange: onAlerts, event: 'alertsstate', tag: 'alerts' },
       { name: 'photosFeed', url: '/api/photos', cacheKey: 'homehq.photos', mod: window.Photos, onChange: onPhotos, tag: 'photos' },
       { name: 'choresFeed', url: '/api/chores', cacheKey: 'homehq.chores', mod: window.Chores, onChange: onChores, event: 'choresstate', tag: 'chores',
         noAnswer: 'No answer from the home server · check the chores before trying again' },

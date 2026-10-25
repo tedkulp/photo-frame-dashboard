@@ -128,9 +128,20 @@ function checkRadar(r) {
   return { zoom };
 }
 
-// settings.homeAssistant → { url, weatherEntity, label, rooms, radar } (url without a trailing
-// slash), or null if absent. label (default "frame") picks the entities on Home controls; rooms
-// orders them; radar is checkRadar's.
+// settings.homeAssistant.alerts → { contact } (null without one), or null if absent: weather alerts
+// for zone.home from the NWS (ADR 0007). contact goes in the User-Agent so the NWS can reach the owner.
+function checkAlerts(a) {
+  if (a === undefined) return null;
+  if (!a || typeof a !== 'object' || Array.isArray(a)) throw new ConfigError('settings.homeAssistant.alerts must be a JSON object, like {} or { "contact": "you@example.com" }');
+  if (a.contact !== undefined && (!isText(a.contact) || /[\x00-\x1f\x7f]/.test(a.contact))) {
+    throw new ConfigError('settings.homeAssistant.alerts.contact must be one line of text, like an email address or a website');
+  }
+  return { contact: a.contact === undefined ? null : a.contact.trim() };
+}
+
+// settings.homeAssistant → { url, weatherEntity, label, rooms, radar, alerts } (url without a
+// trailing slash), or null if absent. label (default "frame") picks the entities on Home controls;
+// rooms orders them; radar is checkRadar's, alerts checkAlerts'.
 function checkHomeAssistant(h) {
   if (h === undefined) return null;
   if (!h || typeof h !== 'object' || Array.isArray(h)) throw new ConfigError('settings.homeAssistant must be a JSON object');
@@ -154,6 +165,7 @@ function checkHomeAssistant(h) {
     label: h.label === undefined ? 'frame' : h.label.trim(),
     rooms: h.rooms === undefined ? [] : h.rooms.map((r) => r.trim()),
     radar: checkRadar(h.radar),
+    alerts: checkAlerts(h.alerts),
   };
 }
 

@@ -1,6 +1,7 @@
 // Shared fixtures for the server tests: a throwaway service-account key, sample settings, a temp
 // config folder, startServer on a temp store, and a fake Google (OAuth token + Calendar events
-// endpoints) on a local port, plus fake ICS links, Home Assistant and Immich.
+// endpoints) on a local port, plus fake ICS links, Home Assistant, Immich, LibreWXR + OSM tiles and
+// the NWS alerts API.
 import { generateKeyPairSync, createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -379,6 +380,73 @@ export async function fakeImmich({ album, assets = [], users, apiKey = 'immich-k
     set fail(status) { state.fail = status; },
     set failSearch(status) { state.failSearch = status; },
     close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
+  };
+}
+
+// Fake NWS alerts API: GET /alerts/active?point=<lat>,<lon> answers a GeoJSON FeatureCollection
+// of `features` (changeable between requests). Set `fail` to an HTTP status to make it fail, or
+// to 'drop' to close the connection without an answer. Records every request in `requests`
+// ({ path, point, headers }).
+export async function fakeNws(features) {
+  const requests = [];
+  const state = { features: features || [], fail: null };
+  const server = createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    requests.push({ path: url.pathname, point: url.searchParams.get('point'), headers: req.headers });
+    if (state.fail === 'drop') return req.socket.destroy();
+    if (state.fail) {
+      res.writeHead(state.fail, { 'content-type': 'application/problem+json' });
+      return res.end(JSON.stringify({ title: 'Down', status: state.fail }));
+    }
+    if (url.pathname !== '/alerts/active' || !url.searchParams.get('point')) {
+      res.writeHead(400, { 'content-type': 'application/problem+json' });
+      return res.end(JSON.stringify({ title: 'Bad Request' }));
+    }
+    res.writeHead(200, { 'content-type': 'application/geo+json' });
+    res.end(JSON.stringify({ type: 'FeatureCollection', features: state.features, title: 'Current watches, warnings, and advisories' }));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return {
+    url: 'http://127.0.0.1:' + server.address().port,
+    requests,
+    set features(f) { state.features = f; },
+    set fail(status) { state.fail = status; },
+    close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
+  };
+}
+
+// One NWS alert feature: properties as api.weather.gov sends them, with `over` merged in.
+export function nwsAlert(over) {
+  const id = (over && over.id) || 'urn:oid:2.49.0.1.840.0.test.1.1';
+  return {
+    id: 'https://api.weather.gov/alerts/' + id,
+    type: 'Feature',
+    geometry: null,
+    properties: Object.assign({
+      '@id': 'https://api.weather.gov/alerts/' + id,
+      '@type': 'wx:Alert',
+      id,
+      areaDesc: 'Test County',
+      references: [],
+      sent: '2026-10-25T15:00:00-04:00',
+      effective: '2026-10-25T15:00:00-04:00',
+      onset: '2026-10-25T15:00:00-04:00',
+      expires: '2026-10-25T23:00:00-04:00',
+      ends: '2026-10-26T06:00:00-04:00',
+      status: 'Actual',
+      messageType: 'Alert',
+      category: 'Met',
+      severity: 'Severe',
+      certainty: 'Likely',
+      urgency: 'Expected',
+      event: 'Winter Storm Warning',
+      sender: 'sender@example.com',
+      senderName: 'NWS Test',
+      headline: 'Winter Storm Warning issued October 25 at 3:00PM EDT by NWS Test',
+      description: '* WHAT...Heavy snow.\n\n* WHERE...Test County.',
+      instruction: 'Travel could be very difficult.',
+      response: 'Prepare',
+    }, over || {}),
   };
 }
 

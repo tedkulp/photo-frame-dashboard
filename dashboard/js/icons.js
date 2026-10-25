@@ -28,6 +28,7 @@ window.ICONS = {
   drop: '<path d="M12 3s6.5 7.2 6.5 11.5a6.5 6.5 0 0 1-13 0C5.5 10.2 12 3 12 3z"/>',
   box: '<path d="M3 7.5l9-4.5 9 4.5v9l-9 4.5-9-4.5z"/><path d="M3 7.5l9 4.5 9-4.5M12 12v9"/>',
   door: '<path d="M6 21V3h12v18"/><circle cx="15" cy="12" r=".9"/><path d="M3 21h18"/>',
+  alert: '<path d="M12 3.5L2.5 20h19z"/><path d="M12 10v4.5M12 17.4v.1"/>',
   bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   play: '<path d="M7 4.5v15l13-7.5z" fill="currentColor"/>',

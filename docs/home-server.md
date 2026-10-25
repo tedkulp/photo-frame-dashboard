@@ -32,12 +32,15 @@ address on your LAN:
   `502` with a JSON `error`.
 - `GET /api/radar` and its images: the Weather page's rain radar, see
   [Radar](#radar-from-librewxr-optional).
+- `GET /api/alerts`: the National Weather Service's alerts for the home, see
+  [Weather alerts](#weather-alerts-from-the-nws-optional).
 - `GET /api/home` and its actions: Home controls from Home Assistant, see
   [Home controls](#home-controls-from-home-assistant-optional).
 - `GET /api/photos` and `GET /api/photos/:id.jpg`: the photos from one Immich album, see
   [Photos](#photos-from-immich-optional).
-- An optional feature that isn't set up (weather, radar, Home controls, photos) answers the same way:
-  `GET` on its top-level path (`/api/weather`, `/api/radar`, `/api/home`, `/api/photos`) is `200`
+- An optional feature that isn't set up (weather, radar, weather alerts, Home controls, photos)
+  answers the same way: `GET` on its top-level path (`/api/weather`, `/api/radar`, `/api/alerts`,
+  `/api/home`, `/api/photos`) is `200`
   `{ configured: false }`, and any other request under it (another method, an action, an image) is
   `404` with a JSON `error` naming it, e.g. `Home Assistant is not set up`.
 - `GET /api/version` returns `{ build }`: the id `npm run build` stamped into the `dist` being
@@ -307,6 +310,56 @@ otherwise); the routes take no URL, coordinates or zoom. The page credits "Radar
 
 ```sh
 curl http://localhost:8080/api/radar   # should show "configured": true and "available": true
+```
+
+### Weather alerts from the NWS (optional)
+
+The frame can show the National Weather Service's watches, warnings and advisories for the home,
+from its public API (`api.weather.gov`, US only, no key), rather than from Home Assistant
+([ADR 0007](adr/0007-weather-alerts-from-nws.md)). It needs `homeAssistant` and is off until you
+add:
+
+```json
+"homeAssistant": {
+  "url": "http://homeassistant.local:8123",
+  "weatherEntity": "weather.pirateweather",
+  "alerts": { "contact": "you@example.com" }
+}
+```
+
+- `contact` is optional: an email address or website the NWS can reach you at. It goes in the
+  User-Agent the server sends, `(photo-frame-dashboard, <repo URL>, <contact>)`, as the NWS asks.
+  `"alerts": {}` turns alerts on without one. Anything but one line of text stops the server at
+  startup.
+- The location is Home Assistant's `zone.home`. Turning alerts on sends its coordinates (to 4
+  decimals) to the NWS. If `zone.home` has no coordinates the server logs one warning and the
+  Weather page shows "Alerts unavailable".
+- The frame asks the home server every minute; the server asks the NWS at most once a minute, and
+  only while a frame is asking. If the NWS refuses (429), fails or doesn't answer, the server keeps
+  its last good copy, drops alerts from it as they end, and tries again the next minute. The
+  Weather page says "Alerts from <time>" once that copy is over 10 minutes old, and "Alerts
+  unavailable" if there has never been one.
+- Where they show: every active alert gets a row in a strip at the top of the Weather page (tap it
+  for the full text); a **notable** alert (Moderate or worse) also shows as a chip on Today's
+  weather card and a line on the ambient and night screens (the worst, plus "+N"); an **urgent**
+  alert (Severe or worse, urgency Immediate) takes over the screen, silently, with **Dismiss** and
+  **Details** (both dismiss every alert it shows; Details then opens the worst one's full text on
+  the Weather page). From 10 pm to 6 am only an Extreme one takes over. A dismissal is remembered on that
+  frame (its browser storage), and an NWS update to a dismissed alert stays dismissed unless its
+  severity rose. The takeover closes by itself when its alerts end or are cancelled. Phones show
+  the chip and the Weather page's strip only.
+- To try it without real weather, open **Test controls** (hold the rail clock 2 s, or press
+  `T`): the Weather alerts section adds fake alerts on that screen only, and Pretend night shows
+  the night rule at midday ([keyboard shortcuts](building-for-the-frame.md#keyboard-shortcuts)).
+
+API: `GET /api/alerts` returns `{ configured: true, available (the server has had a good copy),
+alerts: [{ id, references, event, severity, urgency, headline, description, instruction, onset,
+ends }] (alerts that have ended are left out), fetched (when the copy was read, or null), age
+(minutes since then, or null), stale (the last try at the NWS failed) }`. Test and draft messages
+and cancellations are left out; `references` lists the ids of the alerts an update replaces.
+
+```sh
+curl http://localhost:8080/api/alerts   # should show "configured": true and "available": true
 ```
 
 ### Home controls from Home Assistant (optional)

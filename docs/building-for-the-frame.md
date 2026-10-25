@@ -242,7 +242,7 @@ The sample dashboard has a few keys for testing on a computer (`dashboard/js/sys
 | `A` | Ambient screen: closes any sheet and goes to Today first, like the idle switch. Holds until the next 10 pm or 6 am. |
 | `N` | Night screen, the same way (tap it for the dimmed dashboard). Neither key does anything over a takeover or on a phone. |
 | `1`–`9` | The rail's tabs in order: Today, Weather, Calendar, Chores, Shopping, Photos, Home controls. A tab hidden from the rail has no number. |
-| `T` | Open or close **Test controls**, a hidden drawer for switching display modes (Day, Ambient, Night, Nightdash), fast idle (Today after 8 s, the idle screen after 15 s) and Pretend night (behave as if it were night hours; the clock stays real). On the frame, a 2 s hold on the rail clock opens it too. Nothing it changes is saved: a reload undoes it. A "Test" pill by the rail clock shows while fast idle or Pretend night is on. Not on a phone. |
+| `T` | Open or close **Test controls**, a hidden drawer for switching display modes (Day, Ambient, Night, Nightdash), fast idle (Today after 8 s, the idle screen after 15 s), Pretend night (behave as if it were night hours; the clock stays real) and fake weather alerts (five presets from Minor advisory to Two urgent at once, shown on top of the real alerts and never sent to the server; Clear removes them). On the frame, a 2 s hold on the rail clock opens it too. Nothing it changes is saved: a reload undoes it. A "Test" pill by the rail clock shows while fast idle, Pretend night or a fake alert is on. Not on a phone. |
 | `Esc` | Close the open sheet, or Test controls |
 
 ## Do not change on the frame

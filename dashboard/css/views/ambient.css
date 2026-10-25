@@ -17,6 +17,12 @@
 }
 .amb-next i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px #fff; }
 .amb-who { display: flex; gap: 8px; }
+/* the worst notable weather alert (+N), above the weather */
+.amb-alert {
+  display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 20px; border-radius: 999px;
+  background: var(--alert); color: #fff; font-size: 22px; font-weight: 800; max-width: 560px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* Night (dim red clock) — kept above a minimum readable brightness */
 .night { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 66; background: #000; display: none; place-items: center; cursor: pointer; }
@@ -25,5 +31,7 @@
 .nt-time { font-size: 260px; line-height: .8; letter-spacing: -.04em; color: #C22C1C; }
 .nt-line { margin-top: 34px; font-size: 26px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #A02618; }
 .nt-line b { color: #C22C1C; }
+/* the worst notable weather alert (+N), like the lock line but brighter */
+.nt-alert { margin-top: 22px; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #C22C1C; font-weight: 800; }
 .nt-lock { margin-top: 18px; font-size: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #7A1D12; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .nt-lock.is-warn { margin-top: 22px; font-size: 22px; color: #C22C1C; padding: 8px 18px; border: 2px solid #8E2214; border-radius: 999px; display: inline-flex; }

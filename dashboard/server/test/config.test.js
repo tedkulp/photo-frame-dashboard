@@ -146,7 +146,7 @@ test('Home Assistant settings + token from env, path env or default file', () =>
     'other/token': 'from-path',
   }, (t) => {
     const ha = (env) => loadConfig({ env, cwd: t.dir }).homeAssistant;
-    assert.deepEqual(ha({}), { url: 'http://ha.local:8123', weatherEntity: 'weather.pirateweather', label: 'frame', rooms: [], radar: null, token: 'from-file' });
+    assert.deepEqual(ha({}), { url: 'http://ha.local:8123', weatherEntity: 'weather.pirateweather', label: 'frame', rooms: [], radar: null, alerts: null, token: 'from-file' });
     assert.equal(ha({ HOME_ASSISTANT_TOKEN_FILE: t.path('other/token') }).token, 'from-path');
     assert.equal(ha({ HOME_ASSISTANT_TOKEN_FILE: t.path('other/token'), HOME_ASSISTANT_TOKEN: 'inline' }).token, 'inline');
   });
@@ -200,6 +200,19 @@ test('radar is optional; its zoom defaults to 8 and must be a whole number 0–1
   assert.deepEqual(read({ zoom: 12 }), { zoom: 12 });
   for (const radar of ['on', [], null]) assert.throws(() => read(radar), named(/homeAssistant\.radar must be a JSON object/), String(radar));
   for (const zoom of [7.5, -1, 13, '8', null]) assert.throws(() => read({ zoom }), named(/homeAssistant\.radar\.zoom "?.*"? must be a whole number from 0 to 12/), String(zoom));
+});
+
+test('alerts are optional; contact is an optional line of text for the NWS User-Agent', () => {
+  const read = (alerts) => withDir({
+    'config/settings.json': settings({ homeAssistant: Object.assign({ url: 'http://ha.local', weatherEntity: 'weather.home' }, alerts === undefined ? {} : { alerts }) }),
+    'config/service-account.json': serviceAccount(),
+    'config/home-assistant-token': 't',
+  }, (t) => loadConfig({ env: {}, cwd: t.dir }).homeAssistant.alerts);
+  assert.equal(read(undefined), null);
+  assert.deepEqual(read({}), { contact: null });
+  assert.deepEqual(read({ contact: ' me@example.com ' }), { contact: 'me@example.com' });
+  for (const alerts of ['on', [], null, true]) assert.throws(() => read(alerts), named(/homeAssistant\.alerts must be a JSON object/), String(alerts));
+  for (const contact of [7, '', '  ', 'a\nb', null]) assert.throws(() => read({ contact }), named(/homeAssistant\.alerts\.contact must be/), String(contact));
 });
 
 test("a person's Home Assistant link is read, and must be a person entity", () => {

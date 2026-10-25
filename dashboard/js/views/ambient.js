@@ -1,4 +1,5 @@
-// Ambient (idle photo frame) and Night (dim red clock) overlays.
+// Ambient (idle photo frame) and Night (dim red clock) overlays, each with a line for the worst
+// notable weather alert while there is one.
 (function () {
   'use strict';
   var D = window.DATA, $ = App.$;
@@ -8,7 +9,7 @@
     var n = App.now(), w = App.weatherNow(), next = App.nextEvent();
     return '<div class="amb-clock"><div class="amb-time num">' + App.fmt.time(n, false) + '</div>' +
       '<div class="amb-date">' + App.fmt.day(n) + ', ' + App.fmt.month(n) + ' ' + n.getDate() + '</div></div>' +
-      '<div class="amb-right">' +
+      '<div class="amb-right">' + alertLine('amb-alert', 26) +
       (w ? '<div class="amb-wx">' + App.icon(w.cond, 44) + '<span class="num">' + w.temp + '°</span><small>' + w.summary + '</small></div>' : '') +
       (next ? '<div class="amb-next" style="' + App.pstyle(App.evColor(next)) + '"><i></i>' + App.esc(next.title) + ' · ' + App.fmt.time(next.start) + '</div>' : '') +
       '<div class="amb-who">' + D.people.map(function (p) { return App.avatar(p, 34, '', { presence: true }); }).join('') + '</div>' +
@@ -19,7 +20,12 @@
     var first = App.someonesTimedOn(tomorrow)[0], w = App.weatherNow();
     return '<div class="nt-time num">' + App.fmt.time(n, false) + '</div>' +
       '<div class="nt-line">' + (w ? App.icon(w.cond, 26) + ' ' + w.temp + '° · ' : '') + (!App.hasCalendar() ? App.feedNote() : first ? 'First up ' + App.fmt.rel(first.start).toLowerCase() + ': <b>' + App.esc(first.title) + '</b> ' + App.fmt.time(first.start) + ' · ' + App.esc(App.person(first.people[0]).name) : 'Nothing early tomorrow') + '</div>' +
-      nightLock();
+      alertLine('nt-alert', 22) + nightLock();
+  }
+  // The worst notable weather alert, "+N" for more notable ones (alerts.js), or nothing.
+  function alertLine(cls, size) {
+    var s = App.notableAlert();
+    return s ? '<div class="' + cls + '">' + App.icon('alert', size) + ' ' + App.esc(s.text) + '</div>' : '';
   }
   function nightLock() {
     var line = window.House.nightLock(App.home(), App.homeNote());
@@ -55,4 +61,5 @@
   });
   App.on('minute', paint);
   App.on('home', function () { if (App.mode === MODES.NIGHT) paint(); });
+  App.on('alerts', paint);
 })();
