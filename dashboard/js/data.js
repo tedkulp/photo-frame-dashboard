@@ -9,13 +9,6 @@ window.DATA = (function () {
   var mockIds = ['alex', 'jordan', 'maya', 'otto'];
   var family = { id: 'family', name: 'Family', color: '#111111', rgb: '17 17 17', ink: '#FFFFFF' };
 
-  // ---------------------------------------------------------------- chores
-  // The two parts of the day chores are grouped into; the hours pick the default tab.
-  var routines = [
-    { id: 'morning', name: 'Morning', range: 'Before noon', from: 0, to: 12 },
-    { id: 'evening', name: 'Evening', range: 'After noon', from: 12, to: 24 }
-  ];
-
   // ---------------------------------------------------------------- shopping
   var stores = [{ id: 'grocer', name: 'FreshCo' }, { id: 'costco', name: 'Costco' }];
   var catOrder = {
@@ -149,7 +142,7 @@ window.DATA = (function () {
     // weather.js, chores.js, house.js).
     people: [], family: family, mockIds: mockIds,
     events: [],
-    routines: routines, chores: null,
+    chores: null,
     stores: stores, catOrder: catOrder, groceries: groceries, catalog: catalog, usuals: usuals,
     weather: null, home: null, photos: photos, mockPhotos: photos, agents: agents,
     _gid: function () { return 'g' + (++gid); }

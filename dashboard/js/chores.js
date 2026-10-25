@@ -34,10 +34,10 @@
   }
   function isChore(c) {
     return !!c && (typeof c.id === 'number' || typeof c.id === 'string') && typeof c.title === 'string' && typeof c.emoji === 'string' &&
-      typeof c.owner === 'string' && typeof c.routine === 'string' && isDays(c.days);
+      typeof c.owner === 'string' && isDays(c.days);
   }
   function toChore(c) {
-    return { id: String(c.id), title: c.title, emoji: c.emoji, owner: c.owner, routine: c.routine, days: c.days.slice() };
+    return { id: String(c.id), title: c.title, emoji: c.emoji, owner: c.owner, days: c.days.slice() };
   }
 
   // The server's { date, chores, done, week, updatedAt } → { date, weekday, chores, done: { id: true },
@@ -68,15 +68,16 @@
     return JSON.stringify([body.date, body.chores, body.done, body.week]);
   };
 
-  // Chores scheduled today (the server's weekday) in one routine, each with `done`. `pending`
-  // ({ id: done }) are ticks/unticks sent but not settled yet; they show over the server's state.
-  Chores.today = function (data, routineId, pending) {
+  // Chores scheduled today (the server's weekday), in the server's order, each with `done`.
+  // `pending` ({ id: done }) are ticks/unticks sent but not settled yet; they show over the
+  // server's state.
+  Chores.today = function (data, pending) {
     if (!data) return [];
     pending = pending || {};
     return data.chores.filter(function (c) {
-      return c.routine === routineId && c.days.indexOf(data.weekday) > -1;
+      return c.days.indexOf(data.weekday) > -1;
     }).map(function (c) {
-      return { id: c.id, title: c.title, emoji: c.emoji, owner: c.owner, routine: c.routine, done: pending.hasOwnProperty(c.id) ? pending[c.id] : !!data.done[c.id] };
+      return { id: c.id, title: c.title, emoji: c.emoji, owner: c.owner, done: pending.hasOwnProperty(c.id) ? pending[c.id] : !!data.done[c.id] };
     });
   };
 
@@ -119,10 +120,9 @@
   };
 
   // ------------------------------------------------------------ editing
-  // Every chore in a routine, whatever its days (edit mode shows them all).
-  Chores.inRoutine = function (data, routineId) {
-    if (!data) return [];
-    return data.chores.filter(function (c) { return c.routine === routineId; });
+  // Every chore, whatever its days (edit mode shows them all).
+  Chores.all = function (data) {
+    return data ? data.chores : [];
   };
 
   // The edit sheet's emoji grid (any other can be typed in).
@@ -139,7 +139,7 @@
     return days.slice().sort().map(function (d) { return Chores.DAY_NAMES[d]; }).join(' ');
   };
 
-  // The edit sheet's { title, emoji, owner, routine, days } → the body for POST / PATCH
+  // The edit sheet's { title, emoji, owner, days } → the body for POST / PATCH
   // /api/chores. Throws with a message for the sheet when something is missing; the server checks
   // the rest (lengths, owner) and its message is shown the same way.
   Chores.toInput = function (f) {
@@ -147,7 +147,7 @@
     if (!title) throw new Error('Give the chore a name');
     if (!emoji) throw new Error('Pick an emoji');
     if (!f.days || !f.days.length) throw new Error('Pick at least one day');
-    return { title: title, emoji: emoji, owner: f.owner, routine: f.routine, days: f.days.slice().sort() };
+    return { title: title, emoji: emoji, owner: f.owner, days: f.days.slice().sort() };
   };
 
   // Copies of the data with a save or a delete already applied, so the change shows before the

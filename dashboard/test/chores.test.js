@@ -9,9 +9,9 @@ const { Chores, Feed } = globalThis;
 const body = (over) => Object.assign({
   date: '2026-10-21',
   chores: [
-    { id: 1, title: 'Garbage to curb', emoji: '🗑️', owner: 'any', routine: 'evening', days: [0, 3] },
-    { id: 2, title: 'Make bed', emoji: '🛏️', owner: 'maya', routine: 'morning', days: [0, 1, 2, 3, 4, 5, 6] },
-    { id: 3, title: 'Piano', emoji: '🎹', owner: 'otto', routine: 'evening', days: [1, 4] },
+    { id: 1, title: 'Garbage to curb', emoji: '🗑️', owner: 'any', days: [0, 3] },
+    { id: 2, title: 'Make bed', emoji: '🛏️', owner: 'maya', days: [0, 1, 2, 3, 4, 5, 6] },
+    { id: 3, title: 'Piano', emoji: '🎹', owner: 'otto', days: [1, 4] },
   ],
   done: [2], // the server's ids are numbers
   week: { maya: ['hit', 'miss', 'hit', null, null, null, null] },
@@ -24,7 +24,7 @@ test('parses the server body: weekday from the server date, ids as strings, done
   assert.equal(d.date, '2026-10-21');
   assert.equal(d.weekday, 3);
   assert.equal(d.chores.length, 3);
-  assert.deepEqual(d.chores[0], { id: '1', title: 'Garbage to curb', emoji: '🗑️', owner: 'any', routine: 'evening', days: [0, 3] });
+  assert.deepEqual(d.chores[0], { id: '1', title: 'Garbage to curb', emoji: '🗑️', owner: 'any', days: [0, 3] });
   assert.deepEqual(d.done, { 2: true });
   assert.deepEqual(d.week, { maya: ['hit', 'miss', 'hit', null, null, null, null] });
 });
@@ -39,7 +39,7 @@ test('rejects a body that is not a chores response', () => {
 
 test('drops malformed chores and week rows instead of failing the whole response', () => {
   const d = Chores.parse(body({
-    chores: [{ id: 9, title: 'No days', emoji: 'x', owner: 'any', routine: 'morning' }, body().chores[1]],
+    chores: [{ id: 9, title: 'No days', emoji: 'x', owner: 'any' }, body().chores[1]],
     week: { maya: ['hit'], otto: ['hit', 'miss', 'nope', null, null, null, null] },
   }));
   assert.deepEqual(d.chores.map((c) => c.id), ['2']);
@@ -57,24 +57,29 @@ const sunWed = (date) => Chores.parse(body({ date, done: [] }));
 
 test('a Sun+Wed chore shows only on Sundays and Wednesdays', () => {
   const days = ['2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24'];
-  const shown = days.filter((d) => Chores.today(sunWed(d), 'evening').some((c) => c.id === '1'));
+  const shown = days.filter((d) => Chores.today(sunWed(d)).some((c) => c.id === '1'));
   assert.deepEqual(shown, ['2026-10-18', '2026-10-21']);
 });
 
-test('today lists the shown routine only, with done from the server', () => {
+test('today lists every chore scheduled today, in the server\'s order, with done from the server', () => {
   const d = Chores.parse(body());
-  assert.deepEqual(Chores.today(d, 'morning').map((c) => [c.id, c.done]), [['2', true]]);
-  assert.deepEqual(Chores.today(d, 'evening').map((c) => [c.id, c.done]), [['1', false]]);
+  assert.deepEqual(Chores.today(d).map((c) => [c.id, c.done]), [['1', false], ['2', true]]);
+});
+
+test('a routine from an older server is not kept', () => {
+  const d = Chores.parse(body({ chores: [Object.assign({ routine: 'evening' }, body().chores[0])] }));
+  assert.deepEqual(d.chores[0], { id: '1', title: 'Garbage to curb', emoji: '🗑️', owner: 'any', days: [0, 3] });
+  assert.equal('routine' in Chores.today(d)[0], false);
 });
 
 test('a pending tick or untick shows over the server state until it settles', () => {
   const d = Chores.parse(body());
-  assert.equal(Chores.today(d, 'evening', { 1: true })[0].done, true);
-  assert.equal(Chores.today(d, 'morning', { 2: false })[0].done, false);
+  assert.equal(Chores.today(d, { 1: true })[0].done, true);
+  assert.equal(Chores.today(d, { 2: false })[1].done, false);
 });
 
 test('nothing to show without data', () => {
-  assert.deepEqual(Chores.today(null, 'morning'), []);
+  assert.deepEqual(Chores.today(null), []);
 });
 
 // ------------------------------------------------------------ ticks (pending changes)
@@ -89,7 +94,7 @@ test('ticks: a tick shows at once in today, and is cleared once the server has i
   const d = Chores.parse(body());
   const p = ticks.tick('1', true);
   assert.deepEqual(sent.map((s) => [s.method, s.path]), [['PUT', '/api/chores/1/done']]);
-  assert.equal(Chores.today(d, 'evening', ticks.pending())[0].done, true);
+  assert.equal(Chores.today(d, ticks.pending())[0].done, true);
   assert.equal(ticks.busy(), true);
   sent[0].ok({});
   assert.equal(await p, true, 'still its own, so the caller applies it');
@@ -102,10 +107,10 @@ test('ticks: an untick that fails is put back and rejects with the reason', asyn
   const d = Chores.parse(body());
   const p = ticks.tick('2', false);
   assert.equal(sent[0].method, 'DELETE');
-  assert.equal(Chores.today(d, 'morning', ticks.pending())[0].done, false);
+  assert.equal(Chores.today(d, ticks.pending())[1].done, false);
   sent[0].no(new Error('HTTP 500'));
   await assert.rejects(p, /HTTP 500/);
-  assert.equal(Chores.today(d, 'morning', ticks.pending())[0].done, true, 'back to the server state');
+  assert.equal(Chores.today(d, ticks.pending())[1].done, true, 'back to the server state');
   assert.equal(ticks.busy(), false);
 });
 
@@ -176,11 +181,10 @@ test('no week grid for someone not in the week, or without data', () => {
 });
 
 // ------------------------------------------------------------ edit mode
-test('edit mode lists every chore in the routine, not just today\'s', () => {
+test('edit mode lists every chore, not just today\'s', () => {
   const d = Chores.parse(body()); // Wednesday: Piano (Mon, Thu) is not on today
-  assert.deepEqual(Chores.inRoutine(d, 'evening').map((c) => c.id), ['1', '3']);
-  assert.deepEqual(Chores.inRoutine(d, 'morning').map((c) => c.id), ['2']);
-  assert.deepEqual(Chores.inRoutine(null, 'morning'), []);
+  assert.deepEqual(Chores.all(d).map((c) => c.id), ['1', '2', '3']);
+  assert.deepEqual(Chores.all(null), []);
 });
 
 test('day badges read Sunday first, or "Every day"', () => {
@@ -190,10 +194,10 @@ test('day badges read Sunday first, or "Every day"', () => {
 });
 
 // ------------------------------------------------------------ the edit sheet's form
-const form = (over) => Object.assign({ title: '  Garbage to curb ', emoji: ' 🗑️', owner: 'any', routine: 'evening', days: [3, 0] }, over);
+const form = (over) => Object.assign({ title: '  Garbage to curb ', emoji: ' 🗑️', owner: 'any', days: [3, 0] }, over);
 
 test('the sheet\'s form becomes the request body: trimmed, days in order', () => {
-  assert.deepEqual(Chores.toInput(form()), { title: 'Garbage to curb', emoji: '🗑️', owner: 'any', routine: 'evening', days: [0, 3] });
+  assert.deepEqual(Chores.toInput(form()), { title: 'Garbage to curb', emoji: '🗑️', owner: 'any', days: [0, 3] });
 });
 
 test('the form needs a title, an emoji and at least one day', () => {
@@ -205,18 +209,19 @@ test('the form needs a title, an emoji and at least one day', () => {
 // ------------------------------------------------------------ showing a save before the refetch
 test('a saved chore from the server replaces the old one, or is added', () => {
   const d = Chores.parse(body());
-  const moved = Chores.applySaved(d, { id: 1, title: 'Garbage to curb', emoji: '🗑️', owner: 'any', routine: 'evening', days: [1] });
+  const moved = Chores.applySaved(d, { id: 1, title: 'Garbage to curb', emoji: '🗑️', owner: 'any', days: [1] });
   assert.deepEqual(moved.chores.map((c) => [c.id, c.days.join()]), [['1', '1'], ['2', '0,1,2,3,4,5,6'], ['3', '1,4']]);
-  const added = Chores.applySaved(d, { id: 7, title: 'Feed cat', emoji: '🐈', owner: 'maya', routine: 'morning', days: [3] });
+  const added = Chores.applySaved(d, { id: 7, title: 'Feed cat', emoji: '🐈', owner: 'maya', days: [3] });
   assert.deepEqual(added.chores.map((c) => c.id), ['1', '2', '3', '7']);
-  assert.deepEqual(Chores.today(added, 'morning').map((c) => c.id), ['2', '7']);
+  assert.deepEqual(Chores.today(added).map((c) => c.id), ['1', '2', '7']);
   assert.equal(d.chores.length, 3); // the loaded data is left alone
 });
 
 test('a deleted chore is gone from today and from edit mode', () => {
   const d = Chores.applyRemoved(Chores.parse(body()), '2');
   assert.deepEqual(d.chores.map((c) => c.id), ['1', '3']);
-  assert.deepEqual(Chores.today(d, 'morning'), []);
+  assert.deepEqual(Chores.today(d).map((c) => c.id), ['1']);
+  assert.deepEqual(Chores.all(d).map((c) => c.id), ['1', '3']);
 });
 
 // ------------------------------------------------------------ notes

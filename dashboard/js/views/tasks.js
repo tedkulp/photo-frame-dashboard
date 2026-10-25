@@ -1,14 +1,12 @@
-// Tasks / chores: one lane per person + "Anyone", scoped to a routine (Morning or Evening). Chores
-// come from the home server (App.choresToday); a tap ticks or unticks at once and is saved there.
-// Edit mode (App.editMode, the reusable pattern in app.js) shows every chore in the routine with
-// its days; a tap opens the edit sheet instead of ticking, and each lane ends with "+ Add".
+// Tasks / chores: one lane per person + "Anyone", with all of today's chores. Chores come from
+// the home server (App.choresToday); a tap ticks or unticks at once and is saved there.
+// Edit mode (App.editMode, the reusable pattern in app.js) shows every chore with its days; a tap opens the edit sheet instead of ticking, and each lane ends with "+ Add".
 (function () {
   'use strict';
   var D = window.DATA;
-  var V = { el: null, routine: null, note: null };
+  var V = { el: null, note: null };
   var ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-  function routine() { return V.routine ? D.routines.filter(function (r) { return r.id === V.routine; })[0] : App.currentRoutine(); }
   function listFor(who, today) {
     return today.filter(function (c) { return c.owner === who; })
       .sort(function (a, b) { return a.done - b.done; });
@@ -43,21 +41,21 @@
       '<div><b>' + App.esc(App.choreOwnerName(who)) + '</b><span class="ch-sub">' + sub + '</span></div>' + ring + '</header>';
   }
 
-  function lane(who, r, today) {
+  function lane(who, today) {
     var list = listFor(who, today);
     var done = list.filter(function (c) { return c.done; }).length;
     var all = list.length && done === list.length;
     return '<section class="ch-lane' + (all ? ' is-complete' : '') + '" data-lane="' + App.esc(who) + '" style="' + App.pstyle(who) + '">' +
       laneHead(who, who === window.Chores.ANYONE ? 'Up for grabs' : (list.length ? done + ' of ' + list.length : 'Nothing'),
         '<div class="ch-ring">' + App.ring(done, list.length || 1, 46) + '<span class="num">' + (all ? '✓' : list.length ? done + '/' + list.length : '–') + '</span></div>') +
-      '<div class="ch-list">' + (list.length ? list.map(row).join('') : '<div class="ch-none serif"><i>Nothing this ' + r.name.toLowerCase() + '</i></div>') +
+      '<div class="ch-list">' + (list.length ? list.map(row).join('') : '<div class="ch-none serif"><i>Nothing today</i></div>') +
       (all ? '<div class="ch-alldone serif">All done<i>!</i></div>' : '') + '</div>' +
       weekGrid(who) +
       '</section>';
   }
 
-  function editLane(who, r) {
-    var list = window.Chores.inRoutine(D.chores, r.id).filter(function (c) { return c.owner === who; });
+  function editLane(who) {
+    var list = window.Chores.all(D.chores).filter(function (c) { return c.owner === who; });
     return '<section class="ch-lane is-editing" data-lane="' + App.esc(who) + '" style="' + App.pstyle(who) + '">' +
       laneHead(who, list.length === 1 ? '1 chore' : list.length + ' chores', '') +
       '<div class="ch-list">' + list.map(editRow).join('') + edit.addRow('data-edit-add="' + App.esc(who) + '"') + '</div>' +
@@ -65,26 +63,25 @@
   }
 
   function render() {
-    var r = routine(), auto = App.currentRoutine(), note = App.choresNote();
-    var today = App.choresToday(r.id);
+    var note = App.choresNote();
+    var today = App.choresToday();
     var done = today.filter(function (c) { return c.done; }).length;
     var lanes = App.choreOwners();
     V.note = note;
     V.el.innerHTML = '<div class="tasks' + (App.tickBlocked() ? ' is-blocked' : '') + (edit.on ? ' is-editing' : '') + '">' +
       '<header class="t-head">' +
-      '<div class="t-title"><div class="label">' + (edit.on ? 'Editing · tap a chore to change it' : (r.id === auto.id ? 'Right now · ' : '') + r.range) + '</div><h1 class="serif">' + r.name + '</h1>' +
+      '<div class="t-title"><div class="label">' + (edit.on ? 'Editing · tap a chore to change it' : 'Chores') + '</div><h1 class="serif">Today</h1>' +
       (note ? '<div class="t-note">' + note + '</div>' : '') + '</div>' +
-      '<div class="seg">' + D.routines.map(function (x) { return '<button class="' + (x.id === r.id ? 'is-on' : '') + '" data-r="' + x.id + '">' + x.name + '</button>'; }).join('') + '</div>' +
       (edit.on ? '' : '<div class="t-progress"><span class="num">' + done + '<small>/' + today.length + '</small></span><div class="t-bar"><i style="width:' + (today.length ? done / today.length * 100 : 0) + '%"></i></div><span class="label">done</span></div>') +
       (D.chores ? edit.button(App.tickBlocked()) : '') +
       '</header>' +
-      (D.chores ? '<div class="ch-lanes" style="grid-template-columns:' + App.cols(lanes.length) + '">' + lanes.map(function (w) { return edit.on ? editLane(w, r) : lane(w, r, today); }).join('') + '</div>'
+      (D.chores ? '<div class="ch-lanes" style="grid-template-columns:' + App.cols(lanes.length) + '">' + lanes.map(function (w) { return edit.on ? editLane(w) : lane(w, today); }).join('') + '</div>'
         : '<div class="t-empty serif"><i>' + note + '</i></div>') +
       '</div>';
   }
   var edit = App.editMode('tasks', function () { if (V.el) render(); });
 
-  function find(id) { return App.choresToday(routine().id).filter(function (c) { return c.id === id; })[0]; }
+  function find(id) { return App.choresToday().filter(function (c) { return c.id === id; })[0]; }
 
   function failed(c, e) {
     App.toast('Couldn’t save <b>' + App.esc(c.title) + '</b> · ' + App.esc(e.message), { tone: 'error', icon: 'tasks' });
@@ -94,24 +91,24 @@
   // Optimistic: the tick and its "done" toast (with Undo) show at once; if the save then fails,
   // the done toast goes and only the error is left.
   function tick(c) {
-    var r = routine(), shown = null;
+    var shown = null;
     App.tickChore(c.id, true).catch(function (e) {
       if (shown) shown.dismiss();
       failed(c, e);
     });
-    var all = App.choresToday(r.id);
+    var all = App.choresToday();
     var undo = function () { untick(c); };
     shown = all.length && all.every(function (x) { return x.done; })
-      ? App.toast('<b>' + r.name + ' routine complete!</b> Everyone crushed it.', { icon: 'check', ms: 5000, undo: undo })
+      ? App.toast('<b>All done today!</b> Everyone crushed it.', { icon: 'check', ms: 5000, undo: undo })
       : App.toast('<b>' + App.esc(c.title) + '</b> done', { icon: 'check', undo: undo });
   }
 
   // ------------------------------------------------------------ edit sheet
-  // A chore's fields on top of App.editSheet: title, emoji grid + type-your-own, owner, routine,
-  // days. `c` is the chore being edited, or for a new one { owner, routine } from the lane.
+  // A chore's fields on top of App.editSheet: title, emoji grid + type-your-own, owner, days. `c`
+  // is the chore being edited, or for a new one { owner } from the lane.
   function choreSheet(c) {
     var isNew = !c.id;
-    var st = { owner: c.owner, routine: c.routine, days: c.days ? c.days.slice() : ALL_DAYS.slice() };
+    var st = { owner: c.owner, days: c.days ? c.days.slice() : ALL_DAYS.slice() };
     var owners = App.choreOwners();
     function on(k, v) { return st[k] === v ? ' is-on' : ''; }
     App.editSheet({
@@ -123,10 +120,7 @@
         '<div class="label">Who</div><div class="add-who">' + owners.map(function (id) {
           return '<button class="who-btn' + on('owner', id) + '" data-owner="' + App.esc(id) + '" style="' + App.pstyle(id) + '">' + App.avatar(id, 44) + '<span>' + App.esc(App.choreOwnerName(id)) + '</span></button>';
         }).join('') + '</div>' +
-        '<div class="add-row"><div><div class="label">Routine</div><div class="chips">' + D.routines.map(function (x) {
-          return '<button class="chip' + on('routine', x.id) + '" data-routine="' + x.id + '">' + x.name + '</button>';
-        }).join('') + '</div></div>' +
-        '<div><div class="label">Days</div><div class="chips">' + window.Chores.DAY_LETTERS.map(function (d, i) {
+        '<div class="add-row"><div><div class="label">Days</div><div class="chips">' + window.Chores.DAY_LETTERS.map(function (d, i) {
           return '<button class="chip day-btn" data-day="' + i + '" aria-label="' + window.Chores.DAY_NAMES[i] + '">' + d + '</button>';
         }).join('') + '<button class="chip" data-everyday>Every day</button></div></div></div>',
       onMount: function (s) {
@@ -142,11 +136,10 @@
           var t = ev.target.closest('button');
           if (!t) return;
           if (t.dataset.emoji) emoji.value = t.dataset.emoji;
-          ['owner', 'routine'].forEach(function (k) {
-            if (t.dataset[k] == null) return;
-            st[k] = t.dataset[k];
-            App.$$('[data-' + k + ']', s).forEach(function (b) { b.classList.toggle('is-on', b === t); });
-          });
+          if (t.dataset.owner != null) {
+            st.owner = t.dataset.owner;
+            App.$$('[data-owner]', s).forEach(function (b) { b.classList.toggle('is-on', b === t); });
+          }
           if (t.dataset.day != null) {
             var d = +t.dataset.day, i = st.days.indexOf(d);
             if (i > -1) st.days.splice(i, 1); else st.days.push(d);
@@ -156,7 +149,7 @@
         });
       },
       read: function (s) {
-        return window.Chores.toInput({ title: s.querySelector('[data-f=title]').value, emoji: s.querySelector('[data-f=emoji]').value, owner: st.owner, routine: st.routine, days: st.days });
+        return window.Chores.toInput({ title: s.querySelector('[data-f=title]').value, emoji: s.querySelector('[data-f=emoji]').value, owner: st.owner, days: st.days });
       },
       save: function (input) {
         return App.saveChore(c.id, input).then(function (saved) {
@@ -176,14 +169,13 @@
   function onClick(e) {
     var t, why = App.tickBlocked();
     if (edit.click(e, why)) return;
-    if ((t = e.target.closest('[data-r]'))) { V.routine = t.dataset.r === App.currentRoutine().id ? null : t.dataset.r; return render(); }
     if (edit.on) {
       var id = (t = e.target.closest('[data-edit-ch]')) && t.dataset.editCh;
       var owner = (t = e.target.closest('[data-edit-add]')) && t.dataset.editAdd;
       if (!id && !owner) return;
       if (why) return App.toast(why, { tone: 'error', icon: 'tasks' });
-      if (owner) return choreSheet({ owner: owner, routine: routine().id });
-      var c = window.Chores.inRoutine(D.chores, routine().id).filter(function (x) { return x.id === id; })[0];
+      if (owner) return choreSheet({ owner: owner });
+      var c = window.Chores.all(D.chores).filter(function (x) { return x.id === id; })[0];
       if (c) choreSheet(c);
       return;
     }

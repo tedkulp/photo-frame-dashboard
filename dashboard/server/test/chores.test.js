@@ -4,7 +4,9 @@
 // The last few go through startServer and a fake Google for the Family calendar's zone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { DatabaseSync } from 'node:sqlite';
 import { startServer } from '../app.js';
 import { createHandler } from '../http.js';
 import { createChores } from '../chores.js';
@@ -88,8 +90,8 @@ async function call(url, method, path, body) {
   return { status: res.status, body: text ? JSON.parse(text) : null };
 }
 
-const trash = (over) => Object.assign({ title: 'Garbage to curb', emoji: '🗑️', owner: 'alex', routine: 'evening', days: [0, 3] }, over || {});
-const daily = (over) => trash(Object.assign({ title: 'Make bed', emoji: '🛏️', routine: 'morning', days: [0, 1, 2, 3, 4, 5, 6] }, over || {}));
+const trash = (over) => Object.assign({ title: 'Garbage to curb', emoji: '🗑️', owner: 'alex', days: [0, 3] }, over || {});
+const daily = (over) => trash(Object.assign({ title: 'Make bed', emoji: '🛏️', days: [0, 1, 2, 3, 4, 5, 6] }, over || {}));
 
 test('starts with no chores', async () => {
   await withServer(async ({ call }) => {
@@ -108,7 +110,7 @@ test('a created chore is returned and listed', async () => {
     const created = await call('POST', '/api/chores', trash({ title: '  Garbage to curb ' }));
     assert.equal(created.status, 201);
     assert.deepEqual(Object.assign({}, created.body, { id: undefined }), {
-      id: undefined, title: 'Garbage to curb', emoji: '🗑️', owner: 'alex', routine: 'evening', days: [0, 3],
+      id: undefined, title: 'Garbage to curb', emoji: '🗑️', owner: 'alex', days: [0, 3],
     });
     const { body } = await call('GET', '/api/chores');
     assert.deepEqual(body.chores, [created.body]);
@@ -120,9 +122,25 @@ test('PATCH changes only the fields sent', async () => {
     const { body: c } = await call('POST', '/api/chores', trash());
     const edited = await call('PATCH', '/api/chores/' + c.id, { title: 'Bins out', owner: 'sam', days: [3, 0, 5] });
     assert.equal(edited.status, 200);
-    assert.deepEqual(edited.body, { id: c.id, title: 'Bins out', emoji: '🗑️', owner: 'sam', routine: 'evening', days: [0, 3, 5] });
+    assert.deepEqual(edited.body, { id: c.id, title: 'Bins out', emoji: '🗑️', owner: 'sam', days: [0, 3, 5] });
     const { body } = await call('GET', '/api/chores');
     assert.deepEqual(body.chores, [edited.body]);
+  });
+});
+
+// A frame on an older build still sends a routine; it is ignored, whatever it is.
+test('POST and PATCH ignore a routine', async () => {
+  await withServer(async ({ call }) => {
+    const created = await call('POST', '/api/chores', trash({ routine: 'evening' }));
+    assert.equal(created.status, 201);
+    assert.equal('routine' in created.body, false);
+    const edited = await call('PATCH', '/api/chores/' + created.body.id, { routine: 'afterschool' });
+    assert.equal(edited.status, 200);
+    assert.deepEqual(edited.body, created.body);
+    const titled = await call('PATCH', '/api/chores/' + created.body.id, { title: 'Bins out', routine: 42 });
+    assert.equal(titled.status, 200);
+    assert.equal(titled.body.title, 'Bins out');
+    assert.equal('routine' in titled.body, false);
   });
 });
 
@@ -272,15 +290,52 @@ test('days still to come with a chore are due; days with nothing stay null', asy
   });
 });
 
-test('a hit day needs every scheduled chore across both routines', async () => {
+test('a hit day needs every scheduled chore of the day', async () => {
   await withServer(async ({ call }) => {
     const { body: a } = await call('POST', '/api/chores', daily());
-    const { body: b } = await call('POST', '/api/chores', daily({ title: 'Dishes', routine: 'evening' }));
+    const { body: b } = await call('POST', '/api/chores', daily({ title: 'Dishes' }));
     await call('PUT', `/api/chores/${a.id}/done`);
     assert.equal((await call('GET', '/api/chores')).body.week.alex[1], 'miss');
     await call('PUT', `/api/chores/${b.id}/done`);
     assert.equal((await call('GET', '/api/chores')).body.week.alex[1], 'hit');
   });
+});
+
+// A home.db written by a server from before routines were dropped (schema v1, every chore in a
+// routine) is migrated on open: nothing is lost and the week reads as before.
+test('a v1 home.db with routines migrates; chores, versions, ticks and hit days survive', async () => {
+  const t = tempDir();
+  mkdirSync(t.path('data'));
+  const old = new DatabaseSync(t.path('data/home.db'));
+  old.exec(`CREATE TABLE chores (id INTEGER PRIMARY KEY, title TEXT NOT NULL, emoji TEXT NOT NULL, routine TEXT NOT NULL);
+    CREATE TABLE chore_versions (chore_id INTEGER NOT NULL REFERENCES chores(id), date TEXT NOT NULL, owner TEXT NOT NULL,
+      days TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (chore_id, date));
+    CREATE TABLE chore_done (chore_id INTEGER NOT NULL REFERENCES chores(id), date TEXT NOT NULL, PRIMARY KEY (chore_id, date));
+    INSERT INTO chores VALUES (1, 'Make bed', '🛏️', 'morning'), (2, 'Dishes', '🍽️', 'evening'), (3, 'Piano', '🎹', 'evening');
+    INSERT INTO chore_versions VALUES (1, '2026-10-01', 'alex', '0,1,2,3,4,5,6', 0), (2, '2026-10-01', 'alex', '0,1,2,3,4,5,6', 0),
+      (3, '2026-10-01', 'sam', '1', 0), (3, '2026-10-19', 'sam', '1,4', 0);
+    INSERT INTO chore_done VALUES (1, '2026-10-19'), (2, '2026-10-19'), (1, '2026-10-20');
+    PRAGMA user_version = 1;`);
+  old.close();
+  const store = openStore(t.path('data'));
+  try {
+    assert.deepEqual(store.db.prepare('SELECT name FROM pragma_table_info(\'chores\')').all().map((r) => r.name), ['id', 'title', 'emoji']);
+    const today = async () => '2026-10-20';
+    const body = await createChores({ db: store.db, settings: settings(), now: () => TUE, today }).load();
+    assert.deepEqual(body.chores, [
+      { id: 1, title: 'Make bed', emoji: '🛏️', owner: 'alex', days: [0, 1, 2, 3, 4, 5, 6] },
+      { id: 2, title: 'Dishes', emoji: '🍽️', owner: 'alex', days: [0, 1, 2, 3, 4, 5, 6] },
+      { id: 3, title: 'Piano', emoji: '🎹', owner: 'sam', days: [1, 4] },
+    ]);
+    assert.deepEqual(body.done, [1]);
+    assert.deepEqual(body.week, {
+      alex: ['hit', 'miss', 'due', 'due', 'due', 'due', 'due'],
+      sam: ['miss', null, null, 'due', null, null, null],
+    });
+  } finally {
+    store.close();
+    t.cleanup();
+  }
 });
 
 test('people removed from settings have their chores hidden, not deleted', async () => {
@@ -309,7 +364,6 @@ for (const [name, over, message] of [
   ['missing emoji', { emoji: '' }, /emoji is missing/],
   ['long emoji', { emoji: '😀'.repeat(9) }, /emoji is longer than 16/],
   ['unknown owner', { owner: 'kit' }, /owner must be a person id or "any"/],
-  ['bad routine', { routine: 'afterschool' }, /routine must be "morning" or "evening"/],
   ['no days', { days: [] }, /days must be a non-empty list/],
   ['repeated day', { days: [1, 1] }, /days must be/],
   ['day out of range', { days: [7] }, /days must be/],

@@ -1,5 +1,5 @@
 // Chores and what was done each day, kept in the store (see GLOSSARY.md → Chores, ADR 0002).
-// Title, emoji and routine are overwritten in place. Owner, days and deletion are versions with
+// Title and emoji are overwritten in place. Owner, days and deletion are versions with
 // an effective date: a version applies from its date until the next one, a change made today
 // replaces any other change made today, and nothing is ever removed. "Today" is a local date
 // (YYYY-MM-DD) from `today()`; weekdays are JS numbering, 0 = Sunday.
@@ -7,7 +7,6 @@ import { HttpError } from './errors.js';
 
 export const TITLE_MAX = 60;
 export const EMOJI_MAX = 16;
-const ROUTINES = ['morning', 'evening'];
 const ANYONE = 'any';
 
 const weekday = (date) => new Date(date + 'T00:00:00Z').getUTCDay();
@@ -18,10 +17,10 @@ export function createChores({ db, settings, today, now = Date.now }) {
   const known = (owner) => owner === ANYONE || people.includes(owner);
 
   const q = {
-    insertChore: db.prepare('INSERT INTO chores (title, emoji, routine) VALUES (?, ?, ?)'),
-    updateChore: db.prepare('UPDATE chores SET title = ?, emoji = ?, routine = ? WHERE id = ?'),
+    insertChore: db.prepare('INSERT INTO chores (title, emoji) VALUES (?, ?)'),
+    updateChore: db.prepare('UPDATE chores SET title = ?, emoji = ? WHERE id = ?'),
     putVersion: db.prepare('INSERT OR REPLACE INTO chore_versions (chore_id, date, owner, days, deleted) VALUES (?, ?, ?, ?, ?)'),
-    chores: db.prepare('SELECT id, title, emoji, routine FROM chores ORDER BY id'),
+    chores: db.prepare('SELECT id, title, emoji FROM chores ORDER BY id'),
     versions: db.prepare('SELECT chore_id, date, owner, days, deleted FROM chore_versions ORDER BY chore_id, date'),
     doneOn: db.prepare('SELECT chore_id FROM chore_done WHERE date = ?'),
     doneBetween: db.prepare('SELECT chore_id, date FROM chore_done WHERE date >= ? AND date <= ?'),
@@ -32,7 +31,7 @@ export function createChores({ db, settings, today, now = Date.now }) {
   // Every chore with its versions, oldest first.
   function readAll() {
     const byId = new Map();
-    for (const c of q.chores.all()) byId.set(c.id, { id: c.id, title: c.title, emoji: c.emoji, routine: c.routine, versions: [] });
+    for (const c of q.chores.all()) byId.set(c.id, { id: c.id, title: c.title, emoji: c.emoji, versions: [] });
     for (const v of q.versions.all()) {
       byId.get(v.chore_id).versions.push({ date: v.date, owner: v.owner, days: v.days ? v.days.split(',').map(Number) : [], deleted: Boolean(v.deleted) });
     }
@@ -56,7 +55,7 @@ export function createChores({ db, settings, today, now = Date.now }) {
   function shown(chore, date) {
     const v = versionAt(chore, date);
     if (!v || v.deleted || !known(v.owner)) return null;
-    return { id: chore.id, title: chore.title, emoji: chore.emoji, owner: v.owner, routine: chore.routine, days: v.days.slice() };
+    return { id: chore.id, title: chore.title, emoji: chore.emoji, owner: v.owner, days: v.days.slice() };
   }
 
   function find(id, date) {
@@ -66,7 +65,8 @@ export function createChores({ db, settings, today, now = Date.now }) {
     return chore;
   }
 
-  // Checks the fields present in `input`; with `all`, every field is required.
+  // Checks the fields present in `input`; with `all`, every field is required. Anything else is
+  // ignored, such as the routine a frame on an older build still sends.
   function check(input, all) {
     const bad = (msg) => new HttpError(400, msg);
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw bad('Expected a JSON object');
@@ -85,10 +85,6 @@ export function createChores({ db, settings, today, now = Date.now }) {
     if (has('owner')) {
       if (typeof input.owner !== 'string' || !known(input.owner)) throw bad(`owner must be a person id or "${ANYONE}", not ${JSON.stringify(input.owner)}`);
       out.owner = input.owner;
-    }
-    if (has('routine')) {
-      if (!ROUTINES.includes(input.routine)) throw bad('routine must be "morning" or "evening"');
-      out.routine = input.routine;
     }
     if (has('days')) {
       const d = input.days;
@@ -142,7 +138,7 @@ export function createChores({ db, settings, today, now = Date.now }) {
     const c = check(input, true);
     const date = await today();
     const id = transaction(() => {
-      const { lastInsertRowid } = q.insertChore.run(c.title, c.emoji, c.routine);
+      const { lastInsertRowid } = q.insertChore.run(c.title, c.emoji);
       q.putVersion.run(lastInsertRowid, date, c.owner, c.days.join(','), 0);
       return Number(lastInsertRowid);
     });
@@ -160,8 +156,8 @@ export function createChores({ db, settings, today, now = Date.now }) {
     const chore = find(id, date);
     const c = check(input, false);
     transaction(() => {
-      if (c.title !== undefined || c.emoji !== undefined || c.routine !== undefined) {
-        q.updateChore.run(c.title ?? chore.title, c.emoji ?? chore.emoji, c.routine ?? chore.routine, chore.id);
+      if (c.title !== undefined || c.emoji !== undefined) {
+        q.updateChore.run(c.title ?? chore.title, c.emoji ?? chore.emoji, chore.id);
       }
       const v = versionAt(chore, date);
       const owner = c.owner ?? v.owner;

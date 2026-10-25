@@ -130,12 +130,8 @@ _Avoid_: Fake time, demo time
 ### Chores
 
 **Chore**:
-A standing job someone in the family does, such as "Garbage to curb". It belongs to one person or to Anyone, sits in one routine, and happens on chosen days of the week. Changing who owns it, which days it happens or deleting it applies from today on; earlier days stay as they were.
+A standing job someone in the family does, such as "Garbage to curb". It belongs to one person or to Anyone and happens on chosen days of the week, for the whole day. Changing who owns it, which days it happens or deleting it applies from today on; earlier days stay as they were.
 _Avoid_: Item, task, to-do
-
-**Routine**:
-One of the two parts of the day that chores are grouped into: Morning or Evening.
-_Avoid_: Time slot, period
 
 **Anyone**:
 A chore that has no owner. Anyone can check it off, and it counts toward nobody's hit day.
@@ -150,4 +146,4 @@ A chore that wasn't done on a day it was scheduled. It doesn't carry over to the
 _Avoid_: Overdue, late
 
 **Hit day**:
-A day on which a person did every chore of theirs that was scheduled, across both routines. Anyone chores don't count. A day with nothing scheduled is neither a hit nor a miss.
+A day on which a person did every chore of theirs that was scheduled. Anyone chores don't count. A day with nothing scheduled is neither a hit nor a miss.

@@ -166,17 +166,12 @@
 
   // ------------------------------------------------------------ chores feed (home server)
   // Chores from GET /api/chores (chores.js), on the calendar feed's loop every 30 s.
-  App.currentRoutine = function () {
-    var h = App.now().getHours();
-    for (var i = 0; i < D.routines.length; i++) if (h >= D.routines[i].from && h < D.routines[i].to) return D.routines[i];
-    return D.routines[D.routines.length - 1];
-  };
   // Ticks sent but not answered yet (Chores.ticks), through the chores feed.
   var ticks = window.Chores.ticks({ send: function (method, path) { return App.choresFeed.send(method, path); } });
   function onChores(d) { D.chores = d; App.emit('chores'); }
-  // Today's chores (the server's weekday) in a routine, with done; the one selection the Chores
+  // Today's chores (the server's weekday), with done; the one selection the Chores
   // view and the home screen's rings both use.
-  App.choresToday = function (routineId) { return window.Chores.today(D.chores, routineId, ticks.pending()); };
+  App.choresToday = function () { return window.Chores.today(D.chores, ticks.pending()); };
   App.choresWeek = function (personId) { return window.Chores.week(D.chores, personId); };
   // Who a chore can belong to, in lane order: each person, then Anyone.
   App.choreOwners = function () { return App.peopleIds().concat([window.Chores.ANYONE]); };
