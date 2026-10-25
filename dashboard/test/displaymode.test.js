@@ -341,5 +341,106 @@ test('next never changes the state it is given', () => {
   DisplayMode.next(s, { type: 'tick', hour: 23, today: false });
   DisplayMode.next(s, { type: 'key', mode: NIGHT });
   DisplayMode.next(s, { type: 'takeoverOpen' });
+  DisplayMode.next(s, { type: 'fastIdle', on: true });
+  DisplayMode.next(s, { type: 'pretendNight', on: true, hour: 12 });
   assert.equal(JSON.stringify(s), copy);
+});
+
+// Test controls: fast idle and Pretend night
+const FAST = DisplayMode.FAST_IDLE;
+
+test('fast idle: Today after 8 s and the idle screen after 15 s; off is the normal thresholds', () => {
+  assert.equal(FAST.home, 8);
+  assert.equal(FAST.ambient, 15);
+  const f = frame({ hour: 14 });
+  f.send({ type: 'fastIdle', on: true });
+  assert.equal(DisplayMode.idle(f.state), FAST);
+  f.tick(7);
+  assert.equal(f.page, 'calendar');
+  f.tick();
+  assert.equal(f.page, 'home');
+  f.tick(6);
+  assert.equal(f.mode, DAY);
+  f.tick();
+  assert.equal(f.mode, AMBIENT);
+  f.send({ type: 'tapAmbient' });
+  f.send({ type: 'fastIdle', on: false });
+  assert.equal(DisplayMode.idle(f.state), IDLE);
+  f.page = 'calendar';
+  f.tick(FAST.ambient);
+  assert.equal(f.mode, DAY);
+  assert.equal(f.page, 'calendar');
+});
+
+test('fast idle does not change the shared IDLE thresholds', () => {
+  const before = JSON.stringify(IDLE);
+  const f = frame();
+  f.send({ type: 'fastIdle', on: true });
+  f.tick(20);
+  assert.equal(JSON.stringify(IDLE), before);
+  assert.equal(DisplayMode.idle(DisplayMode.initial(false)), IDLE);
+});
+
+test('Pretend night makes any hour count as night; off, the real hour decides', () => {
+  const s = DisplayMode.initial(false);
+  assert.equal(DisplayMode.night(s, 12), false);
+  assert.equal(DisplayMode.night(Object.assign({}, s, { pretendNight: true }), 12), true);
+  assert.equal(DisplayMode.night(s, 23), true);
+});
+
+test('Pretend night on at midday: ambient becomes night at once, like 22:00; off, back to ambient', () => {
+  const f = frame({ hour: 12 });
+  f.tick(IDLE.ambient);
+  assert.equal(f.mode, AMBIENT);
+  assert.equal(f.send({ type: 'pretendNight', on: true, hour: 12 }).mode, NIGHT);
+  f.tick(5);
+  assert.equal(f.mode, NIGHT);
+  assert.equal(f.send({ type: 'pretendNight', on: false, hour: 12 }).mode, AMBIENT); // like 06:00
+});
+
+test('Pretend night on at midday: Day stays Day and idles to night, not ambient', () => {
+  const f = frame({ hour: 12 });
+  f.tick();
+  assert.equal(f.send({ type: 'pretendNight', on: true, hour: 12 }).mode, undefined);
+  assert.equal(f.mode, DAY);
+  f.tick(IDLE.ambient);
+  assert.equal(f.mode, NIGHT);
+});
+
+test('Pretend night: the rail-clock tap and the nightdash fallback land on night', () => {
+  const f = frame({ hour: 12 });
+  f.tick();
+  f.send({ type: 'pretendNight', on: true, hour: 12 });
+  f.send({ type: 'clock', hour: 12 });
+  assert.equal(f.mode, NIGHT);
+  f.send({ type: 'tapNight' });
+  f.tick(IDLE.nightdash);
+  assert.equal(f.mode, NIGHT);
+});
+
+test('Pretend night switched during real night hours is no crossing', () => {
+  const f = frame({ hour: 23 });
+  f.tick(IDLE.ambient);
+  assert.equal(f.mode, NIGHT);
+  assert.equal(f.send({ type: 'pretendNight', on: true, hour: 23 }).mode, undefined);
+  assert.equal(f.send({ type: 'pretendNight', on: false, hour: 23 }).mode, undefined);
+  assert.equal(f.mode, NIGHT);
+});
+
+test('Pretend night off after a forced ambient: ambient holds, like 06:00', () => {
+  const f = frame({ hour: 12 });
+  f.tick();
+  f.send({ type: 'pretendNight', on: true, hour: 12 });
+  f.send({ type: 'key', mode: AMBIENT });
+  f.tick(3);
+  assert.equal(f.mode, AMBIENT);
+  assert.equal(f.send({ type: 'pretendNight', on: false, hour: 12 }).mode, undefined);
+});
+
+test('Pretend night on a phone stays day', () => {
+  const f = frame({ phone: true });
+  f.tick();
+  f.send({ type: 'pretendNight', on: true, hour: 12 });
+  f.tick(IDLE.ambient);
+  assert.equal(f.mode, DAY);
 });

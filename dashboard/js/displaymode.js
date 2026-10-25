@@ -12,8 +12,11 @@
   var DAY = 'day', AMBIENT = 'ambient', NIGHT = 'night', NIGHTDASH = 'nightdash';
   DisplayMode.MODES = { DAY: DAY, AMBIENT: AMBIENT, NIGHT: NIGHT, NIGHTDASH: NIGHTDASH };
 
-  // Idle seconds: back to Today, the idle screen, and nightdash's fallback. App.idle is this object.
+  // Idle seconds: back to Today, the idle screen, and nightdash's fallback. FAST_IDLE is Test
+  // controls' fast idle; DisplayMode.idle(state) says which one a state counts against.
   DisplayMode.IDLE = { home: 120, ambient: 300, nightdash: 20 };
+  DisplayMode.FAST_IDLE = { home: 8, ambient: 15, nightdash: 20 };
+  DisplayMode.idle = function (state) { return state.fastIdle ? DisplayMode.FAST_IDLE : DisplayMode.IDLE; };
 
   // Effects the app runs, in order, before applying the mode.
   DisplayMode.CLOSE_SHEET = 'closeSheet';
@@ -21,6 +24,9 @@
 
   // Night hours: 22:00 to 06:00.
   DisplayMode.isNight = function (hour) { return hour >= 22 || hour < 6; };
+  // Night for a state at the real hour: Pretend night (a test control) makes every hour count as
+  // night hours. Every decision on the hour goes through this; the clock itself stays real.
+  DisplayMode.night = function (state, hour) { return !!state.pretendNight || DisplayMode.isNight(hour); };
 
   // The idle screen for the hour: night during night hours, else ambient. Where the frame goes
   // when it leaves day (idle tick, rail-clock tap) and where nightdash falls back to after 20 s,
@@ -37,13 +43,17 @@
     return mode;
   };
 
-  // The starting state: day, idleSec 0, the hour not yet seen (the first tick is no crossing).
+  // The starting state: day, idleSec 0, the hour not yet seen (the first tick is no crossing),
+  // Test controls' fast idle and Pretend night off.
   DisplayMode.initial = function (phone) {
-    return { mode: DAY, idleSec: 0, night: null, phone: !!phone, takeover: false };
+    return { mode: DAY, idleSec: 0, night: null, phone: !!phone, takeover: false, fastIdle: false, pretendNight: false };
   };
 
   function copy(s) {
-    return { mode: s.mode, idleSec: s.idleSec, night: s.night, phone: s.phone, takeover: s.takeover };
+    return {
+      mode: s.mode, idleSec: s.idleSec, night: s.night, phone: s.phone, takeover: s.takeover,
+      fastIdle: !!s.fastIdle, pretendNight: !!s.pretendNight
+    };
   }
 
   // next(state, input) -> { state, mode, effects }. `mode` is set only when the mode changes (a
@@ -59,8 +69,12 @@
   //   layout { phone }       the layout flipped; a phone is always day and never counts idle
   //   input                  the user touched the screen: idle starts again from 0
   //   set { mode }           App.setMode from other code: a phone stays in day, a takeover too
+  //   fastIdle { on }        Test controls: count idle against FAST_IDLE (8 s / 15 s) or IDLE
+  //   pretendNight { on, hour }  Test controls: treat every hour as night hours; switching it is a
+  //                          crossing like 22:00 (on) or 06:00 (off) at once, if the real hour isn't
+  //                          already on that side
   DisplayMode.next = function (state, input) {
-    var s = copy(state), effects = [], mode = s.mode, night;
+    var s = copy(state), effects = [], mode = s.mode, night, idle = DisplayMode.idle(s);
     function to(m) { if (m !== DAY && s.phone) return; mode = m; }
     function closeToToday() { effects.push(DisplayMode.CLOSE_SHEET, DisplayMode.TODAY); }
     function goIdle(m) { closeToToday(); to(m); }
@@ -70,19 +84,19 @@
 
     switch (input.type) {
       case 'tick':
-        night = DisplayMode.isNight(input.hour);
+        night = DisplayMode.night(s, input.hour);
         if (s.night !== null) mode = DisplayMode.atBoundary(s.mode, s.night, night);
         s.night = night;
         if (mode !== s.mode || !free) break;
         s.idleSec++;
-        if (s.mode === NIGHTDASH && s.idleSec >= DisplayMode.IDLE.nightdash) to(DisplayMode.idleScreen(night));
+        if (s.mode === NIGHTDASH && s.idleSec >= idle.nightdash) to(DisplayMode.idleScreen(night));
         else if (s.mode === DAY) {
-          if (s.idleSec >= DisplayMode.IDLE.ambient) goIdle(DisplayMode.idleScreen(night));
-          else if (s.idleSec === DisplayMode.IDLE.home && !input.today) closeToToday();
+          if (s.idleSec >= idle.ambient) goIdle(DisplayMode.idleScreen(night));
+          else if (s.idleSec === idle.home && !input.today) closeToToday();
         }
         break;
       case 'clock':
-        if (free && s.mode === DAY) goIdle(DisplayMode.idleScreen(DisplayMode.isNight(input.hour)));
+        if (free && s.mode === DAY) goIdle(DisplayMode.idleScreen(DisplayMode.night(s, input.hour)));
         break;
       case 'key':
         if (free && (input.mode === AMBIENT || input.mode === NIGHT)) goIdle(input.mode);
@@ -112,6 +126,15 @@
         break;
       case 'set':
         if (input.mode === DAY || !s.takeover) to(input.mode);
+        break;
+      case 'fastIdle':
+        s.fastIdle = !!input.on;
+        break;
+      case 'pretendNight':
+        s.pretendNight = !!input.on;
+        night = DisplayMode.night(s, input.hour);
+        if (s.night !== null) mode = DisplayMode.atBoundary(s.mode, s.night, night);
+        s.night = night;
         break;
     }
 
