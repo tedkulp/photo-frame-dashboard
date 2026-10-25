@@ -16,6 +16,9 @@ export const SIZE = 512;
 const COLOR = 10;
 const OPTIONS = '1_1';
 const TILE = 256;
+// LibreWXR draws an image at zoom z on a world 512·2^z px across (measured: moving the centre by
+// 128 px of a 256·2^z world moves the picture 256 px), which is OSM's 256 px tiles one zoom deeper.
+const MAP_ZOOM_OFFSET = 1;
 // OSM's tile policy asks for a User-Agent that names the app.
 export const USER_AGENT = 'photo-frame-dashboard home server (+https://github.com/wesbos/photo-frame-dashboard)';
 
@@ -28,9 +31,9 @@ export function project(lat, lon, z) {
   return { x: (lon + 180) / 360 * world, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * world };
 }
 
-// The OSM tiles covering the size×size window centred on lat/lon at zoom z, the same window as the
-// radar image, each { id, z, x, y, left, top } with its offset in the window (whole px). x wraps
-// round the date line; rows above or below the world are left out.
+// The OSM tiles covering the size×size window centred on lat/lon at zoom z (the radar image's window
+// at LibreWXR zoom z - MAP_ZOOM_OFFSET), each { id, z, x, y, left, top } with its offset in the
+// window (whole px). x wraps round the date line; rows above or below the world are left out.
 export function mapTiles(lat, lon, z, size = SIZE) {
   const n = Math.pow(2, z), p = project(lat, lon, z);
   const left = Math.round(p.x - size / 2), top = Math.round(p.y - size / 2);
@@ -159,7 +162,7 @@ export function createRadar({ ha, zoom, dataDir, now = Date.now, log = console, 
       latest,
       stale: failed,
       age: goodAt == null ? null : Math.floor((now() - goodAt) / 60000),
-      map: place ? mapTiles(place.lat, place.lon, zoom).map((t) => ({ url: '/api/radar/map/' + t.id + '.png', left: t.left, top: t.top })) : [],
+      map: place ? mapTiles(place.lat, place.lon, zoom + MAP_ZOOM_OFFSET).map((t) => ({ url: '/api/radar/map/' + t.id + '.png', left: t.left, top: t.top })) : [],
       size: SIZE,
       tile: TILE,
     };
@@ -174,7 +177,7 @@ export function createRadar({ ha, zoom, dataDir, now = Date.now, log = console, 
   // A map tile of the current place's window as a PNG, from the data dir, else fetched from OSM once
   // and kept there; null for any other id.
   function tile(id) {
-    const t = place && mapTiles(place.lat, place.lon, zoom).find((x) => x.id === id);
+    const t = place && mapTiles(place.lat, place.lon, zoom + MAP_ZOOM_OFFSET).find((x) => x.id === id);
     if (!t) return Promise.resolve(null);
     if (!tileLoads.has(id)) {
       const file = join(tileDir, id + '.png');

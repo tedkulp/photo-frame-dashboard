@@ -283,7 +283,7 @@ coverage, NOAA MRMS), on an OpenStreetMap background
 }
 ```
 
-- `zoom` (default `8`, about 150 miles across): a whole number from 0 to 12; anything else stops
+- `zoom` (default `8`, about 80 miles across): a whole number from 0 to 12; anything else stops
   the server at startup.
 - The location is Home Assistant's `zone.home` (its latitude and longitude). Turning the radar on
   sends those coordinates to LibreWXR and the map area to OpenStreetMap. If `zone.home` has no

@@ -127,7 +127,8 @@ test('the listing: the last hour of past frames and up to 5 nowcast, oldest firs
     assert.equal(l.frames[5].url, '/api/radar/frames/p' + T + '.png');
     assert.match(l.frames[6].url, /^\/api\/radar\/frames\/n\d+-\d+\.png$/);
     assert.equal(l.map.length, 9);
-    assert.match(l.map[0].url, /^\/api\/radar\/map\/8-\d+-\d+\.png$/);
+    // LibreWXR draws zoom 8 at OSM's zoom 9 scale (its world is 512·2^z px), so the map is zoom 9.
+    assert.match(l.map[0].url, /^\/api\/radar\/map\/9-\d+-\d+\.png$/);
 
     // The image asked for is the home's, at the configured zoom, 512 px, colour scheme 10, smoothed + snow.
     assert.ok(fake.requests.some((r) => r.path === `/v2/radar/${T}/512/8/43.65107/-79.38319/10/1_1.png`), JSON.stringify(fake.requests.map((r) => r.path)));

@@ -123,7 +123,7 @@ function checkRadar(r) {
   if (!r || typeof r !== 'object' || Array.isArray(r)) throw new ConfigError('settings.homeAssistant.radar must be a JSON object, like { "zoom": 8 }');
   const zoom = r.zoom === undefined ? 8 : r.zoom;
   if (!Number.isInteger(zoom) || zoom < 0 || zoom > 12) {
-    throw new ConfigError(`settings.homeAssistant.radar.zoom ${JSON.stringify(zoom)} must be a whole number from 0 to 12 (8 shows about 150 miles across)`);
+    throw new ConfigError(`settings.homeAssistant.radar.zoom ${JSON.stringify(zoom)} must be a whole number from 0 to 12 (8 shows about 80 miles across)`);
   }
   return { zoom };
 }
