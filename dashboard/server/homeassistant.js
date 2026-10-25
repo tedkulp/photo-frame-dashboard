@@ -47,5 +47,12 @@ export function createHomeAssistant({ url, token }) {
     return out.forecast;
   }
 
-  return { state, forecasts };
+  // The home's location from zone.home: { lat, lon }, or null when the zone has no coordinates.
+  async function home() {
+    const a = (await state('zone.home')).attributes || {};
+    const num = (v) => typeof v === 'number' && isFinite(v);
+    return num(a.latitude) && num(a.longitude) ? { lat: a.latitude, lon: a.longitude } : null;
+  }
+
+  return { state, forecasts, home };
 }

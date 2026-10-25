@@ -8,6 +8,7 @@ import { weatherRoutes } from '../routes/weather.js';
 import { choresRoutes } from '../routes/chores.js';
 import { homeRoutes } from '../routes/home.js';
 import { photosRoutes } from '../routes/photos.js';
+import { radarRoutes } from '../routes/radar.js';
 
 async function withRoutes(routes, fn) {
   const server = createServer(createHandler({ routes, distDir: '/nonexistent' }));
@@ -69,9 +70,9 @@ test('a feature that throws anything else answers 502', async () => {
 });
 
 test('an unconfigured feature: its top-level GET is { configured: false }, anything else 404 not set up', async () => {
-  await withRoutes([weatherRoutes(null), homeRoutes(null), photosRoutes(null)], async (url) => {
+  await withRoutes([weatherRoutes(null), homeRoutes(null), photosRoutes(null), radarRoutes(null)], async (url) => {
     const answer = (method, path, body) => call(url, method, path, body).then((r) => [r.status, r.body]);
-    for (const path of ['/api/weather', '/api/home', '/api/photos']) {
+    for (const path of ['/api/weather', '/api/home', '/api/photos', '/api/radar']) {
       assert.deepEqual(await answer('GET', path), [200, { configured: false }], path);
     }
     const weather = [404, { error: 'Weather is not set up' }];
@@ -85,6 +86,10 @@ test('an unconfigured feature: its top-level GET is { configured: false }, anyth
     assert.deepEqual(await answer('GET', '/api/photos/abc-123.jpg'), photos);
     assert.deepEqual(await answer('POST', '/api/photos'), photos);
     assert.deepEqual(await answer('GET', '/api/photos/nope'), photos);
+    const radar = [404, { error: 'Radar is not set up' }];
+    assert.deepEqual(await answer('GET', '/api/radar/frames/p1.png'), radar);
+    assert.deepEqual(await answer('GET', '/api/radar/map/8-1-2.png'), radar);
+    assert.deepEqual(await answer('POST', '/api/radar'), radar);
   });
 });
 
@@ -130,5 +135,24 @@ test('a Home Assistant image is never cached', async () => {
     assert.equal(res.headers.get('content-length'), '3');
     assert.equal(res.headers.get('cache-control'), 'no-store');
     assert.equal(await res.text(), 'PNG');
+  });
+});
+
+test('radar images come from the feature by id: frames for an hour, map tiles for a day; anything else 404', async () => {
+  const radar = {
+    load: async () => ({ configured: true, available: false }),
+    frame: (id) => (id === 'p100' ? Buffer.from('FRAME') : null),
+    tile: async (id) => (id === '8-1-2' ? Buffer.from('TILE') : null),
+  };
+  await withRoutes([radarRoutes(radar)], async (url) => {
+    assert.deepEqual((await call(url, 'GET', '/api/radar')).body, { configured: true, available: false });
+    const frame = await fetch(url + '/api/radar/frames/p100.png');
+    assert.deepEqual([frame.status, frame.headers.get('content-type'), frame.headers.get('cache-control'), await frame.text()], [200, 'image/png', 'private, max-age=3600', 'FRAME']);
+    const tile = await fetch(url + '/api/radar/map/8-1-2.png');
+    assert.deepEqual([tile.status, tile.headers.get('cache-control'), await tile.text()], [200, 'private, max-age=86400', 'TILE']);
+    for (const path of ['/api/radar/frames/p101.png', '/api/radar/map/8-1-3.png', '/api/radar/frames/P100.png', '/api/radar/other/p100.png', '/api/radar/frames/p100.jpg']) {
+      assert.deepEqual(await call(url, 'GET', path).then((r) => [r.status, r.body]), [404, { error: 'No such radar image' }], path);
+    }
+    assert.equal((await call(url, 'POST', '/api/radar')).status, 405);
   });
 });

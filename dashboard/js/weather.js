@@ -1,7 +1,7 @@
 // Weather from the home server's GET /api/weather (Home Assistant, already in °F), and what the
 // views show for a given moment: current temperature and condition, today's high and low, the
 // summary and advice lines (advice.js), the hourly strip, the Weather page's details (feels-like,
-// humidity, wind, UV, sunrise and sunset) and its week. The refresh loop is Feed.create's.
+// humidity, wind, UV, sunrise and sunset), its week and its 3-hour steps. The refresh loop is Feed.create's.
 // Also loads in Node for dashboard/test/weather.test.js.
 (function (root) {
   'use strict';
@@ -114,6 +114,27 @@
       feels: fresh ? r.feels : null, humidity: src.humidity, wind: wind, gust: fresh ? r.gust : null,
       dir: Weather.compass(bearing), uv: fresh ? r.uv : null, sunrise: r.sunrise, sunset: r.sunset
     };
+  };
+
+  // The hours (Weather.at's) n at a time, for the Weather page's 3-hour strip; a last step may be
+  // short. Each step has the first hour's label and temperature, the highest chance and the
+  // strongest wind (with its direction) of its hours, and is wet if any of them is, with the first
+  // wet hour's condition.
+  Weather.steps = function (hours, n) {
+    var out = [];
+    for (var i = 0; i < hours.length; i += n) {
+      var group = hours.slice(i, i + n), first = group[0], windy = null, wetHour = null;
+      group.forEach(function (h) {
+        if (num(h.wind) && (!windy || h.wind > windy.wind)) windy = h;
+        if (h.wet && !wetHour) wetHour = h;
+      });
+      out.push({
+        label: first.label, temp: first.temp, cond: (wetHour || first).cond, wet: !!wetHour,
+        pop: Math.max.apply(null, group.map(function (h) { return h.pop; })),
+        wind: windy ? windy.wind : null, dir: windy ? windy.dir : ''
+      });
+    }
+    return out;
   };
 
   // The Weather page's week: up to seven days from today, each { at, hi, lo, cond, pop, wind, dir, wet }

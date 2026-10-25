@@ -55,6 +55,41 @@
 .wx-hr-pop { font-size: 14px; min-height: 17px; }
 .wx-hr-wind { font-size: 13px; text-align: center; }
 
+/* ---- with the radar: details in two lines, the radar down the rest of the left column, the
+   hours (3 at a time) under the week */
+.wx--radar .wx-now { grid-row: 1 / -1; }
+.wx--radar .wx-say { margin: 14px 0 12px; }
+.wx-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px; font-size: 22px; }
+.wx-det { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.wx-det .i { flex: none; color: var(--ink-2); }
+.wx-det span { color: var(--mute); font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.wx-det b { font-weight: 700; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.wx-radar { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-top: 14px; }
+
+.rd { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+.rd-box { flex: 1; min-height: 0; position: relative; overflow: hidden; border-radius: var(--r); background: var(--paper-2); }
+.rd-win { position: absolute; left: 50%; top: 50%; width: 512px; height: 512px; transform: translate(-50%, -50%); }
+.rd-map, .rd-frames { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+/* greyscale and light, so the radar's colours stand out */
+.rd-map { filter: grayscale(1) contrast(.75) brightness(1.15); opacity: .75; }
+.rd-tile { position: absolute; width: 256px; height: 256px; }
+.rd-frame { position: absolute; left: 0; top: 0; width: 100%; height: 100%; visibility: hidden; }
+.rd-frame.is-on { visibility: visible; }
+.rd-home {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  border-radius: 50%; background: var(--paper); border: 3px solid var(--ink); box-sizing: border-box;
+}
+.rd-time, .rd-note {
+  position: absolute; left: 12px; padding: 3px 10px; border-radius: 8px; background: var(--paper);
+  font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.rd-time { top: 12px; }
+.rd-time:empty, .rd-note:empty { display: none; }
+.rd-note { bottom: 12px; color: var(--ink-2); font-weight: 700; }
+.rd-credit { font-size: 13px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.wx--radar .wx-hours { grid-column: 2; }
+
 /* ---- nothing to show (loading, not set up, unavailable) */
 .wx--none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
 .wx--none .wx-icon { color: var(--mute); }
@@ -73,6 +108,12 @@
 .stage[data-layout="phone"] .wx-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; gap: 10px; }
 .stage[data-layout="phone"] .wx-tile { padding: 12px 14px; }
 .stage[data-layout="phone"] .wx-tile b { font-size: 36px; }
+.stage[data-layout="phone"] .wx--radar .wx-hours { grid-column: auto; }
+.stage[data-layout="phone"] .wx-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; font-size: 15px; }
+.stage[data-layout="phone"] .wx-det span { font-size: 12px; }
+/* the radar: a square the column's width */
+.stage[data-layout="phone"] .wx-radar { flex: none; }
+.stage[data-layout="phone"] .rd-box { flex: none; height: 0; padding-top: 100%; }
 .stage[data-layout="phone"] .wx-strip {
   grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 56px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding-bottom: 4px;

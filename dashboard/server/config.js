@@ -116,8 +116,21 @@ function addIcsUrls(calendars, cwd) {
   });
 }
 
-// settings.homeAssistant → { url, weatherEntity, label, rooms } (url without a trailing slash), or
-// null if absent. label (default "frame") picks the entities on Home controls; rooms orders them.
+// settings.homeAssistant.radar → { zoom } (default 8), or null if absent: the Weather page's radar
+// around zone.home, from LibreWXR (ADR 0006). LibreWXR's zooms are 0–12.
+function checkRadar(r) {
+  if (r === undefined) return null;
+  if (!r || typeof r !== 'object' || Array.isArray(r)) throw new ConfigError('settings.homeAssistant.radar must be a JSON object, like { "zoom": 8 }');
+  const zoom = r.zoom === undefined ? 8 : r.zoom;
+  if (!Number.isInteger(zoom) || zoom < 0 || zoom > 12) {
+    throw new ConfigError(`settings.homeAssistant.radar.zoom ${JSON.stringify(zoom)} must be a whole number from 0 to 12 (8 shows about 150 miles across)`);
+  }
+  return { zoom };
+}
+
+// settings.homeAssistant → { url, weatherEntity, label, rooms, radar } (url without a trailing
+// slash), or null if absent. label (default "frame") picks the entities on Home controls; rooms
+// orders them; radar is checkRadar's.
 function checkHomeAssistant(h) {
   if (h === undefined) return null;
   if (!h || typeof h !== 'object' || Array.isArray(h)) throw new ConfigError('settings.homeAssistant must be a JSON object');
@@ -140,6 +153,7 @@ function checkHomeAssistant(h) {
     weatherEntity: h.weatherEntity,
     label: h.label === undefined ? 'frame' : h.label.trim(),
     rooms: h.rooms === undefined ? [] : h.rooms.map((r) => r.trim()),
+    radar: checkRadar(h.radar),
   };
 }
 

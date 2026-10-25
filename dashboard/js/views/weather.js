@@ -1,13 +1,26 @@
 // Weather page: now (with feels-like, humidity, wind, UV, sunrise and sunset), the next hours and
-// the week, from App.weatherNow / App.weatherWeek. Never scrolls on the frame; one scrolling column
-// on a phone, where the hourly strip scrolls sideways on its own.
+// the week, from App.weatherNow / App.weatherWeek, plus the radar when the home server has it
+// (radar.js, ADR 0006). With the radar the details shrink to two lines, the radar fills the rest of
+// the left column and the hours go under the week in 3-hour steps; without it the page is as it
+// was. Never scrolls on the frame; one scrolling column on a phone, where the hourly strip (one
+// hour a column) scrolls sideways on its own. The radar listing is fetched only while the page is
+// on screen.
 (function () {
   'use strict';
   var V = {};
+  var R = window.Radar;
   var HOUR_W = 64; // frame: one hourly column per this many px of the view's width, 12–24 of them
+  var STEP = 3, STEPS = 7; // frame with the radar: 3-hour steps, as many as fill the 500 px week column
+  var RADAR_KEY = 'homehq.radar'; // whether the server had a radar last time, so the layout doesn't jump
+  var CREDIT = 'Radar: LibreWXR · NOAA · © OpenStreetMap contributors';
+
+  function stored() { try { return window.localStorage.getItem(RADAR_KEY) === '1'; } catch (e) { return false; } }
+  V.radar = stored(); // the page has a radar (the server's last answer)
+  function steps() { return V.radar && !App.isPhone(); }
 
   function hourCount() {
     if (App.isPhone()) return 24;
+    if (steps()) return STEP * STEPS;
     var cs = getComputedStyle(V.el);
     var inner = V.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     return Math.max(12, Math.min(24, Math.floor(inner / HOUR_W)));
@@ -29,13 +42,31 @@
     return tile(icon, label, App.fmt.time(d, false) + '<span>' + App.fmt.ampm(d) + '</span>', when);
   }
 
+  // Two lines of three: feels-like, humidity, wind; UV, sunrise, sunset. Missing values drop out.
+  function sunText(d) { return d ? App.fmt.time(d, false) + ' ' + App.fmt.ampm(d) : null; }
+  function details(w) {
+    var items = [
+      ['thermo', 'Feels', w.feels == null ? null : w.feels + '°'],
+      ['drop', 'Humidity', w.humidity == null ? null : w.humidity + '%'],
+      ['wind', 'Wind', w.wind == null ? null : w.wind + ' mph' + (w.dir ? ' ' + w.dir : '')],
+      ['sun', 'UV', w.uv == null ? null : w.uv + ' ' + uvWord(w.uv).toLowerCase()],
+      ['sunrise', 'Sunrise', sunText(w.sunrise)],
+      ['sunset', 'Sunset', sunText(w.sunset)]
+    ].filter(function (it) { return it[2] != null; });
+    return '<div class="wx-details">' + items.map(function (it) {
+      return '<span class="wx-det">' + App.icon(it[0], 20) + '<span>' + it[1] + '</span><b>' + it[2] + '</b></span>';
+    }).join('') + '</div>';
+  }
+
   function now(w, note) {
-    return '<div class="wx-top">' +
+    var top = '<div class="wx-top">' +
       '<span class="wx-icon">' + App.icon(w.cond, 96) + '</span>' +
       '<span class="wx-temp num">' + w.temp + '°</span>' +
       '<span class="wx-meta"><b>' + w.label + '</b><span>H ' + w.hi + '°  L ' + w.lo + '°</span>' + (note ? '<small>' + note + '</small>' : '') + '</span>' +
       '</div>' +
-      '<div class="wx-say"><b>' + w.summary + '.</b> ' + w.advice + '.</div>' +
+      '<div class="wx-say"><b>' + w.summary + '.</b> ' + w.advice + '.</div>';
+    if (V.radar) return top + details(w) + '<div class="wx-radar"></div>';
+    return top +
       '<div class="wx-tiles">' +
       tile('thermo', 'Feels like', w.feels == null ? '–' : w.feels + '°') +
       tile('drop', 'Humidity', w.humidity == null ? '–' : w.humidity + '<span>%</span>') +
@@ -47,8 +78,8 @@
   }
 
   function hours(w) {
-    var list = w.hours;
-    return '<div class="label">Next hours</div>' +
+    var list = steps() ? window.Weather.steps(w.hours, STEP) : w.hours;
+    return '<div class="label">' + (steps() ? 'Next hours, 3 at a time' : 'Next hours') + '</div>' +
       '<div class="wx-strip" style="--hours:' + list.length + '">' + list.map(function (h) {
         return '<div class="wx-hr' + (h.wet ? ' is-wet' : '') + '"><span class="wx-hr-l">' + h.label + '</span>' +
           '<span class="wx-hr-i">' + App.icon(h.cond, 28) + '</span><b class="num">' + h.temp + '<i>°</i></b>' +
@@ -82,20 +113,117 @@
       el.innerHTML = '<div class="wx wx--none"><span class="wx-icon">' + App.icon('cloud', 96) + '</span><p class="wx-say">' + note + '</p></div>';
       return;
     }
-    el.innerHTML = '<div class="wx">' +
+    el.innerHTML = '<div class="wx' + (V.radar ? ' wx--radar' : '') + '">' +
       '<section class="wx-now">' + now(w, note) + '</section>' +
       '<section class="wx-week">' + week(App.weatherWeek()) + '</section>' +
       '<section class="wx-hours">' + hours(w) + '</section>' +
       '</div>';
+    // The radar's element is kept across repaints, so its images and loop carry on.
+    var slot = el.querySelector('.wx-radar');
+    if (slot) { slot.appendChild(radarEl()); fitRadar(); }
+  }
+
+  // ------------------------------------------------------------ radar
+  // V.rd: the parsed listing (null until one arrives); V.live: the page is on screen, so the listing
+  // is fetched every Radar.REFRESH and the frames loop.
+  function radarEl() {
+    if (!V.rdEl) {
+      V.rdEl = document.createElement('div');
+      V.rdEl.className = 'rd';
+      V.rdEl.innerHTML = '<div class="rd-box"><div class="rd-win"><div class="rd-map"></div><div class="rd-frames"></div></div>' +
+        '<i class="rd-home"></i><span class="rd-time"></span><span class="rd-note"></span></div>' +
+        '<div class="rd-credit">' + CREDIT + '</div>';
+    }
+    return V.rdEl;
+  }
+  // The radar's square window, centred and scaled to cover its box.
+  function fitRadar() {
+    var box = V.rdEl && V.rdEl.querySelector('.rd-box'), r = V.rd;
+    if (!box || !r || !box.clientWidth) return;
+    var s = Math.max(box.clientWidth, box.clientHeight) / r.size;
+    V.rdEl.querySelector('.rd-win').style.cssText = 'width:' + r.size + 'px;height:' + r.size + 'px;transform:translate(-50%,-50%) scale(' + s.toFixed(4) + ')';
+  }
+  function img(url, cls, left, top) {
+    return '<img class="' + cls + '" src="' + url + '" alt=""' + (left == null ? '' : ' style="left:' + left + 'px;top:' + top + 'px"') + '>';
+  }
+  function noteRadar() {
+    if (V.rdEl && V.rd) V.rdEl.querySelector('.rd-note').textContent = R.note(V.rd, App.now());
+  }
+  // Puts a new listing in: the map and the frames are rebuilt only when they changed.
+  function renderRadar() {
+    var r = V.rd, el = radarEl();
+    var mapKey = r.map.map(function (t) { return t.url; }).join(), framesKey = r.frames.map(function (f) { return f.id; }).join();
+    if (mapKey !== V.mapKey) {
+      V.mapKey = mapKey;
+      el.querySelector('.rd-map').innerHTML = r.map.map(function (t) { return img(t.url, 'rd-tile', t.left, t.top); }).join('');
+    }
+    if (framesKey !== V.framesKey) {
+      V.framesKey = framesKey;
+      el.querySelector('.rd-frames').innerHTML = r.frames.map(function (f) { return img(f.url, 'rd-frame'); }).join('');
+      V.frame = R.first(r);
+      clearTimeout(V.loop);
+      V.loop = null;
+    }
+    fitRadar();
+    noteRadar();
+    if (V.live && !V.loop) loop();
+  }
+  function loop() {
+    var r = V.rd, frames = V.rdEl.querySelectorAll('.rd-frame');
+    if (!r.frames.length) { V.rdEl.querySelector('.rd-time').textContent = ''; V.loop = null; return; }
+    for (var k = 0; k < frames.length; k++) frames[k].classList.toggle('is-on', k === V.frame);
+    V.rdEl.querySelector('.rd-time').textContent = R.label(r, V.frame);
+    V.loop = setTimeout(function () { V.frame = R.next(r, V.frame); loop(); }, R.delay(r, V.frame));
+  }
+  // The server says whether there is a radar; a change of answer changes the page's layout.
+  function setRadar(on) {
+    if (on === V.radar) return;
+    V.radar = on;
+    try { window.localStorage.setItem(RADAR_KEY, on ? '1' : '0'); } catch (e) {}
+    if (V.el) paint();
+  }
+  function fetchRadar() {
+    clearTimeout(V.fetch);
+    V.fetch = setTimeout(fetchRadar, R.REFRESH); // set first, so a request that never answers can't stop the loop
+    window.fetch('/api/radar', { cache: 'no-store' }).then(function (res) {
+      if (res.status === 404) return { configured: false }; // a server from before the radar
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then(function (body) {
+      var r = R.parse(body);
+      if (!V.live) return;
+      setRadar(r.configured);
+      if (!r.configured) return;
+      V.rd = r;
+      renderRadar();
+    }).catch(function (e) { console.error('[radar]', e); });
+  }
+  function live(on) {
+    if (V.live === on) return;
+    V.live = on;
+    clearTimeout(V.fetch);
+    clearTimeout(V.loop);
+    V.loop = null;
+    if (!on) return;
+    fetchRadar();
+    if (V.rd) renderRadar();
   }
 
   App.register('weather', {
-    show: function (el) { V.el = el; paint(); }
+    show: function (el) {
+      V.el = el;
+      paint();
+      if (App.current === 'weather') live(true); // not when pre-built in the background
+    },
+    resume: function () { live(true); fitRadar(); },
+    hide: function () { live(false); }
   });
+  // Only day mode shows the page (ambient and night leave through Today anyway).
+  App.on('mode', function (m) { if (App.current === 'weather') live(m === window.DisplayMode.MODES.DAY); });
   function repaint() { if (V.el && App.current === 'weather') paint(); else if (App.views.weather) App.views.weather._dirty = true; }
   // The hours move on the hour; a note (loading, missing, stale) is kept current every minute.
-  App.on('minute', function (n) { if (n.getMinutes() === 0 || App.weatherNote()) repaint(); });
+  App.on('minute', function (n) { if (n.getMinutes() === 0 || App.weatherNote()) repaint(); noteRadar(); });
   App.on('weatherstate', repaint);
   // How many hours fit follows the stage's width.
-  App.on('stage', function () { if (V.el && V.hours !== hourCount()) repaint(); });
+  App.on('stage', function () { if (V.el && V.hours !== hourCount()) repaint(); fitRadar(); });
 })();

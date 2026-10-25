@@ -381,3 +381,43 @@ export async function fakeImmich({ album, assets = [], users, apiKey = 'immich-k
     close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
   };
 }
+
+// Fake LibreWXR + OpenStreetMap tiles on one port. `maps` is the frame list's body (Rain Viewer v2:
+// { generated, radar: { past, nowcast } }), changeable between requests. Frame images answer
+// 'png:<path>' and tiles (under /osm, so tileBase is `osm`) 'tile:<z>/<x>/<y>'. Set `fail` to an
+// HTTP status to make every LibreWXR call fail (tiles still answer). Records every request in
+// `requests` ({ path, headers }).
+export async function fakeRadar(maps) {
+  const requests = [];
+  const state = { maps, fail: null };
+  const server = createServer((req, res) => {
+    const path = new URL(req.url, 'http://x').pathname;
+    requests.push({ path, headers: req.headers });
+    const tile = path.match(/^\/osm\/(\d+)\/(\d+)\/(\d+)\.png$/);
+    if (tile) {
+      res.writeHead(200, { 'content-type': 'image/png' });
+      return res.end('tile:' + tile.slice(1).join('/'));
+    }
+    if (state.fail) { res.writeHead(state.fail); return res.end('down'); }
+    if (path === '/public/weather-maps.json') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify(state.maps));
+    }
+    if (/^\/v2\/radar\/\d+\/512\/\d+\/-?\d+\.\d{5}\/-?\d+\.\d{5}\/10\/1_1\.png$/.test(path)) {
+      res.writeHead(200, { 'content-type': 'image/png' });
+      return res.end('png:' + path);
+    }
+    res.writeHead(404);
+    res.end('Not found');
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = 'http://127.0.0.1:' + server.address().port;
+  return {
+    url: base,
+    tileBase: base + '/osm',
+    requests,
+    set maps(m) { state.maps = m; },
+    set fail(status) { state.fail = status; },
+    close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
+  };
+}

@@ -30,12 +30,14 @@ address on your LAN:
   Assistant weather entity, in whole °F (see [Weather](#weather-from-home-assistant-optional)), or
   `{ configured: false }` when Home Assistant isn't set up. If Home Assistant fails it answers
   `502` with a JSON `error`.
+- `GET /api/radar` and its images: the Weather page's rain radar, see
+  [Radar](#radar-from-librewxr-optional).
 - `GET /api/home` and its actions: Home controls from Home Assistant, see
   [Home controls](#home-controls-from-home-assistant-optional).
 - `GET /api/photos` and `GET /api/photos/:id.jpg`: the photos from one Immich album, see
   [Photos](#photos-from-immich-optional).
-- An optional feature that isn't set up (weather, Home controls, photos) answers the same way:
-  `GET` on its top-level path (`/api/weather`, `/api/home`, `/api/photos`) is `200`
+- An optional feature that isn't set up (weather, radar, Home controls, photos) answers the same way:
+  `GET` on its top-level path (`/api/weather`, `/api/radar`, `/api/home`, `/api/photos`) is `200`
   `{ configured: false }`, and any other request under it (another method, an action, an image) is
   `404` with a JSON `error` naming it, e.g. `Home Assistant is not set up`.
 - `GET /api/version` returns `{ build }`: the id `npm run build` stamped into the `dist` being
@@ -115,7 +117,7 @@ the default file (relative to the folder it runs in; `/app` in Docker).
 | ICS link (one per `ics` calendar) | | | `config/<ics name>` |
 | Port | `PORT` | | `8080` |
 | Time zone | `TZ` | | the Family calendar's time zone |
-| Data dir (chores) | | `DASHBOARD_DATA_DIR` | `data/` |
+| Data dir (chores, radar map) | | `DASHBOARD_DATA_DIR` | `data/` |
 
 If anything is missing or wrong (no key, bad JSON, a calendar naming a person who isn't in
 `people`, no Family calendar), the server stops at startup and says which item.
@@ -264,6 +266,47 @@ The response, for the Today card and the Weather page:
 
 ```sh
 curl http://localhost:8080/api/weather   # should show "configured": true and a forecast
+```
+
+### Radar from LibreWXR (optional)
+
+The Weather page can show an animated rain radar around the home: the last hour of radar plus
+LibreWXR's short forecast ("nowcast"), from [LibreWXR](https://librewxr.net)'s public API (US
+coverage, NOAA MRMS), on an OpenStreetMap background
+([ADR 0006](adr/0006-radar-from-librewxr.md)). It needs `homeAssistant` and is off until you add:
+
+```json
+"homeAssistant": {
+  "url": "http://homeassistant.local:8123",
+  "weatherEntity": "weather.pirateweather",
+  "radar": { "zoom": 8 }
+}
+```
+
+- `zoom` (default `8`, about 150 miles across): a whole number from 0 to 12; anything else stops
+  the server at startup.
+- The location is Home Assistant's `zone.home` (its latitude and longitude). Turning the radar on
+  sends those coordinates to LibreWXR and the map area to OpenStreetMap. If `zone.home` has no
+  coordinates the server logs one warning and the page shows "Radar unavailable"; the weather is
+  unaffected.
+- Nothing is fetched until the frame asks, which it does only while the Weather page is on screen
+  (every 10 minutes). The server reads LibreWXR's frame list at most once per 10 minutes, fetches
+  each past frame once, and the nowcast frames again whenever the list changes; all kept in memory.
+  The map's few tiles are fetched once into `radar-map/` in the data dir, with a User-Agent as
+  OSM's tile policy asks, and only again if the location or zoom changes.
+- If LibreWXR fails, the last good frames stay and the page says how old they are; with none yet,
+  "Radar unavailable" (over the map, if its tiles are cached).
+
+API: `GET /api/radar` returns `{ configured: true, available, frames: [{ id, at, nowcast, url }]
+(oldest first), latest (index of the newest past frame, or -1), stale (the last try at LibreWXR
+failed), age (minutes since its frame list was read, or null), map: [{ url, left, top }] (256 px
+tiles placed in the 512 px window), size, tile }`. The images are `GET /api/radar/frames/:id.png`
+and `GET /api/radar/map/:id.png`, and only ids in the current listing are served (`404`
+otherwise); the routes take no URL, coordinates or zoom. The page credits "Radar: LibreWXR · NOAA
+· © OpenStreetMap contributors" under the map.
+
+```sh
+curl http://localhost:8080/api/radar   # should show "configured": true and "available": true
 ```
 
 ### Home controls from Home Assistant (optional)

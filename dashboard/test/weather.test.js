@@ -310,3 +310,23 @@ test('the week is seven days from today', () => {
   assert.equal(Weather.week(Weather.parse(richBody()), new Date(2026, 9, 24, 9)).length, 3);
   assert.deepEqual(Weather.week(Weather.parse(body({ daily: false })), at(14, 30)), []);
 });
+
+// ------------------------------------------------------------ N-hour steps
+test('steps group the hours n at a time: first label and temp, highest chance, strongest wind, wet if any hour is', () => {
+  const h = (label, temp, cond, pop, wind, dir) => ({ label, temp, cond, wet: pop >= Advice.WET, pop, wind, dir });
+  const hours = [
+    h('Now', 61, 'partly', 0, 5, 'N'), h('3p', 60, 'cloud', 20, 12, 'SW'), h('4p', 59, 'cloud', 10, 8, 'S'),
+    h('5p', 58, 'cloud', 10, null, ''), h('6p', 57, 'rain', 70, 6, 'W'), h('7p', 56, 'storm', 40, 4, 'W'),
+    h('8p', 55, 'cloud', 5, 3, 'E'),
+  ];
+  assert.deepEqual(Weather.steps(hours, 3), [
+    { label: 'Now', temp: 61, cond: 'partly', wet: false, pop: 20, wind: 12, dir: 'SW' },
+    { label: '5p', temp: 58, cond: 'rain', wet: true, pop: 70, wind: 6, dir: 'W' },
+    { label: '8p', temp: 55, cond: 'cloud', wet: false, pop: 5, wind: 3, dir: 'E' },
+  ]);
+  // No wind in any hour of a step: none for the step.
+  assert.equal(Weather.steps([h('Now', 61, 'sun', 0, null, '')], 3)[0].wind, null);
+  // One hour a step is the hours as they are.
+  assert.deepEqual(Weather.steps(hours, 1), hours);
+  assert.deepEqual(Weather.steps([], 3), []);
+});
