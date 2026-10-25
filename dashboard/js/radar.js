@@ -1,5 +1,5 @@
 // The Weather page's radar from the home server's GET /api/radar (LibreWXR frames on an OSM map,
-// ADR 0006): parsing the listing, each frame's label, the note over the map and the loop's timing.
+// ADR 0006): parsing the listing, each frame's time label, the note over the map and the loop's timing.
 // The view fetches the listing only while the Weather page is on screen. Also loads in Node for
 // dashboard/test/radar.test.js.
 (function (root) {
@@ -40,12 +40,8 @@
     return (h % 12 || 12) + ':' + (m < 10 ? '0' : '') + m + ' ' + (h >= 12 ? 'pm' : 'am');
   }
 
-  // "3:40 pm" for a past frame, "+20 min" for a nowcast one (after the latest past frame).
-  Radar.label = function (r, i) {
-    var f = r.frames[i];
-    if (!f.nowcast || r.latest < 0) return clock(f.at);
-    return '+' + Math.round((f.at - r.frames[r.latest].at) / MIN) + ' min';
-  };
+  // A frame's time, "3:40 pm", past or nowcast.
+  Radar.label = function (r, i) { return clock(r.frames[i].at); };
 
   // What to say over the map at `now`: 'Radar unavailable' without frames, 'Radar from 3:10 pm' once
   // the newest past frame is over Radar.OLD old, else ''.

@@ -30,12 +30,12 @@ test('parses the listing into Dates; not configured passes through; anything els
   assert.equal(Radar.parse(body({ frames: [{ id: 'p1', at: 'nope', nowcast: false, url: '/x.png' }], latest: 0 })).frames.length, 0);
 });
 
-test('a past frame is labelled with its time, a nowcast one with minutes after the latest past frame', () => {
+test('every frame, past or nowcast, is labelled with its time', () => {
   const r = Radar.parse(body());
   assert.equal(Radar.label(r, 0), '2:50 pm');
   assert.equal(Radar.label(r, 5), '3:40 pm');
-  assert.equal(Radar.label(r, 6), '+10 min');
-  assert.equal(Radar.label(r, 8), '+30 min');
+  assert.equal(Radar.label(r, 6), '3:50 pm');
+  assert.equal(Radar.label(r, 8), '4:10 pm');
   const morning = Radar.parse(body({ frames: [{ id: 'p0', at: at(0, 5).toISOString(), nowcast: false, url: '/a.png' }], latest: 0 }));
   assert.equal(Radar.label(morning, 0), '12:05 am');
 });
