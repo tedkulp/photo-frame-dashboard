@@ -119,6 +119,14 @@ _Avoid_: Night dashboard, dim mode
 How the dashboard arranges itself on a phone held upright: one scrolling column per page and a tab bar at the bottom, with no Photos, ambient or night mode. Everywhere else it shows the frame's landscape layout, scaled to fit.
 _Avoid_: Mobile view, responsive mode
 
+**Test controls**:
+A hidden drawer on the frame for trying things out by hand: switching display modes, faster idle, pretending it's night and showing fake weather alerts. Everything it changes stays on that screen and is undone by a reload. Not on phones.
+_Avoid_: Demo controls, debug menu
+
+**Pretend night**:
+A test control that makes the frame behave as if it were night hours while its clock still shows the real time.
+_Avoid_: Fake time, demo time
+
 ### Chores
 
 **Chore**:
