@@ -633,7 +633,8 @@
       // it started on, so its finger would otherwise count forever.
       if (e.isPrimary) { down = {}; fingers = 0; }
       if (!down[e.pointerId]) { down[e.pointerId] = true; fingers++; }
-      if (fingers > 1) { g = null; return; }
+      g = null; // an end we missed (released outside el) leaves no stale start
+      if (fingers > 1 || e.button > 0) return; // a second finger, or not the main mouse button
       if ((opts.ignore && e.target.closest(opts.ignore)) || (opts.enabled && !opts.enabled()) || overlay()) return;
       g = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: Date.now() };
     }, true);
