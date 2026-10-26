@@ -74,6 +74,11 @@ undoing an event, adding, ticking and editing a chore, and Home controls taps an
   Android settings, reload). Do not design a two-finger hold gesture. Pinch and two-finger
   swipes that move are fine. The fingers must be a few centimetres apart: the touchscreen
   (`gslX680`) reads two fingers close together as one touch (observed).
+- **A horizontal swipe over something that scrolls needs `touch-action: pan-y`.** Without it the
+  browser takes the gesture over to pan, the page gets `pointercancel` after a few pixels and never
+  sees the swipe. With it, vertical scrolling still works. Chrome then drops a tap made within
+  about 300 ms of a fast flick (seen in Chrome with touch emulation, not yet on a frame). The
+  dashboard's `App.swipe` (Calendar and Chores) sets this for you.
 
 ## Safe to use
 

@@ -259,18 +259,6 @@
     }
   }
 
-  // Swipe left/right to change day (the only swipe gesture in the app)
-  function swipe(el) {
-    var sx, sy, st;
-    el.addEventListener('pointerdown', function (e) { sx = e.clientX; sy = e.clientY; st = Date.now(); });
-    el.addEventListener('pointerup', function (e) {
-      if (sx == null) return;
-      var dx = e.clientX - sx, dy = e.clientY - sy;
-      sx = null;
-      if (Math.abs(dx) > 90 && Math.abs(dy) < 60 && Date.now() - st < 700 && !e.target.closest('.cal-head')) nav(dx < 0 ? 1 : -1);
-    });
-  }
-
   // ------------------------------------------------------------ sheets
   App.eventSheet = function (e) {
     if (!e) return;
@@ -413,7 +401,7 @@
       if (!V.el) {
         V.el = el;
         el.addEventListener('click', onClick);
-        swipe(el);
+        App.swipe(el, nav, { ignore: '.cal-head' }); // left = next, as ›, in every mode
       }
       if (!V.date) V.date = App.dayStart(App.now());
       if (!opts.rerender) V.scroll = null;

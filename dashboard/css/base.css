@@ -11,6 +11,9 @@ body {
   user-select: none;
   touch-action: manipulation;
 }
+/* App.swipe: the browser pans only vertically here (the hour grid, chore lanes, the phone column
+   all scroll), so a horizontal move reaches the swipe instead of ending in pointercancel. */
+.swipe, .swipe * { touch-action: pan-y; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
 input { font: inherit; color: inherit; -webkit-user-select: text; user-select: text; }
 img { display: block; }

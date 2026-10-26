@@ -102,7 +102,7 @@
     var done = chores.filter(function (c) { return c.done; }).length;
     var lanes = App.choreOwners();
     var head = title(date, isToday, tickable);
-    var nav = D.chores && !edit.on;
+    var nav = canStep();
     V.note = note;
     V.el.innerHTML = '<div class="tasks' + (App.tickBlocked() ? ' is-blocked' : '') + (edit.on ? ' is-editing' : '') + '">' +
       '<header class="t-head">' +
@@ -204,6 +204,14 @@
     });
   }
 
+  // ‹ › and a swipe: a day back or on. Not in edit mode (always today) or before chores load,
+  // when ‹ › aren't shown either.
+  function step(dir) {
+    show(window.Chores.addDays(shownDate(), dir));
+    render();
+  }
+  function canStep() { return !!D.chores && !edit.on; }
+
   function onClick(e) {
     var t, why = App.tickBlocked();
     // Edit mode always edits from today: from another day, go back to today first.
@@ -219,7 +227,7 @@
       if (c) choreSheet(c);
       return;
     }
-    if ((t = e.target.closest('[data-nav]'))) { show(window.Chores.addDays(shownDate(), +t.dataset.nav)); return render(); }
+    if ((t = e.target.closest('[data-nav]'))) return step(+t.dataset.nav);
     if (e.target.closest('[data-today]')) { show(null); return render(); }
     if ((t = e.target.closest('[data-goto]'))) { show(t.dataset.goto); return render(); }
     if ((t = e.target.closest('[data-ch]'))) {
@@ -241,7 +249,11 @@
   }
   var view = {
     show: function (el) {
-      if (!V.el) { V.el = el; el.addEventListener('click', onClick); }
+      if (!V.el) {
+        V.el = el;
+        el.addEventListener('click', onClick);
+        App.swipe(el, step, { ignore: '.t-head', enabled: canStep });
+      }
       render();
     },
     hide: reset

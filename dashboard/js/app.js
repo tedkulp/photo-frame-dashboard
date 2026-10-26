@@ -613,6 +613,53 @@
     el.addEventListener('pointercancel', cancel);
   };
 
+  // ------------------------------------------------------------ swipe left/right
+  // App.swipe(el, onSwipe, { ignore, enabled }) calls onSwipe(1) for a left swipe (next) and
+  // onSwipe(-1) for a right one (previous); Swipe.dir (swipe.js) decides. One finger only: a second
+  // pointer drops the gesture until every finger is up (the kiosk's two-finger hold). Nothing
+  // starts on `ignore` (a selector, e.g. the page header), while enabled() is false, or with a
+  // sheet or takeover open. The .swipe class sets touch-action: pan-y on el and everything in it,
+  // so the browser keeps vertical scrolling and leaves horizontal moves to us; a pointercancel
+  // (the browser took the gesture over) is judged from the last move. A swipe swallows the click
+  // that can follow it, so it never also taps what it started on.
+  App.swipe = function (el, onSwipe, opts) {
+    opts = opts || {};
+    var down = {}, fingers = 0, g = null, swallow = false;
+    function overlay() { return $('#sheetLayer').classList.contains('is-open') || $('#takeover').classList.contains('is-open'); }
+    el.classList.add('swipe');
+    el.addEventListener('pointerdown', function (e) {
+      swallow = false;
+      // The first finger down starts afresh: an end can miss us when a repaint removed the element
+      // it started on, so its finger would otherwise count forever.
+      if (e.isPrimary) { down = {}; fingers = 0; }
+      if (!down[e.pointerId]) { down[e.pointerId] = true; fingers++; }
+      if (fingers > 1) { g = null; return; }
+      if ((opts.ignore && e.target.closest(opts.ignore)) || (opts.enabled && !opts.enabled()) || overlay()) return;
+      g = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: Date.now() };
+    }, true);
+    el.addEventListener('pointermove', function (e) {
+      if (g && e.pointerId === g.id) { g.lx = e.clientX; g.ly = e.clientY; }
+    }, true);
+    function end(e) {
+      if (down[e.pointerId]) { delete down[e.pointerId]; fingers--; }
+      if (!g || e.pointerId !== g.id) return;
+      var x = e.type === 'pointerup' ? e.clientX : g.lx, y = e.type === 'pointerup' ? e.clientY : g.ly;
+      var dir = window.Swipe.dir({ dx: x - g.x, dy: y - g.y, ms: Date.now() - g.t });
+      g = null;
+      if (!dir || overlay()) return;
+      swallow = true;
+      onSwipe(dir);
+    }
+    el.addEventListener('pointerup', end, true);
+    el.addEventListener('pointercancel', end, true);
+    el.addEventListener('click', function (e) {
+      if (!swallow) return;
+      swallow = false;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }, true);
+  };
+
   // ------------------------------------------------------------ modes: day / ambient / night / nightdash
   // DisplayMode (displaymode.js) decides every mode change and the idle counter; this only feeds it
   // inputs and applies its answer: effects (close the sheet, go to Today), then the mode on the

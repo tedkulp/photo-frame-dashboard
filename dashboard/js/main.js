@@ -15,6 +15,7 @@ import './allday.js';
 import './calevents.js';
 import './calnav.js';
 import './displaymode.js';
+import './swipe.js';
 import './app.js';
 import './system.js';
 import './testcontrols.js';
