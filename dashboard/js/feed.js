@@ -187,9 +187,26 @@
       });
     }
 
+    // A read beside the loop (another day's chores): (url) → the JSON answer. Rejects with the
+    // server's error, UNREACHABLE when the request failed or timed out. Not a write: never busy(),
+    // no refresh after it, and a failure leaves the feed's state alone.
+    function get(url) {
+      var p = new Promise(function (ok) { ok(o.fetch(url, { cache: 'no-store' })); });
+      return withTimeout(p.then(function (res) {
+        return res.json().catch(function () { return null; }).then(function (out) {
+          if (!res.ok) throw new Error((out && out.error) || 'HTTP ' + res.status);
+          return out;
+        });
+      }, function () { throw new Error(UNREACHABLE); })).catch(function (e) {
+        throw e && e.timedOut ? new Error(UNREACHABLE) : e;
+      });
+    }
+
     return {
       // Any write: (method, url, body?) → the JSON answer (null for 204). See send() above.
       send: send,
+      // A read beside the loop: (url) → the JSON answer. See get() above.
+      get: get,
       // A write (an add, a remove, any send) is unanswered: a reload would lose its result.
       busy: function () { return unanswered > 0; },
       // A new refresh interval (Home controls polls faster while it's open). With `now`, fetches

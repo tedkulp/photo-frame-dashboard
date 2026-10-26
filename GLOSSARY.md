@@ -138,11 +138,11 @@ A chore that has no owner. Anyone can check it off, and it counts toward nobody'
 _Avoid_: Shared, unassigned
 
 **Done**:
-A chore checked off on a particular day. Every day starts with nothing done.
+A chore checked off on a particular day, either on that day or up to 7 days later; a late check-off counts the same. Every day starts with nothing done.
 _Avoid_: Complete, checked
 
 **Missed**:
-A chore that wasn't done on a day it was scheduled. It doesn't carry over to the next day.
+A chore that wasn't done on a day it was scheduled. It doesn't carry over to the next day, but it can still be checked off for its own day up to 7 days later.
 _Avoid_: Overdue, late
 
 **Hit day**:

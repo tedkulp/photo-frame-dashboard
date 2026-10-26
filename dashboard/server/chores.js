@@ -7,10 +7,13 @@ import { HttpError } from './errors.js';
 
 export const TITLE_MAX = 60;
 export const EMOJI_MAX = 16;
+// How many days back a chore can still be ticked or unticked (GLOSSARY.md: Done).
+export const LATE_DAYS = 7;
 const ANYONE = 'any';
 
 const weekday = (date) => new Date(date + 'T00:00:00Z').getUTCDay();
 const addDays = (date, n) => new Date(Date.parse(date + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+const isDate = (date) => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(Date.parse(date + 'T00:00:00Z')) && addDays(date, 0) === date;
 
 export function createChores({ db, settings, today, now = Date.now }) {
   const people = settings.people.map((p) => p.id);
@@ -108,26 +111,34 @@ export function createChores({ db, settings, today, now = Date.now }) {
     }
   }
 
-  // { date, chores, done, week, updatedAt } as of today.
-  async function load() {
-    const date = await today();
+  // A day a request names (YYYY-MM-DD), or today without one. Returns { date, today }.
+  async function day(date) {
+    if (date !== undefined && !isDate(date)) throw new HttpError(400, 'date must be a day as YYYY-MM-DD');
+    const t = await today();
+    return { date: date === undefined ? t : date, today: t };
+  }
+
+  // { date, chores, done, week, updatedAt } as of `date` (today without one): each chore as it was
+  // that day, that day's ticks and the Sunday to Saturday week containing it.
+  async function load(at) {
+    const { date, today: current } = await day(at);
     const all = readAll();
     const chores = all.map((c) => shown(c, date)).filter(Boolean);
     const scheduledToday = new Set(all.filter((c) => shown(c, date) && scheduledOn(c, date)).map((c) => c.id));
     const done = q.doneOn.all(date).map((r) => r.chore_id).filter((id) => scheduledToday.has(id));
 
-    // This Monday to Sunday, for every person (not Anyone): a hit day needs every chore the person
-    // owned and had scheduled that day done; a day still to come with a chore is due; a day with
-    // nothing scheduled is null.
-    const monday = addDays(date, -((weekday(date) + 6) % 7));
-    const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(monday, i));
-    const doneSet = new Set(q.doneBetween.all(monday, days[6]).map((r) => r.chore_id + '|' + r.date));
+    // The week's Sunday to Saturday, for every person (not Anyone): a hit day needs every chore the
+    // person owned and had scheduled that day done; a day after today with a chore is due; a day
+    // with nothing scheduled is null.
+    const sunday = addDays(date, -weekday(date));
+    const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(sunday, i));
+    const doneSet = new Set(q.doneBetween.all(sunday, days[6]).map((r) => r.chore_id + '|' + r.date));
     const week = {};
     for (const person of people) {
       week[person] = days.map((d) => {
         const mine = all.filter((c) => scheduledOn(c, d) && versionAt(c, d).owner === person);
         if (!mine.length) return null;
-        if (d > date) return 'due';
+        if (d > current) return 'due';
         return mine.every((c) => doneSet.has(c.id + '|' + d)) ? 'hit' : 'miss';
       });
     }
@@ -172,12 +183,15 @@ export function createChores({ db, settings, today, now = Date.now }) {
     transaction(() => putToday(find(id, date), date, { deleted: true }));
   }
 
-  // Ticks (or unticks) a chore for today. Only a chore scheduled today can be ticked.
-  async function setDone(id, done) {
-    const date = await today();
+  // Ticks (or unticks) a chore for `date` (today without one): today or up to LATE_DAYS before it,
+  // and only a chore that existed then. Only a chore scheduled that day can be ticked.
+  async function setDone(id, done, at) {
+    const { date, today: current } = await day(at);
+    if (date > current) throw new HttpError(400, "That day hasn't happened yet");
+    if (date < addDays(current, -LATE_DAYS)) throw new HttpError(400, `That day is more than ${LATE_DAYS} days ago`);
     const chore = find(id, date);
     if (!done) return void q.clearDone.run(chore.id, date);
-    if (!scheduledOn(chore, date)) throw new HttpError(409, 'That chore is not scheduled today');
+    if (!scheduledOn(chore, date)) throw new HttpError(400, 'That chore is not scheduled that day');
     q.setDone.run(chore.id, date);
   }
 

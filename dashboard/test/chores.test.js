@@ -6,6 +6,8 @@ import '../js/chores.js';
 const { Chores, Feed } = globalThis;
 
 // 2026-10-21 is a Wednesday.
+const WED = '2026-10-21';
+const K1 = Chores.key('1', WED), K2 = Chores.key('2', WED);
 const body = (over) => Object.assign({
   date: '2026-10-21',
   chores: [
@@ -14,7 +16,7 @@ const body = (over) => Object.assign({
     { id: 3, title: 'Piano', emoji: '🎹', owner: 'otto', days: [1, 4] },
   ],
   done: [2], // the server's ids are numbers
-  week: { maya: ['hit', 'miss', 'hit', null, null, null, null] },
+  week: { maya: [null, 'hit', 'miss', 'hit', null, null, null] }, // Sunday to Saturday
   updatedAt: '2026-10-21T12:00:00.000Z',
 }, over);
 
@@ -26,7 +28,7 @@ test('parses the server body: weekday from the server date, ids as strings, done
   assert.equal(d.chores.length, 3);
   assert.deepEqual(d.chores[0], { id: '1', title: 'Garbage to curb', emoji: '🗑️', owner: 'any', days: [0, 3] });
   assert.deepEqual(d.done, { 2: true });
-  assert.deepEqual(d.week, { maya: ['hit', 'miss', 'hit', null, null, null, null] });
+  assert.deepEqual(d.week, { maya: [null, 'hit', 'miss', 'hit', null, null, null] });
 });
 
 test('rejects a body that is not a chores response', () => {
@@ -52,34 +54,34 @@ test('changeKey ignores updatedAt but sees a tick', () => {
   assert.notEqual(Chores.changeKey(body({ done: [] })), a);
 });
 
-// ------------------------------------------------------------ today's selection
+// ------------------------------------------------------------ a day's selection
 const sunWed = (date) => Chores.parse(body({ date, done: [] }));
 
 test('a Sun+Wed chore shows only on Sundays and Wednesdays', () => {
   const days = ['2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24'];
-  const shown = days.filter((d) => Chores.today(sunWed(d)).some((c) => c.id === '1'));
+  const shown = days.filter((d) => Chores.day(sunWed(d)).some((c) => c.id === '1'));
   assert.deepEqual(shown, ['2026-10-18', '2026-10-21']);
 });
 
-test('today lists every chore scheduled today, in the server\'s order, with done from the server', () => {
+test('a day lists every chore scheduled that day, in the server\'s order, with done from the server', () => {
   const d = Chores.parse(body());
-  assert.deepEqual(Chores.today(d).map((c) => [c.id, c.done]), [['1', false], ['2', true]]);
+  assert.deepEqual(Chores.day(d).map((c) => [c.id, c.done]), [['1', false], ['2', true]]);
 });
 
 test('a routine from an older server is not kept', () => {
   const d = Chores.parse(body({ chores: [Object.assign({ routine: 'evening' }, body().chores[0])] }));
   assert.deepEqual(d.chores[0], { id: '1', title: 'Garbage to curb', emoji: '🗑️', owner: 'any', days: [0, 3] });
-  assert.equal('routine' in Chores.today(d)[0], false);
+  assert.equal('routine' in Chores.day(d)[0], false);
 });
 
 test('a pending tick or untick shows over the server state until it settles', () => {
   const d = Chores.parse(body());
-  assert.equal(Chores.today(d, { 1: true })[0].done, true);
-  assert.equal(Chores.today(d, { 2: false })[1].done, false);
+  assert.equal(Chores.day(d, { [K1]: true })[0].done, true);
+  assert.equal(Chores.day(d, { [K2]: false })[1].done, false);
 });
 
 test('nothing to show without data', () => {
-  assert.deepEqual(Chores.today(null), []);
+  assert.deepEqual(Chores.day(null), []);
 });
 
 // ------------------------------------------------------------ ticks (pending changes)
@@ -89,12 +91,12 @@ function ticker() {
   return { ticks, sent };
 }
 
-test('ticks: a tick shows at once in today, and is cleared once the server has it', async () => {
+test('ticks: a tick shows at once on its day, and is cleared once the server has it', async () => {
   const { ticks, sent } = ticker();
   const d = Chores.parse(body());
-  const p = ticks.tick('1', true);
-  assert.deepEqual(sent.map((s) => [s.method, s.path]), [['PUT', '/api/chores/1/done']]);
-  assert.equal(Chores.today(d, ticks.pending())[0].done, true);
+  const p = ticks.tick('1', true, WED);
+  assert.deepEqual(sent.map((s) => [s.method, s.path]), [['PUT', '/api/chores/1/done?date=2026-10-21']]);
+  assert.equal(Chores.day(d, ticks.pending())[0].done, true);
   assert.equal(ticks.busy(), true);
   sent[0].ok({});
   assert.equal(await p, true, 'still its own, so the caller applies it');
@@ -105,27 +107,27 @@ test('ticks: a tick shows at once in today, and is cleared once the server has i
 test('ticks: an untick that fails is put back and rejects with the reason', async () => {
   const { ticks, sent } = ticker();
   const d = Chores.parse(body());
-  const p = ticks.tick('2', false);
+  const p = ticks.tick('2', false, WED);
   assert.equal(sent[0].method, 'DELETE');
-  assert.equal(Chores.today(d, ticks.pending())[1].done, false);
+  assert.equal(Chores.day(d, ticks.pending())[1].done, false);
   sent[0].no(new Error('HTTP 500'));
   await assert.rejects(p, /HTTP 500/);
-  assert.equal(Chores.today(d, ticks.pending())[1].done, true, 'back to the server state');
+  assert.equal(Chores.day(d, ticks.pending())[1].done, true, 'back to the server state');
   assert.equal(ticks.busy(), false);
 });
 
 test('ticks: a later tick on the same chore owns it, whatever the earlier one answers', async () => {
   const { ticks, sent } = ticker();
-  const first = ticks.tick('1', true);
-  const second = ticks.tick('1', false);
+  const first = ticks.tick('1', true, WED);
+  const second = ticks.tick('1', false, WED);
   sent[0].no(new Error('HTTP 500'));
   assert.equal(await first, false, 'failed, but superseded: no error to show');
-  assert.deepEqual(ticks.pending(), { 1: false });
+  assert.deepEqual(ticks.pending(), { [K1]: false });
   assert.equal(ticks.busy(), true);
-  const third = ticks.tick('1', true);
+  const third = ticks.tick('1', true, WED);
   sent[1].ok({});
   assert.equal(await second, false, 'answered, but no longer its own');
-  assert.deepEqual(ticks.pending(), { 1: true });
+  assert.deepEqual(ticks.pending(), { [K1]: true });
   sent[2].ok({});
   assert.equal(await third, true);
   assert.equal(ticks.busy(), false);
@@ -133,13 +135,13 @@ test('ticks: a later tick on the same chore owns it, whatever the earlier one an
 
 test('ticks: tick, untick, tick: the first answer does not settle the third tap', async () => {
   const { ticks, sent } = ticker();
-  const first = ticks.tick('1', true);
-  const second = ticks.tick('1', false);
-  const third = ticks.tick('1', true);
+  const first = ticks.tick('1', true, WED);
+  const second = ticks.tick('1', false, WED);
+  const third = ticks.tick('1', true, WED);
   sent[0].ok({});
   assert.equal(await first, false, 'same done value as the third, but not its tick');
   assert.equal(ticks.busy(), true, 'the third is still out');
-  assert.deepEqual(ticks.pending(), { 1: true });
+  assert.deepEqual(ticks.pending(), { [K1]: true });
   sent[1].ok({});
   assert.equal(await second, false);
   sent[2].no(new Error('HTTP 500'));
@@ -150,8 +152,8 @@ test('ticks: tick, untick, tick: the first answer does not settle the third tap'
 
 test('ticks: an earlier tick failing after a later one resolves false, so no stale error shows', async () => {
   const { ticks, sent } = ticker();
-  const first = ticks.tick('1', true);
-  const second = ticks.tick('1', false);
+  const first = ticks.tick('1', true, WED);
+  const second = ticks.tick('1', false, WED);
   sent[1].ok({});
   assert.equal(await second, true);
   sent[0].no(new Error('Can’t reach the home server'));
@@ -161,23 +163,83 @@ test('ticks: an earlier tick failing after a later one resolves false, so no sta
 
 test('ticks: a send that throws at once is put back and rejects', async () => {
   const ticks = Chores.ticks({ send: () => { throw new Error('boom'); } });
-  await assert.rejects(ticks.tick('1', true), /boom/);
+  await assert.rejects(ticks.tick('1', true, WED), /boom/);
   assert.equal(ticks.busy(), false);
 });
 
-// ------------------------------------------------------------ this week
-test('week grid: hit, miss, due and null map to hit, miss, due and none; today is the server weekday', () => {
-  const d = Chores.parse(body({ week: { maya: ['hit', 'miss', 'hit', null, 'due', null, 'bogus'] } }));
-  assert.deepEqual(Chores.week(d, 'maya'), {
-    today: 2, // Wednesday, Mon-first
-    days: ['hit', 'miss', 'hit', 'none', 'due', 'none', 'none'],
+// ------------------------------------------------------------ the week grid
+test('week grid: Sunday first; hit, miss, due and null map to hit, miss, due and none; the shown day and today marked', () => {
+  const d = Chores.parse(body({ week: { maya: [null, 'hit', 'miss', 'hit', 'due', null, 'bogus'] } }));
+  assert.deepEqual(Chores.week(d, 'maya', WED), {
+    shown: 3, // Wednesday
+    today: 3,
+    days: ['none', 'hit', 'miss', 'hit', 'due', 'none', 'none'],
+    dates: ['2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24'],
   });
-  assert.equal(Chores.week(Chores.parse(body({ date: '2026-10-25' })), 'maya').today, 6); // Sunday
+  // Shown on Monday, today Saturday of the same week.
+  const mon = Chores.parse(body({ date: '2026-10-19' }));
+  assert.equal(Chores.week(mon, 'maya', '2026-10-24').shown, 1);
+  assert.equal(Chores.week(mon, 'maya', '2026-10-24').today, 6);
+  // Today not in the shown week.
+  assert.equal(Chores.week(mon, 'maya', '2026-10-25').today, -1);
+  assert.equal(Chores.week(Chores.parse(body({ date: '2026-10-25' })), 'maya', WED).shown, 0); // Sunday
 });
 
 test('no week grid for someone not in the week, or without data', () => {
-  assert.equal(Chores.week(Chores.parse(body()), 'otto'), null);
-  assert.equal(Chores.week(null, 'maya'), null);
+  assert.equal(Chores.week(Chores.parse(body()), 'otto', WED), null);
+  assert.equal(Chores.week(null, 'maya', WED), null);
+});
+
+test('the week grid is "This week" when it holds today, else "Week of" its Sunday', () => {
+  const d = Chores.parse(body());
+  assert.equal(Chores.weekLabel(d, WED), 'This week');
+  assert.equal(Chores.weekLabel(d, '2026-10-18'), 'This week');
+  assert.equal(Chores.weekLabel(d, '2026-10-24'), 'This week');
+  assert.equal(Chores.weekLabel(d, '2026-10-25'), 'Week of Oct 18');
+  assert.equal(Chores.weekLabel(Chores.parse(body({ date: '2026-12-29' })), WED), 'Week of Dec 27');
+  assert.equal(Chores.weekLabel(Chores.parse(body({ date: '2027-01-01' })), WED), 'Week of Dec 27');
+});
+
+// ------------------------------------------------------------ other days
+test('addDays steps local dates across months, years and DST', () => {
+  assert.equal(Chores.addDays(WED, 1), '2026-10-22');
+  assert.equal(Chores.addDays(WED, -21), '2026-09-30');
+  assert.equal(Chores.addDays('2026-12-31', 1), '2027-01-01');
+  assert.equal(Chores.addDays('2026-11-01', -1), '2026-10-31');
+  assert.equal(Chores.addDays('2026-03-08', 1), '2026-03-09');
+});
+
+test('tickable: today and the 7 days before it; not older, not later', () => {
+  assert.equal(Chores.tickable(WED, WED), true);
+  assert.equal(Chores.tickable('2026-10-14', WED), true);
+  assert.equal(Chores.tickable('2026-10-13', WED), false);
+  assert.equal(Chores.tickable('2026-10-22', WED), false);
+  assert.equal(Chores.tickable('2026-09-30', '2026-10-01'), true);
+  assert.equal(Chores.tickable(WED, null), false, 'no server date yet');
+});
+
+test('the same chore pending on two days shows on each day only', () => {
+  const tue = Chores.parse(body({ date: '2026-10-20', done: [] }));
+  const wed = Chores.parse(body({ done: [] }));
+  const pending = {};
+  pending[Chores.key('2', '2026-10-20')] = true;
+  assert.equal(Chores.day(tue, pending).filter((c) => c.id === '2')[0].done, true);
+  assert.equal(Chores.day(wed, pending).filter((c) => c.id === '2')[0].done, false);
+});
+
+test('ticks: the same chore ticked on two days is two pending ticks, each rolled back on its own', async () => {
+  const { ticks, sent } = ticker();
+  const tue = ticks.tick('2', true, '2026-10-20');
+  const wed = ticks.tick('2', true, WED);
+  assert.deepEqual(sent.map((s) => s.path), ['/api/chores/2/done?date=2026-10-20', '/api/chores/2/done?date=2026-10-21']);
+  assert.deepEqual(Object.keys(ticks.pending()).sort(), [Chores.key('2', '2026-10-20'), K2]);
+  sent[0].no(new Error('HTTP 500'));
+  await assert.rejects(tue, /HTTP 500/, 'not superseded by the other day');
+  assert.deepEqual(ticks.pending(), { [K2]: true }, 'only Tuesday is put back');
+  assert.equal(ticks.busy(), true);
+  sent[1].ok({});
+  assert.equal(await wed, true);
+  assert.equal(ticks.busy(), false);
 });
 
 // ------------------------------------------------------------ edit mode
@@ -213,14 +275,14 @@ test('a saved chore from the server replaces the old one, or is added', () => {
   assert.deepEqual(moved.chores.map((c) => [c.id, c.days.join()]), [['1', '1'], ['2', '0,1,2,3,4,5,6'], ['3', '1,4']]);
   const added = Chores.applySaved(d, { id: 7, title: 'Feed cat', emoji: '🐈', owner: 'maya', days: [3] });
   assert.deepEqual(added.chores.map((c) => c.id), ['1', '2', '3', '7']);
-  assert.deepEqual(Chores.today(added).map((c) => c.id), ['1', '2', '7']);
+  assert.deepEqual(Chores.day(added).map((c) => c.id), ['1', '2', '7']);
   assert.equal(d.chores.length, 3); // the loaded data is left alone
 });
 
-test('a deleted chore is gone from today and from edit mode', () => {
+test('a deleted chore is gone from the day and from edit mode', () => {
   const d = Chores.applyRemoved(Chores.parse(body()), '2');
   assert.deepEqual(d.chores.map((c) => c.id), ['1', '3']);
-  assert.deepEqual(Chores.today(d).map((c) => c.id), ['1']);
+  assert.deepEqual(Chores.day(d).map((c) => c.id), ['1']);
   assert.deepEqual(Chores.all(d).map((c) => c.id), ['1', '3']);
 });
 

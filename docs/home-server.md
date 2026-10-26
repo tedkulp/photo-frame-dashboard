@@ -560,9 +560,13 @@ created if missing and is git-ignored; it is private, like `config/`.
 - Changing a chore's owner or days, or deleting it, applies from today; earlier days keep what was
   scheduled then. Deleted chores are hidden, never removed. Chores belonging to someone you take
   out of `settings.people` are hidden too, and come back if you add them again.
+- A chore can be checked off for today or for any of the 7 days before it; a late check-off counts
+  the same as an on-time one. `GET /api/chores?date=YYYY-MM-DD` shows any day (each chore as it was
+  then, with the Sunday-to-Saturday week containing it), and the done routes take the same `date`.
 
 ```sh
 curl http://localhost:8080/api/chores       # { "date": ..., "chores": [], "done": [], "week": { <each person>: [7 × null] } }
+curl 'http://localhost:8080/api/chores?date=2026-10-20'   # the same for another day
 ```
 
 ## What the dashboard does with it

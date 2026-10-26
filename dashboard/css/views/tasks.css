@@ -2,6 +2,10 @@
 .tasks { height: 100%; display: flex; flex-direction: column; }
 .t-head { display: flex; align-items: center; gap: 24px; margin-bottom: 18px; flex: none; }
 .t-title { margin-right: auto; }
+/* ‹ title › Today, like the Calendar's header; Today (hidden on today) then takes the spare room. */
+.t-head .icon-btn { width: 52px; height: 52px; margin-right: -12px; }
+.t-head .icon-btn + .t-title { margin-right: 0; }
+.t-head [data-today] { min-height: 52px; padding: 0 20px; font-size: 15px; margin-right: auto; }
 .t-title h1 { font-size: 64px; line-height: .95; }
 .t-progress { display: flex; align-items: center; gap: 12px; }
 .t-progress > .num { font-size: 64px; line-height: .8; }
@@ -32,6 +36,7 @@
   background: var(--paper); text-align: left; position: relative;
 }
 .ch:active { transform: scale(.97); }
+.ch.is-view:active { transform: none; }
 .ch-emoji {
   position: relative; width: 54px; height: 54px; border-radius: 14px; flex: none;
   display: grid; place-items: center; font-size: 30px;
@@ -74,18 +79,21 @@
 .ch-week { padding: 10px 12px 14px; border-top: 1px solid var(--line); flex: none; }
 .ch-week .label { font-size: 12px; margin-bottom: 6px; }
 .ch-week-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-.ch-week-row span { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; font-weight: 800; color: var(--mute); }
+.ch-week-row button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0; font-size: 12px; font-weight: 800; color: var(--mute); }
 .ch-week-row i { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 2px var(--line); }
 .ch-week-row .is-hit i { background: var(--c); box-shadow: none; }
 .ch-week-row .is-today i { box-shadow: inset 0 0 0 3px var(--ink); }
 .ch-week-row .is-today { color: var(--ink); }
+.ch-week-row .is-shown { background: var(--paper-2); border-radius: 8px; color: var(--ink); }
 .ch-week-row .is-due i { box-shadow: inset 0 0 0 2px var(--c); }
 .ch-week-row .is-none i { opacity: .4; }
 
 /* ---- phone layout: one scrolling column (see base.css) */
 .stage[data-layout="phone"] .tasks { height: auto; }
 .stage[data-layout="phone"] .t-head { flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
-.stage[data-layout="phone"] .t-title { flex-basis: 100%; margin-right: 0; }
+.stage[data-layout="phone"] .t-title { flex-basis: 100%; margin-right: 0; order: -1; }
+.stage[data-layout="phone"] .t-head .icon-btn { width: 48px; height: 48px; margin-right: 0; }
+.stage[data-layout="phone"] .t-head [data-today] { min-height: 48px; padding: 0 14px; margin-right: 0; }
 .stage[data-layout="phone"] .t-title h1 { font-size: 44px; }
 .stage[data-layout="phone"] .t-progress { margin-right: auto; }
 .stage[data-layout="phone"] .t-progress > .num { font-size: 40px; }

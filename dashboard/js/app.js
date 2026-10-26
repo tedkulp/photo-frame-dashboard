@@ -165,14 +165,60 @@
   }
 
   // ------------------------------------------------------------ chores feed (home server)
-  // Chores from GET /api/chores (chores.js), on the calendar feed's loop every 30 s.
+  // Today's chores from GET /api/chores (chores.js), on the calendar feed's loop every 30 s.
   // Ticks sent but not answered yet (Chores.ticks), through the chores feed.
   var ticks = window.Chores.ticks({ send: function (method, path) { return App.choresFeed.send(method, path); } });
   function onChores(d) { D.chores = d; App.emit('chores'); }
-  // Today's chores (the server's weekday), with done; the one selection the Chores
-  // view and the home screen's rings both use.
-  App.choresToday = function () { return window.Chores.today(D.chores, ticks.pending()); };
-  App.choresWeek = function (personId) { return window.Chores.week(D.chores, personId); };
+  // The server's today, or null before the first load.
+  App.choresDate = function () { return D.chores ? D.chores.date : null; };
+  // Another day the Chores page shows (App.choresShow), fetched with ?date= through the chores
+  // feed's get() (a read: today's feed state is untouched): on showing it, every Chores.REFRESH while it's shown, and after a tick on it.
+  // `data` keeps the days seen since the page last went back to today, so stepping back is instant.
+  var otherDay = { date: null, data: {}, failed: false, timer: null, seq: 0 };
+  function loadDay() {
+    clearTimeout(otherDay.timer);
+    var date = otherDay.date, mine = ++otherDay.seq;
+    if (!date) return;
+    App.choresFeed.get('/api/chores?date=' + encodeURIComponent(date)).then(function (body) {
+      return window.Chores.parse(body);
+    }).then(function (d) {
+      if (mine !== otherDay.seq) return; // a newer request (another day, or after a tick) answers instead
+      otherDay.data[date] = d;
+      otherDay.failed = false;
+      otherDay.timer = setTimeout(loadDay, window.Chores.REFRESH);
+      App.emit('chores');
+    }, function (e) {
+      if (mine !== otherDay.seq) return;
+      console.error('[chores]', e);
+      otherDay.failed = true;
+      otherDay.timer = setTimeout(loadDay, 5000);
+      App.emit('chores');
+    });
+  }
+  // The Chores page shows `date` (null: today, which follows the server's date at midnight).
+  App.choresShow = function (date) {
+    if (date === App.choresDate()) date = null;
+    if (date === otherDay.date) return;
+    otherDay.date = date;
+    otherDay.failed = false;
+    if (!date) { otherDay.data = {}; otherDay.seq++; clearTimeout(otherDay.timer); return; }
+    loadDay();
+  };
+  // The data for `date`: today's feed, or the shown day's fetch (null until it answers).
+  function dataFor(date) {
+    return date === App.choresDate() ? D.chores : otherDay.data[date] || null;
+  }
+  // A day's chores (the server's weekday on that date), with done; Today's rings and the Chores
+  // view both use it, with App.choresDate() for today.
+  App.choresDay = function (date) { return window.Chores.day(dataFor(date), ticks.pending()); };
+  App.choresToday = function () { return App.choresDay(App.choresDate()); };
+  // Whether `date`'s chores have loaded (another day is fetched when the page shows it).
+  App.choresLoaded = function (date) { return !!dataFor(date); };
+  // A person's week grid for the week containing `date`, and its label.
+  App.choresWeek = function (personId, date) { return window.Chores.week(dataFor(date), personId, App.choresDate()); };
+  App.choresWeekLabel = function (date) { var d = dataFor(date); return d ? window.Chores.weekLabel(d, App.choresDate()) : ''; };
+  // Whether a chore on `date` can be ticked (today and the 7 days before it).
+  App.choreTickable = function (date) { return window.Chores.tickable(date, App.choresDate()); };
   // Who a chore can belong to, in lane order: each person, then Anyone.
   App.choreOwners = function () { return App.peopleIds().concat([window.Chores.ANYONE]); };
   App.choreOwnerName = function (id) { return id === window.Chores.ANYONE ? 'Anyone' : App.person(id).name; };
@@ -181,15 +227,24 @@
   // Chores.blocked / Chores.note with the live feed.
   App.tickBlocked = function () { return window.Chores.blocked(choresState(), D.chores, Date.now()); };
   App.choresNote = function () { return window.Chores.note(choresState(), D.chores, Date.now()); };
-  // Tick (done = true) or untick a chore. Shows at once; resolves when the server has it (or when
-  // a later tap on the chore owns it now, whatever this one's answer), or rejects with the reason
-  // after putting it back. The feed refetches after every write.
-  App.tickChore = function (id, done) {
-    var p = ticks.tick(id, done);
+  // The note for the Chores page on `date`: today's, or why another day isn't there yet.
+  App.choresDayNote = function (date) {
+    var note = App.choresNote();
+    if (note || dataFor(date)) return note;
+    return otherDay.failed ? window.Feed.UNREACHABLE + ' · retrying' : 'Loading chores…';
+  };
+  // Tick (done = true) or untick a chore on `date`. Shows at once; resolves when the server has it
+  // (or when a later tap on that chore and day owns it now, whatever this one's answer), or rejects
+  // with the reason after putting it back. The feed refetches after every write; another day is
+  // fetched again too.
+  App.tickChore = function (id, done, date) {
+    var p = ticks.tick(id, done, date);
     App.emit('chores');
     return p.then(function (mine) {
-      if (!mine) return; // a later tap on the same chore owns it now
-      if (D.chores) { if (done) D.chores.done[id] = true; else delete D.chores.done[id]; }
+      if (!mine) return; // a later tap on the same chore and day owns it now
+      var d = dataFor(date);
+      if (d) { if (done) d.done[id] = true; else delete d.done[id]; }
+      if (date === otherDay.date) loadDay();
       App.emit('chores');
     }, function (e) { App.emit('chores'); throw e; });
   };

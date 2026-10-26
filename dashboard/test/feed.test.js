@@ -656,3 +656,53 @@ test('addBlocked: loading, offline, failed, stale with its age, fine', () => {
   assert.equal(Feed.addBlocked(st({ stale: true, age: 75 }), null, 0), 'Calendar not updated for 1 hr 15 min');
   assert.equal(Feed.addBlocked(st(), null, 0), '');
 });
+
+// ------------------------------------------------------------ get: a read beside the loop
+// Another day's chores: fetched through the feed's timeout, but not a write, so never busy, no
+// refresh after it and no effect on the feed's state when it fails.
+test('get resolves with the JSON body, is never busy and does not refresh the feed', async () => {
+  const held = [];
+  const h = harness({ respond: (url) => (url === '/other' ? new Promise((ok) => { held.push(ok); }) : json(200, body())) });
+  h.feed.start();
+  await h.settle();
+  const timers = h.timers.length, calls = h.calls;
+  let got;
+  h.feed.get('/other').then((b) => { got = b; });
+  await h.settle();
+  assert.equal(h.feed.busy(), false);
+  held[0](json(200, { date: '2026-10-19' }));
+  await h.settle();
+  assert.deepEqual(got, { date: '2026-10-19' });
+  assert.equal(h.calls, calls + 1, 'only the get itself');
+  assert.equal(h.timers.length, timers, 'no refresh scheduled');
+});
+
+test('a failed get rejects with the reason and leaves the feed\'s state alone', async () => {
+  let mode = 'error';
+  const h = harness({ respond: (url) => (url !== '/other' ? json(200, body())
+    : mode === 'error' ? json(400, { error: 'date must be a day as YYYY-MM-DD' }) : mode === '5xx' ? json(502, {}) : failing()) });
+  h.feed.start();
+  await h.settle();
+  const before = h.feed.state(), states = h.states;
+  await assert.rejects(h.feed.get('/other'), /date must be a day/);
+  mode = '5xx';
+  await assert.rejects(h.feed.get('/other'), /HTTP 502/);
+  mode = 'down';
+  await assert.rejects(h.feed.get('/other'), (e) => e.message === Feed.UNREACHABLE);
+  assert.deepEqual(h.feed.state(), before);
+  assert.equal(h.states, states, 'no onState');
+});
+
+test('a get that never answers times out', async () => {
+  const h = harness({ respond: (url) => (url === '/other' ? new Promise(() => {}) : json(200, body())) });
+  h.feed.start();
+  await h.settle();
+  let err;
+  h.feed.get('/other').catch((e) => { err = e; });
+  await h.settle();
+  const timeout = h.timers.find((t) => t.ms === 30000);
+  h.timers = h.timers.filter((t) => t !== timeout);
+  timeout.fn();
+  await h.settle();
+  assert.equal(err.message, Feed.UNREACHABLE);
+});
